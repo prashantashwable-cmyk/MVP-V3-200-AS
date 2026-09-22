@@ -13,6 +13,7 @@ import { ForgotPasswordReset } from './components/ForgotPasswordReset';
 import { PermissionsPrimer } from './components/PermissionsPrimer';
 import { CommandPalette, registerSearchProvider } from './components/CommandPalette';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
+import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
 import { resolveEnvironment } from './lib/environment';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
 import { installGlobalErrorCapture } from './lib/observability';
@@ -242,6 +243,17 @@ export default function App() {
           {currentUser.role === 'customer' && <CustomerRouter {...routerProps} />}
           {currentUser.role === 'supplier' && <SupplierRouter {...routerProps} />}
           <SharedRoutes {...routerProps} />
+
+          {/* Phase 20: five-operating-surfaces primary navigation home —
+              reuses Phase 10's exact groupTabsBySurface()/aiec_switch_tab
+              mechanism (see OperatingSurfacesHome.tsx), additive: every
+              existing tab/router above is untouched. */}
+          {activeTab === 'OperatingSurfaces' && (
+            <OperatingSurfacesHome
+              tabs={getTabsByRole(currentUser.role)}
+              onSelectTab={(tabId) => setActiveTab(tabId)}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
     );
@@ -751,6 +763,7 @@ export default function App() {
       case 'admin':
         return [
           { id: 'Home', label: 'Overview', icon: LayoutDashboard },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'CustomerHomeDashboard', label: 'Customer Portal 🏠', icon: Building },
           { id: 'ProjectStatusTracker', label: 'Project Status Tracker ⏱️', icon: Clock },
           { id: 'LeadInbox', label: 'Lead Inbox 📥', icon: FileText },
@@ -882,6 +895,7 @@ export default function App() {
       case 'surveyor':
         return [
           { id: 'Home', label: 'Capture Portal', icon: Building },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'LeadFollowUp', label: 'Follow-Ups 📅', icon: Calendar },
           { id: 'Incentives', label: 'History', icon: Users },
           { id: 'Settings', label: 'Settings', icon: Settings }
@@ -889,6 +903,7 @@ export default function App() {
       case 'technician':
         return [
           { id: 'TechnicianHomeMyJobs', label: 'My Assigned Jobs 🧰', icon: Wrench },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'JobDetailSiteInfo', label: 'Site Specs & Materials 🔍', icon: Eye },
           { id: 'InstallationSopChecklist', label: 'Installation SOP Checklist 🔨', icon: Hammer },
           { id: 'PhotoVideoEvidenceCapture', label: 'Media Evidence Gallery 📸', icon: Camera },
@@ -905,6 +920,7 @@ export default function App() {
       case 'customer':
         return [
           { id: 'CustomerHomeDashboard', label: 'Customer Home 🏠', icon: Building },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'ProjectStatusTracker', label: 'Installation Tracker ⏱️', icon: Clock },
           { id: 'CustomerDocumentVault', label: 'Document Vault 📁', icon: FileText },
           { id: 'CustomerPaymentInstallments', label: 'Payments & Installments 💳', icon: CreditCard },
@@ -926,6 +942,7 @@ export default function App() {
       case 'supplier':
         return [
           { id: 'Home', label: 'Catalog Engine', icon: Truck },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'SupplierDirectory', label: 'Supplier Directory 🏢', icon: Building },
           { id: 'SupplierCatalogPricing', label: 'Catalog & Pricing 🏷️', icon: Tag },
           { id: 'PurchaseOrderGenerator', label: 'Purchase Orders 📦', icon: FileText },

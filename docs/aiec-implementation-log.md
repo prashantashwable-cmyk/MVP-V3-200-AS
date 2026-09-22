@@ -1711,6 +1711,72 @@ Phase 20 — Make the Five Operating Surfaces Primary.
 
 ---
 
+## Phase 20 — Make the Five Operating Surfaces Primary
+
+**Date:** 2026-09-22
+**Status:** Complete (five surfaces now reachable via a dedicated,
+prominent tab for every role, in addition to the Phase 10 command
+palette; not yet the default landing screen — that is Phase 28's job)
+
+### What changed
+
+- Added `src/components/OperatingSurfacesHome.tsx`: a real, full-page
+  (not modal) surface home reusing Phase 10's exact `groupTabsBySurface()`
+  and `aiec_switch_tab` navigation mechanism — no new routing, no
+  reimplementation. Filters its own tab out of its own listing (a real
+  correctness fix: its label doesn't match any surface keyword, so it
+  would otherwise recursively list itself under CONTROL).
+- Mounted additively in `src/App.tsx`: 1 import line, 1 new tab entry
+  added to each of the 5 role branches of `getTabsByRole()`
+  (admin/surveyor/technician/customer/supplier), 1 new render guard
+  alongside — never replacing — every existing router mount.
+- Added `scripts/operating-surfaces-home-check.ts` (`npm run
+  operating-surfaces-home:check`, wired into `npm run checks`): 18
+  assertions — logic-level proof of correct grouping/self-exclusion, plus
+  a structural proof (reading the real source) that the new tab was
+  added to exactly 5 branches, the render guard appears exactly once,
+  and every pre-existing router mount is still textually present
+  (nothing accidentally deleted).
+- Verified, matching Phase 10's own method: build succeeds, built bundle
+  contains the new component (grep-confirmed), server boots and answers
+  `GET /` with 200.
+- Added `docs/architecture/20-five-surfaces-primary.md`.
+
+### Files/subsystems touched
+
+- `src/components/OperatingSurfacesHome.tsx` (new)
+- `scripts/operating-surfaces-home-check.ts` (new)
+- `src/App.tsx` (additive: 1 import, 5 tab-list entries, 1 render guard
+  — no existing tab, router mount, or rendering path removed or changed)
+- `docs/architecture/20-five-surfaces-primary.md` (new)
+- `package.json` (added `operating-surfaces-home:check`, extended
+  `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run operating-surfaces-home:check` — pass, 18/18 assertions
+- `npm run checks` (all 22 scripts) — pass in full, zero regressions in
+  the prior 423 assertions (441 total)
+- `npm run build` — pass; server smoke test — built server started,
+  `GET /` → 200
+
+### Known limitations
+
+- No in-browser click-through verification — no browser in this
+  sandbox, same constraint Phase 10 documented.
+- Not the default landing screen for any role yet — deliberately
+  deferred to Phase 28's "full navigation cutover."
+- Phase 10's `five-surfaces-check.ts` transcribed admin tab fixture was
+  not updated with the new tab — it is a classifier regression snapshot,
+  not a live read of `App.tsx`; unaffected by this addition.
+
+### Next phase
+
+Phase 21 — Project-Centric Operating Experience.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
