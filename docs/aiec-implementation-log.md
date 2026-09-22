@@ -332,3 +332,112 @@ Phase 04 — Real Persistence and Repository Layer.
 Phase 05 — Identity, RBAC, and Server-Side Authorization.
 
 ---
+
+## Phase 05 — Identity, RBAC, and Server-Side Authorization
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Investigated exactly which of the app's 4 login paths (Google
+  Sign-In, email/password fallback, OTP/phone fallback, demo bypass)
+  actually call Firebase Auth: only Google Sign-In does. This means the
+  Phase 01-flagged forgeable `aiec_session_token` was never actually a
+  threat to Firestore data (the other 3 paths never produce a Firebase
+  ID token, so `request.auth` is already null for them at the Firestore
+  layer) — but it revealed a real, separate, currently-live
+  privilege-escalation hole instead (next item).
+- **Fixed `firestore.rules`' `users` collection**: the prior rule let any
+  real Firebase-Auth-signed-in user overwrite their OWN `role` field
+  (e.g. to `'admin'`) via a direct SDK write, bypassing the
+  owner-email-only admin logic that only existed in client JS. Split
+  into `create` (self-claiming `role: 'admin'` now requires the owner
+  email) / `update` (role/status changes now admin-only) / `delete`
+  (admin-only). Verified non-breaking: `updateFirestoreUser` is imported
+  but never called anywhere in the codebase, and `RoleSelectionWizard`
+  only touches the local `DbManager` store, never this Firestore doc.
+- Added `AuthMethod` field to `src/types.ts`'s `User`
+  (`'firebase_auth' | 'otp_unverified' | 'password_unverified' |
+  'demo'`), wired at the 4 session-creation sites in `src/App.tsx` with
+  zero change to any existing control flow — purely an added label.
+- Added `src/domain/permissions.ts`: the pack's exact permission
+  vocabulary (`project.*`, `quote.*`, `contract.approve`, `payment.*`,
+  `supplier.manage`, `po.approve`, `job.execute`, `qc.approve`,
+  `handover.approve`, `automation.publish`, `user.manage`,
+  `security.manage`, plus `payment.payout`/`document.delete` for the
+  pack's payout/destructive-deletion risk categories), `ROLE_PERMISSIONS`
+  mapping all 5 roles, and `HIGH_RISK_PERMISSIONS` (refunds, payouts,
+  large discounts, permission/credential changes, automation publishing,
+  destructive deletion).
+- Added `src/lib/authz.ts`: `evaluatePermission()`/`can()`/
+  `assertPermission()` — the single authorization decision function,
+  explicitly documented as UI-convenience where no server-side
+  equivalent exists yet (per non-negotiable principle #8). High-risk
+  permissions additionally require `isVerifiedIdentity()` (only
+  `authMethod === 'firebase_auth'` qualifies) — an admin logged in via
+  the unverified OTP/email/demo paths cannot perform refunds, payouts,
+  permission changes, or automation publishing even though their role
+  would otherwise allow it.
+- Added `scripts/authz-check.ts` (`npm run authz:check`): 16 assertions
+  directly against the decision function (not a UI state) covering every
+  unauthorized/authorized scenario in Phase 13's Scenario G list, plus a
+  static regression guard on the `firestore.rules` fix text.
+- Added `docs/architecture/05-authorization.md`: full writeup, including
+  the corrected understanding of which login paths were ever a real
+  Firestore threat vs. which were not, and exactly where enforcement is
+  real (Firestore rules) vs. UI-convenience-only (the ~124+ `DbManager`
+  screens with no server in front of them at all).
+
+### Files/subsystems touched
+
+- `src/types.ts` (added `AuthMethod` type + optional field, additive)
+- `src/App.tsx` (4 one-line additions: `authMethod` on session objects;
+  no existing behavior changed)
+- `src/domain/permissions.ts` (new)
+- `src/lib/authz.ts` (new)
+- `firestore.rules` (`users` collection rule split/fixed; all other
+  rules from Phases 01/04 untouched)
+- `scripts/authz-check.ts` (new)
+- `docs/architecture/05-authorization.md` (new)
+- `package.json` (added `authz:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (lint + domain + workflow + repository + authz) —
+  pass in full; `authz:check` 16/16 assertions pass
+- `npx vite build` — pass, bundle size effectively unchanged
+
+### Known limitations
+
+- Real server-side enforcement (Firestore rules) exists only for the
+  Phase 04 vertical-slice collections plus the now-fixed `users`
+  collection. The ~124+ screens still backed only by `DbManager` have no
+  server-side authorization at all — `authz.ts` calls there would be
+  real UX improvements (fail loudly instead of nothing) but not a true
+  security boundary, and this doc is explicit that they must not be
+  described as one. Closing this fully means migrating those domains
+  onto the Phase 04 repository layer, which is Phases 08/09's job.
+- `server.ts` still has zero authentication/authorization middleware on
+  any route. A real fix needs `firebase-admin` (not currently a
+  dependency) to verify ID tokens server-side, and a live token to test
+  against — unavailable in this sandbox (same credential gap as Phase 04
+  §6). Documented rather than attempted untested.
+- Firestore rules cannot be executed live here (no Emulator Suite, no
+  live credentials) — `authz-check.ts`'s static text check on
+  `firestore.rules` is the honest substitute; a follow-up with real
+  credentials should run the Firestore Rules Unit Testing library
+  directly against the rules file.
+- `authMethod` is not currently persisted into `DbManager`'s stored user
+  record, only attached to the in-memory `currentUser` object at login —
+  so a session restored from the (still-present, still-forgeable)
+  `aiec_session_token` will have `authMethod: undefined`, which
+  `authz.ts` correctly treats as NOT verified (fails closed) — a safe,
+  if slightly conservative, consequence rather than a gap.
+
+### Next phase
+
+Phase 06 — Audit, Versioning, Concurrency, and Idempotency.
+
+---

@@ -452,7 +452,11 @@ export default function App() {
             DbManager.addUser(found);
           }
 
-          setCurrentUser({ ...found, isDemo: false });
+          // Phase 05: this OTP flow is entirely client-side (no real SMS
+          // provider — see triggerInstantVerification above); tag it so
+          // authz.ts can withhold high-risk permissions from it even
+          // though the role itself may otherwise qualify.
+          setCurrentUser({ ...found, isDemo: false, authMethod: 'otp_unverified' });
 
           if (rememberMe) {
             localStorage.setItem('aiec_session_token', `session_${found.id}`);
@@ -517,7 +521,10 @@ export default function App() {
         DbManager.addUser(found);
       }
       
-      setCurrentUser({ ...found, isDemo: false });
+      // Phase 05: this email/password check is entirely client-side
+      // (hardcoded demo credentials, no real auth backend) — tag it so
+      // authz.ts can withhold high-risk permissions from it.
+      setCurrentUser({ ...found, isDemo: false, authMethod: 'password_unverified' });
       if (rememberMe) {
         localStorage.setItem('aiec_session_token', `session_${found.id}`);
         localStorage.setItem('aiec_last_role_used', found.role);
@@ -550,7 +557,10 @@ export default function App() {
 
       // Mirror into the local array too, so this session's admin/staff views
       // (which still read DbManager.getUsers()) can see this real user.
-      const mirroredUser: User = { ...found, isDemo: false };
+      // Phase 05: this is the ONE login path backed by a real,
+      // server-verifiable Firebase Auth ID token — authz.ts's high-risk
+      // permission gate keys off exactly this value.
+      const mirroredUser: User = { ...found, isDemo: false, authMethod: 'firebase_auth' };
       const localList = DbManager.getUsers();
       if (!localList.find(u => u.id === mirroredUser.id)) {
         DbManager.addUser(mirroredUser);
@@ -587,7 +597,8 @@ export default function App() {
       status: 'active',
       onboardingCompleted: true,
       primer_shown_flag: true,
-      isDemo: true
+      isDemo: true,
+      authMethod: 'demo'
     };
     setCurrentUser(demoUser);
     setShowCarousel(false);

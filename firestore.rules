@@ -29,11 +29,38 @@ service cloud.firestore {
       return isAuthenticated();
     }
 
+    function isOwnerEmail() {
+      return isAuthenticated() && request.auth.token.email == 'prashantashwable@gmail.com';
+    }
+
     // 1. Users collection
     // Users can read their own profile; only Admins can create/modify arbitrary user roles.
+    //
+    // Phase 05 fix (real, previously-live privilege-escalation hole):
+    // the prior blanket `allow write: if ... request.auth.uid == userId`
+    // let ANY authenticated user set THEIR OWN `role` field to 'admin'
+    // (or any other role) via a direct Firestore write, bypassing the
+    // owner-email-only admin logic that existed only in client JS
+    // (src/lib/firestoreUsers.ts) — exactly the "client-side authorization
+    // is not enforcement" gap non-negotiable principle #8 warns about.
+    // Fixed by: (a) a new document may only self-claim role 'admin' if
+    // the token's email is the designated owner email — matching the
+    // existing client-side intent, now actually enforced; (b) an
+    // existing document's `role`/`status` can only be changed by an
+    // Admin, never by the user themself.
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+
+      allow create: if isAuthenticated() && request.auth.uid == userId &&
+        (isOwnerEmail() || request.resource.data.role != 'admin');
+
+      allow update: if isAdmin() || (
+        isAuthenticated() && request.auth.uid == userId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.status == resource.data.status
+      );
+
+      allow delete: if isAdmin();
     }
 
     // 1b. Leads (sales pipeline captured by surveyors, managed by admins)

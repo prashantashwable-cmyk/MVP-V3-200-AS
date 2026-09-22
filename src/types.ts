@@ -68,11 +68,27 @@ export interface SlaCategoryTrend {
 }
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
+/**
+ * How this session's identity was established. Added Phase 05.
+ * 'firebase_auth' (Google Sign-In) is the only path currently backed by a
+ * real, server-verifiable credential (a genuine Firebase Auth ID token).
+ * 'otp_unverified' and 'password_unverified' record sessions created by
+ * this app's client-side-only OTP/email login flows (see src/App.tsx
+ * handleEmailSubmit/triggerInstantVerification) — these never call
+ * Firebase Auth at all, so Firestore already treats them as
+ * unauthenticated (request.auth is null); this field lets in-app
+ * permission checks (src/lib/authz.ts) also treat them as unverified for
+ * high-risk actions, without breaking their normal day-to-day use of the
+ * app. See docs/architecture/05-authorization.md.
+ */
+export type AuthMethod = 'firebase_auth' | 'otp_unverified' | 'password_unverified' | 'demo';
+
 export interface User {
   id: string;
   role: UserRole;
   name: string;
   phone: string;
+  authMethod?: AuthMethod;
   status: UserStatus;
   avatarUrl?: string;
   region?: string;
