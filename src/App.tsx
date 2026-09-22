@@ -11,7 +11,11 @@ import { SupplierOnboarding } from './components/SupplierOnboarding';
 import { CustomerQuickSignup } from './components/CustomerQuickSignup';
 import { ForgotPasswordReset } from './components/ForgotPasswordReset';
 import { PermissionsPrimer } from './components/PermissionsPrimer';
-import { CommandPalette } from './components/CommandPalette';
+import { CommandPalette, registerSearchProvider } from './components/CommandPalette';
+import { EnvironmentBadge } from './components/EnvironmentBadge';
+import { resolveEnvironment } from './lib/environment';
+import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
+import { installGlobalErrorCapture } from './lib/observability';
 import {
   Building,
   Phone,
@@ -176,6 +180,23 @@ export default function App() {
   // demo sessions (or no session) keep it 100% local. See DbManager.setSessionMode.
   useEffect(() => {
     DbManager.setSessionMode(currentUser);
+  }, [currentUser?.id, currentUser?.isDemo]);
+
+  // Phase 12: registers the live Project/Customer search provider into
+  // the Phase 10 command palette's extension point, and refreshes its
+  // cache. Best-effort — a non-admin real session's scoped Firestore
+  // rules may legitimately deny an unfiltered list() (see
+  // entitySearchProvider.ts), which is caught there and never surfaces
+  // as an app error; the palette simply falls back to screen-name search.
+  useEffect(() => {
+    if (!currentUser) return;
+    const ctx = { environment: resolveEnvironment(currentUser), actorUserId: currentUser.id };
+    const unregister = registerSearchProvider(
+      createProjectCustomerSearchProvider(ctx, (tabId: string) => setActiveTab(tabId)),
+    );
+    refreshEntitySearchCache(ctx);
+    installGlobalErrorCapture(ctx); // real window.onerror/unhandledrejection capture (Phase 12) — installs once, no-ops on repeat calls
+    return unregister;
   }, [currentUser?.id, currentUser?.isDemo]);
 
   const renderTabContent = () => {
@@ -2248,6 +2269,12 @@ export default function App() {
                     navigates via the existing aiec_switch_tab event, same as
                     LeadInbox.tsx's cross-screen links — no routing logic touched. */}
                 <CommandPalette tabs={getTabsByRole(currentUser.role)} />
+
+                {/* Phase 12: environment visibility badge — Phase 04 built the
+                    demo/sandbox/production model but never rendered it anywhere
+                    (documented gap). Purely additive, renders nothing extra beyond
+                    itself. */}
+                <EnvironmentBadge environment={resolveEnvironment(currentUser)} />
 
                 {/* 3. SCROLLABLE SCREEN STAGE CONTENT AREA */}
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8">

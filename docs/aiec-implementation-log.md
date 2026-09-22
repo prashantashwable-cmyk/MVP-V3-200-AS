@@ -940,3 +940,101 @@ Phase 12 — Control Tower, Global Search, Observability, and Production
 Hardening.
 
 ---
+
+## Phase 12 — Control Tower, Search, Observability, Production Hardening
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/services/controlTower.ts`: `getControlTowerItems()` queries
+  real data across `workflow_executions`, `payments`,
+  `reconciliation_records`, `snags`, `handovers`, `contracts_v2`,
+  `purchase_orders` and classifies into Critical/At Risk/Waiting/On
+  Track, sorted Critical-first, every item carrying a real, confirmed
+  `actionTabId` (Phase 10's tab vocabulary) so selecting one leads
+  directly to a resolution screen.
+- Added `src/lib/observability.ts`: `captureEvent()`
+  (persisted through the repository layer), `installGlobalErrorCapture()`
+  (real `window.onerror`/`unhandledrejection` listeners),
+  `getObservabilitySummary()` (metrics derived from Phase 07/11 data,
+  plus an honest `integrationHealth` list restating the same documented
+  gaps earlier phases found — object storage, notification providers,
+  payment gateway, server auth middleware — rather than claiming
+  everything is healthy).
+- Added `src/services/dataQuality.ts`: 6 of the pack's 8 named checks
+  (duplicate customers, orphaned payments, orphaned POs, inconsistent
+  statuses, expired documents, stale records) as real repository
+  queries returning concrete record IDs.
+- Added `src/navigation/entitySearchProvider.ts`: fills Phase 10's
+  `registerSearchProvider()` extension point (left unused there, gated
+  on real data) — searches real `Project`/`Customer` records via a
+  locally-cached, non-blocking search path.
+- Added `src/components/EnvironmentBadge.tsx`: renders Phase 04's
+  `AppEnvironment` (never rendered anywhere before this phase) — a loud
+  banner for `demo`, a small corner tag for `sandbox`/`production`.
+- Wired both into `src/App.tsx` additively: `<EnvironmentBadge>` mounted
+  alongside the command palette, and one new `useEffect` that registers
+  the live search provider, refreshes its cache, and installs crash
+  capture — defensive throughout (a non-admin session's correctly-scoped
+  Firestore rules denying an unfiltered list() is caught and treated as
+  expected, never surfaced as an app error).
+- Extended `firestore.rules`: `observability_events` (authenticated
+  create, admin read, immutable). All prior rules untouched.
+- Performed a real security review (grep-based, same method as Phase 01):
+  confirmed zero `if true` permissive rules anywhere in `firestore.rules`;
+  confirmed Gemini/Maps keys are correctly server-side only; restated the
+  known client-only-authorization boundary for legacy `DbManager`
+  screens; and **quantified** the destructive-action-confirmation gap —
+  45 of 189 components call a delete/remove/revoke/deactivate/disable-
+  style method, and 43 of those 45 (96%) have no detectable `confirm()`
+  call anywhere in the file.
+- Added `scripts/control-tower-check.ts`
+  (`npm run controltower:check`): 20 assertions.
+- Added `docs/architecture/12-control-tower-and-hardening.md`.
+
+### Files/subsystems touched
+
+- `src/services/controlTower.ts`, `dataQuality.ts` (new)
+- `src/lib/observability.ts` (new)
+- `src/navigation/entitySearchProvider.ts` (new)
+- `src/components/EnvironmentBadge.tsx` (new)
+- `src/App.tsx` (additive: 3 import lines, 1 JSX mount, 1 new
+  `useEffect` — no existing code modified)
+- `firestore.rules` (1 new collection; all prior rules untouched)
+- `scripts/control-tower-check.ts` (new)
+- `docs/architecture/12-control-tower-and-hardening.md` (new)
+- `package.json` (added `controltower:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 13 acceptance scripts) — pass in full; 20/20 new
+  assertions, zero regressions in the prior 285 (306 total)
+- `npm run build` (full build incl. server) — pass
+- Server smoke test: `GET /` → 200, `GET /api/health` → 200; built JS
+  bundle grep-confirmed to contain both the environment badge text and
+  the command palette
+
+### Known limitations
+
+- Global search covers Project/Customer only, not the pack's full list
+  (Quote/Contract/Payment/PO/Shipment/Job/QC) — those entities have no
+  dedicated detail screen yet for a result to land on; documented as
+  scope, not silently narrowed (see doc §2).
+- 2 of the pack's 8 data-quality checks (invalid identifiers, generic
+  "missing required relationships" beyond the orphan checks) not
+  implemented — judged lower-value given Phase 02's branded ID types
+  already prevent most identifier-shape errors at compile time.
+- The 96%-of-destructive-actions-lack-confirmation finding is measured
+  and reported, not fixed at scale in this phase (43 files) — flagged as
+  the top actionable item for a focused follow-up.
+- Client-only authorization for ~124+ legacy `DbManager` screens remains
+  the same restated (not re-solved) Phase 05/08/09 boundary.
+
+### Next phase
+
+Phase 13 — Final End-to-End Acceptance and Cleanup.
+
+---

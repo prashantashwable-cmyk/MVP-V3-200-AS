@@ -20,7 +20,8 @@
     "surfaces:check": "tsx scripts/five-surfaces-check.ts",
     "offline:check": "tsx scripts/offline-sync-check.ts",
     "reliability:check": "tsx scripts/notification-reconciliation-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check"
+    "controltower:check": "tsx scripts/control-tower-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

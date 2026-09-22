@@ -334,5 +334,17 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false;
     }
+
+    // 12. Phase 12 — observability events (src/lib/observability.ts).
+    // Any authenticated session may report a client crash / app error
+    // about itself (that's the whole point — a crashed session still
+    // needs to be able to report the crash); only Admin can read the
+    // resulting stream. Immutable once written, same as every other
+    // audit-shaped collection in this file.
+    match /observability_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
   }
 }
