@@ -142,3 +142,91 @@ Phase 02 — Canonical Domain Model and Project Spine.
 Phase 03 — Workflow State Machine and Screen Registry.
 
 ---
+
+## Phase 03 — Workflow State Machine and Screen Registry
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/workflows/types.ts`: reusable `WorkflowDefinition`/
+  `WorkflowTransition`/`WorkflowStateDef` primitives, `transitionsFrom`/
+  `canTransition`/`exceptionTransitions`/`validateWorkflowDefinition`
+  helpers, and the `ScreenDefinition`/`ScreenKind`/`Surface` types the
+  registry uses.
+- Added `src/workflows/definitions/{sales,quote,payment,procurement,
+  installation,qc,handover}.ts`: the 7 required workflow skeletons,
+  implemented exactly as specified in
+  `03_WORKFLOW_STATE_MACHINE_AND_SCREEN_REGISTRY.md`, each with real
+  role assignments per state transition and explicit exception/loop
+  transitions (lost-lead paths, quote rejection/renegotiation, payment
+  direct-vs-loan branch + retry/dispute loop, PO rejection + damaged/
+  missing incident loop, installation site-not-ready block, QC
+  snag→rework→reinspection open-ended loop, and a handover workflow whose
+  only entry point is gated on `qcPassed === true`).
+- Added `src/workflows/definitions/index.ts`: `workflowRegistry` keyed by
+  workflow key, for the screen registry and (from Phase 07) the event bus
+  to look up by name.
+- Added `src/workflows/screenRegistry.ts`: all 189 `src/components/*.tsx`
+  screens classified into one of the 7 required `ScreenKind`s (76
+  supporting_tool, 49 workflow_step, 19 configuration, 14 report, 13
+  document_detail, 11 dashboard_control, 7 exception_handling). The 49
+  `workflow_step` entries carry `workflow`/`stage`/`entryCondition`/
+  `completionEvent`/`nextStages`/`exceptionStages` pulled directly from
+  the actual workflow definitions (procurement 10, payment 9, quote 9,
+  sales 7, handover 6, installation 5, qc 3).
+- Added `scripts/workflow-validate.ts` (`npm run workflow:validate`):
+  validates all 7 definitions (no unknown states, no roleless
+  transitions, no non-terminal dead ends) and confirms every registry
+  `workflow`/`stage` reference resolves against a real definition. Also
+  added `npm run checks` = lint + domain:check + workflow:validate.
+- Added `docs/architecture/03-workflows.md`: full writeup of the 7
+  workflows (states, happy-path length, exception transitions), the
+  screen registry kind/coverage breakdown, and the exact method used to
+  build the registry (curated workflow-step map + name-based heuristic
+  for the remainder), including how to regenerate it.
+
+### Files/subsystems touched
+
+- `src/workflows/types.ts` (new)
+- `src/workflows/definitions/sales.ts`, `quote.ts`, `payment.ts`,
+  `procurement.ts`, `installation.ts`, `qc.ts`, `handover.ts`, `index.ts`
+  (new)
+- `src/workflows/screenRegistry.ts` (new, 189 entries)
+- `scripts/workflow-validate.ts` (new)
+- `docs/architecture/03-workflows.md` (new)
+- `package.json` (added `workflow:validate` script, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (lint + domain:check + workflow:validate) — pass;
+  workflow:validate reports 7/7 definitions valid and 189/189 registry
+  entries resolve
+- `npx vite build` — pass, unchanged bundle size (app code untouched)
+
+### Known limitations
+
+- The screen registry's `workflow_step` mapping (49 screens) and the
+  `kind` classification for the other 140 are a first-pass, name-based
+  best effort, not a hand-verified read of every screen's internals —
+  explicitly documented as such in `03-workflows.md` §3, to be refined
+  as Phases 08-10 wire each surface to the real engine.
+- `purpose`/`primaryAction` text for non-workflow-step screens is
+  generic-by-kind (e.g. "Supporting tool used in context of one or more
+  workflows..."), not a bespoke one-line description per screen — writing
+  189 bespoke descriptions was judged lower value than getting the state
+  machines and workflow-step mapping right first; can be filled in
+  per-screen as each is touched in later phases.
+- No screen was rewired to actually call into these state machines yet —
+  that begins in Phase 04 (repository layer) and continues through
+  Phases 07-09. This phase establishes the registry/state-machine layer
+  itself, per the pack's explicit phase ordering.
+
+### Next phase
+
+Phase 04 — Real Persistence and Repository Layer.
+
+---
