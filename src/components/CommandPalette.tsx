@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, CornerDownLeft } from 'lucide-react';
+import { Search, X, CornerDownLeft, Command } from 'lucide-react';
 import { Card } from './Common';
 import { groupTabsBySurface, SURFACE_ORDER, SURFACE_LABELS, type NavTab } from '../navigation/surfaces';
 
@@ -21,6 +21,11 @@ import { groupTabsBySurface, SURFACE_ORDER, SURFACE_LABELS, type NavTab } from '
  * cross-screen navigation (confirmed real, not invented for this
  * phase) — so this component needs zero changes to `App.tsx`'s routing
  * logic to work.
+ *
+ * Ctrl/Cmd+K only reaches people with a physical keyboard. A phone has
+ * none, so a floating tap-to-open button (bottom-right, above the
+ * mobile bottom nav) is the only way this palette — and the five
+ * surfaces / search it exposes — is reachable on a touch device at all.
  *
  * Full entity search (Customer/Project/Quote/Contract/Payment/PO/
  * Shipment/Job/QC by name or number, not just screen name) requires
@@ -121,7 +126,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ tabs }) => {
     }
   }
 
-  if (!open) return null;
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-20 right-4 md:bottom-5 md:right-5 z-[95] w-12 h-12 rounded-full bg-royalemerald text-white shadow-lg flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition"
+        aria-label="Open search and navigation (Ctrl/Cmd+K)"
+        title="Search & jump to… (Ctrl/Cmd+K)"
+      >
+        <Command className="w-5 h-5" />
+      </button>
+    );
+  }
 
   return (
     <div
