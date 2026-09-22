@@ -13,7 +13,8 @@
     "workflow:validate": "tsx scripts/workflow-validate.ts",
     "repository:check": "tsx scripts/repository-two-user-check.ts",
     "authz:check": "tsx scripts/authz-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check"
+    "audit:check": "tsx scripts/idempotency-audit-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

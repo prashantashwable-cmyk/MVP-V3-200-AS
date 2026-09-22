@@ -218,5 +218,26 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if false; // immutable financial record
     }
+
+    // 8. Phase 06 — audit trail and idempotency store.
+    // `audit_logs` already existed (Phase 01 §5) with exactly this
+    // shape of rule; unchanged here. `idempotency_keys` is new: it
+    // backs src/lib/idempotency.ts's runIdempotent() and must be
+    // exactly as immutable as an audit log, for the same reason — an
+    // idempotency record that could be edited or deleted defeats its
+    // own purpose (a retried payment/PO/webhook could "forget" it
+    // already ran).
+    match /purchase_orders/{poId} {
+      allow read: if isAdmin() || isRecordOwner('createdBy');
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /idempotency_keys/{keyId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated(); // any authenticated write path may register a dedup record
+      allow update, delete: if false; // immutable — see comment above
+    }
   }
 }

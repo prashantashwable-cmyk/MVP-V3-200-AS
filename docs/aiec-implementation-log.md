@@ -441,3 +441,81 @@ Phase 05 — Identity, RBAC, and Server-Side Authorization.
 Phase 06 — Audit, Versioning, Concurrency, and Idempotency.
 
 ---
+
+## Phase 06 — Audit, Versioning, Concurrency, and Idempotency
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/lib/audit.ts`: `recordAuditEvent()` — the first real writer
+  to the `audit_logs` Firestore collection (Phase 01 confirmed it already
+  had a correctly-shaped, immutable rule but no code wrote to it).
+  Writes the canonical `AuditEvent` shape (Phase 02) through the Phase 04
+  repository layer, so it gets demo/sandbox/production isolation for
+  free. Also added `listAuditEventsForEntity()`.
+- Added `src/lib/idempotency.ts`: `runIdempotent(ctx, opType,
+  idempotencyKey, fn)` — the single reusable primitive for
+  duplicate-request deduplication. Documents its own concurrency limit
+  (get-before-create, not a Firestore transaction) rather than silently
+  assuming it is race-proof.
+- Extended `src/repository/entities.ts`: `advanceProjectStage()` now
+  writes an AuditEvent (before/after stage, correlationId) on every
+  transition; added `createPaymentIdempotent()` and
+  `createPurchaseOrderIdempotent()`, both idempotency-guarded and both
+  auditing inside the guarded closure (so retries don't double-audit
+  either).
+- Extended `firestore.rules`: added `purchase_orders` (mirrors the
+  `payments` pattern) and `idempotency_keys` (admin-read,
+  authenticated-create, update/delete both `false` — an editable/
+  deletable idempotency record would defeat its own purpose). All prior
+  rules untouched.
+- Added `scripts/idempotency-audit-check.ts` (`npm run audit:check`):
+  13 assertions covering the pack's exact 5 scenarios (duplicate
+  payment, duplicate webhook, stale quote update, repeated automation
+  trigger, repeated message send) plus duplicate PO creation and a real
+  audit-trail round trip.
+- Added `docs/architecture/06-audit-idempotency.md`.
+
+### Files/subsystems touched
+
+- `src/lib/audit.ts`, `src/lib/idempotency.ts` (new)
+- `src/repository/entities.ts` (extended: audit wiring on
+  `advanceProjectStage`, new `createPaymentIdempotent`/
+  `createPurchaseOrderIdempotent`/`purchaseOrderRepository`)
+- `firestore.rules` (added `purchase_orders`, `idempotency_keys`; all
+  prior rules untouched)
+- `scripts/idempotency-audit-check.ts` (new)
+- `docs/architecture/06-audit-idempotency.md` (new)
+- `package.json` (added `audit:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (lint + domain + workflow + repository + authz +
+  audit) — pass in full; `audit:check` 13/13 assertions pass
+- `npx vite build` — pass
+
+### Known limitations
+
+- Idempotency/audit wiring covers 2 concrete call sites (payment
+  creation, PO creation) plus the project-stage-transition audit hook —
+  not yet every one of the pack's "at minimum" list (refund, payout,
+  invoice creation, external message send, webhook processing,
+  automation actions still need their own real call sites once the
+  systems that perform those actions exist — Phases 07/08/09/11).
+- The idempotency guard is not upgraded to a Firestore transaction (see
+  module doc comment) — documented as a scale/race-condition limitation
+  for a future hardening pass, not silently assumed solved.
+- No real automation engine exists yet to actually fire
+  `automation.trigger`-style calls in production — the acceptance script
+  exercises the mechanism directly; Phase 07 builds the real event bus
+  this mechanism will be wired into.
+
+### Next phase
+
+Phase 07 — Event Bus and Real Workflow Automation.
+
+---
