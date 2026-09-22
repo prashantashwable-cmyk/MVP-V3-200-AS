@@ -1641,6 +1641,76 @@ Phase 19 — Migrate Customer, Supplier, Technician Portals.
 
 ---
 
+## Phase 19 — Customer, Supplier, Technician Portals
+
+**Date:** 2026-09-22
+**Status:** Complete (real canonical-data service layer per portal;
+screen-rendering wiring deferred — see doc §3)
+
+### What changed
+
+- Investigated the real routers/tab lists directly before writing code:
+  found `getTabsByRole()` already gives customer/supplier/technician
+  separate, much smaller, genuinely role-scoped tab lists (17/16/13
+  items) — the admin-style "module-oriented" concern this phase warns
+  about was largely already not true here. Documented a full comparison
+  against the pack's named target categories per portal, including two
+  genuine, honestly-named gaps (customer: no post-sale Contract/Warranty
+  view; technician: no "Today"/"Completion" view — the latter needs a
+  scheduled-date field the domain model does not define yet).
+- Added `src/services/portalWorkSummary.ts`: `getCustomerPortalSummary()`,
+  `getSupplierPortalSummary()`, `getTechnicianPortalSummary()` — the
+  first real canonical-data view any of the three portals have had;
+  built entirely from the Project/Quote/Contract/Payment/PurchaseOrder/
+  Shipment/DeliveryReceipt/InstallationJob/QCInspection/Handover/
+  Warranty records the Phase 15-18 dual-write bridges have been
+  populating.
+- Added `scripts/portal-summary-check.ts` (`npm run portal-summary:check`,
+  wired into `npm run checks`): 15 assertions — runs a realistic slice of
+  the entire Lead→Warranty story through the real Phase 15-18 bridges,
+  then proves all three summaries report exactly what that real history
+  produced (including a real Warranty record created by the Phase 09
+  event handler, not synthesized by the test).
+- Added `docs/architecture/19-portals.md`.
+
+### Files/subsystems touched
+
+- `src/services/portalWorkSummary.ts` (new)
+- `scripts/portal-summary-check.ts` (new)
+- `docs/architecture/19-portals.md` (new)
+- `package.json` (added `portal-summary:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run portal-summary:check` — pass, 15/15 assertions
+- `npm run checks` (all 21 scripts) — pass in full, zero regressions in
+  the prior 408 assertions (423 total)
+- `npm run build` — pass, bundle unchanged (service not yet imported by
+  any screen)
+
+### Known limitations
+
+- Not wired into any of the 189 screens' rendering — same
+  browser-verification-risk reasoning as Phases 15-18; the service is
+  real and independently proven correct, ready for a follow-up wiring
+  pass.
+- No "Today" view for technicians — `InstallationJob` has no scheduled-
+  date field in the Phase 02 domain model; a real fix needs that
+  modeled, not fabricated.
+- No post-sale Contract/Warranty tab added to the customer portal this
+  phase — the data is now real and summarized
+  (`getCustomerPortalSummary()`), but adding a new tab means editing
+  `App.tsx`'s large tab-switch statement, which this phase deferred
+  alongside the rendering-wiring decision above.
+
+### Next phase
+
+Phase 20 — Make the Five Operating Surfaces Primary.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
