@@ -1038,3 +1038,207 @@ Hardening.
 Phase 13 — Final End-to-End Acceptance and Cleanup.
 
 ---
+
+## Phase 13 — Final End-to-End Acceptance and Cleanup
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `scripts/final-e2e-acceptance.ts` (`npm run e2e:check`): unlike
+  every prior phase's script (each proving one phase's mechanism with
+  its own isolated fixture), this runs ONE project through Scenarios
+  A-H as a single continuous story — Lead → Customer/Site/Project →
+  Quote → Contract → Payment → Procurement → Delivery → Installation →
+  QC (fail → snag → rework → reinspect → pass) → Handover → Warranty —
+  then exercises duplicate/retry (F), security denial (G), and
+  two-independent-reads consistency (H) against that SAME, fully-lived-
+  in project. 21/21 assertions pass. Found and fixed two bugs in the
+  test itself while writing it (a lead-stage fixture that mapped to the
+  wrong project stage; a "customer collecting their own payment"
+  scenario that was actually authorized per Phase 05's own permission
+  model, not a real unauthorized-action example) — both corrected
+  rather than papered over.
+- Added `docs/architecture/FINAL-OPERATING-MODEL.md`: canonical
+  lifecycle, domain model, workflow registry, five surfaces, permissions
+  model, event model, audit model, integrations (real vs. documented
+  gap table), consolidated known limitations, and what "done" means for
+  this pack.
+- Added `docs/qa/END-TO-END-ACCEPTANCE.md`: pass/fail record for all 8
+  named scenarios (8/8 pass, one — H — with a documented,
+  Phase-04-inherited scope note about live Firestore credentials), plus
+  the full 14-script/325-assertion acceptance suite table.
+- **Cleanup review performed, nothing removed**: confirmed every phase
+  in this pack was additive — no existing screen was replaced by a new
+  one, so nothing became newly obsolete. The 5 components Phase 01 found
+  unreferenced by any router remain exactly as found, left untouched per
+  "do not delete capability" rather than removed without a clear mandate.
+
+### Files/subsystems touched
+
+- `scripts/final-e2e-acceptance.ts` (new)
+- `docs/architecture/FINAL-OPERATING-MODEL.md` (new)
+- `docs/qa/END-TO-END-ACCEPTANCE.md` (new)
+- `package.json` (added `e2e:check`, extended `checks`)
+- No existing screen, router, `DbManager`, or other source file was
+  modified or removed.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 14 acceptance scripts) — pass in full; 325
+  assertions total, zero regressions across all 13 prior phases
+- `npm run build` (full build incl. server) — pass
+
+### Known limitations
+
+See `docs/architecture/FINAL-OPERATING-MODEL.md` §9 for the
+consolidated list (screen-level adoption is the largest remaining gap;
+live Firestore round-trip unverified in this sandbox; object storage/
+notification-provider/payment-gateway integrations remain real
+interfaces with zero live wiring; server has no request authentication;
+43/45 destructive-action confirmation gap quantified in Phase 12; five-
+surface nav chrome and global search both intentionally scoped narrower
+than the pack's full ambition, documented as such).
+
+---
+
+# Final Summary (all 13 phases)
+
+**Repository state at completion**: branch `main`, all 13 phases
+committed and pushed to `origin/main`. `npx tsc --noEmit` passes with 0
+errors. `npm run build` (full build including the server bundle) passes.
+`npm run checks` (14 acceptance scripts) passes with 325 assertions and
+0 failures. No existing screen, router, or `DbManager` behavior was
+deleted or broken by any phase.
+
+## Implemented (fully, with passing acceptance evidence)
+
+- **Phase 01** — Discovery/baseline: full architecture/entity/auth/
+  workflow/integration inventory, 189-screen classified CSV.
+- **Phase 02** — Canonical domain model: 30 entities, branded IDs,
+  Lead→Deal→Payment adapters, proven ID-graph coherence (16 assertions).
+- **Phase 03** — 7 real workflow state machines + 189-screen registry
+  classification (validated, 0 inconsistencies).
+- **Phase 04** — Real repository layer (Firestore + isolated demo
+  implementations), explicit DEMO/SANDBOX/PRODUCTION environment model,
+  optimistic concurrency (6 assertions; live Firestore round-trip is the
+  one documented gap — see Blocked).
+- **Phase 05** — Permission model (19 permissions, 5 roles, high-risk
+  identity-verification gate) + a real, previously-live privilege-
+  escalation fix in `firestore.rules` (16 assertions).
+- **Phase 06** — Real audit trail + idempotency primitive, wired into
+  concrete payment/PO/project-stage call sites (13 assertions).
+- **Phase 07** — Real event bus: idempotent, retried, dead-letterable,
+  auditable, with 2 fully-worked real handlers (`QUOTE_ACCEPTED`,
+  `QC_FAILED`) plus 4 more added in Phase 09 (14 assertions).
+- **Phase 08** — Commercial workflow orchestration, Quote through
+  Procurement dispatch, event-driven contract auto-creation (21
+  assertions); found/fixed a real Phase 04 repository bug along the way.
+- **Phase 09** — Operations orchestration, Delivery through Handover,
+  with both named hard gates (check-in/readiness; QC-pass-before-
+  handover) enforced as code that throws, not UI convention (17
+  assertions).
+- **Phase 10** — Five-surface classification of the REAL live nav
+  vocabulary + a working, mounted Ctrl/Cmd+K command palette (148
+  assertions on real data; caught and fixed 2 real classifier bugs).
+- **Phase 11** — Offline outbox + resumable media upload (proven
+  survival of simulated network interruption without data loss),
+  centralized notifications (honest per-channel delivery status),
+  reusable reconciliation model (35 assertions).
+- **Phase 12** — Control tower (real cross-collection exception
+  aggregation), observability (derived metrics + honest integration
+  health), data quality checks, live entity search, environment badge,
+  and a real, quantified security review (20 assertions).
+- **Phase 13** — Full 8-scenario end-to-end acceptance as one continuous
+  project story (21 assertions) + final operating-model and QA
+  documentation.
+
+## Partially implemented (real, working, but narrower than the pack's full ambition — each documented in its own phase)
+
+- **Screen-level adoption**: the entire backend/service/workflow/authz/
+  audit/event/offline/reconciliation stack (Phases 02-09, 11-12) is
+  real and proven via acceptance scripts, but only Phase 10/12's
+  command palette and environment badge are actually mounted in the
+  live UI. The ~189 original screens still read/write through the
+  pre-existing `DbManager`, not this pack's repository layer. This was
+  the pack's own explicit sequencing decision (`RUN_ALL.md`: UX work
+  must follow, not precede, the architecture phases) — the foundation is
+  now in place for that adoption to happen, not yet exercised on every
+  screen.
+- **Five-surface navigation**: reachable via the command palette;
+  existing sidebar/bottom-nav chrome unchanged (Phase 10 §9).
+- **Global search**: Project/Customer by name only, not the pack's full
+  entity list (Phase 12 §2) — gated on those other entities not yet
+  having a dedicated screen for a result to land on.
+- **Sales pre-quote sub-workflow** (qualification/assignment/follow-up/
+  site-survey): modeled as a real state machine (Phase 03) but has no
+  dedicated service-layer mutation function (Phase 08 §5) — `Lead`
+  already has a separate, working real persistence path this pack chose
+  not to duplicate.
+- **Event vocabulary coverage**: 6 of 18 canonical events have real
+  handlers; the rest are defined but unimplemented, deliberately (a
+  handler with no real effect would be the "simulated automation"
+  anti-pattern this pack exists to eliminate).
+- **Data quality**: 6 of the pack's 8 named checks implemented (Phase 12
+  §5); 2 deferred as lower-value given the domain model's compile-time
+  ID safety.
+
+## Blocked (genuine external constraints, not implementation gaps — each with a real interface built and ready)
+
+- **Live, authenticated Firestore round-trip**: this sandbox has network
+  access to `firestore.googleapis.com` (verified directly with `curl`,
+  real `403 PERMISSION_DENIED` response) but no Firebase Auth credential
+  of any kind (no service account key, no OAuth flow, no signed-in
+  session). The repository layer's Firestore implementation is real,
+  production-shaped code sharing the exact SDK primitives already proven
+  live elsewhere in this repo (`firestoreLeads.ts`) — it has not been,
+  and could not be, exercised end-to-end as an authenticated user here.
+  **Unblocks with**: real Firebase Auth credentials or the Firebase
+  Emulator Suite in a follow-up environment.
+- **Object storage (media/documents)**: no bucket configured anywhere in
+  this repository (confirmed absent at Phase 01 baseline). Real
+  interface (`FirebaseStorageTransport`) built; throws naming the exact
+  missing configuration rather than faking success. **Unblocks with**: a
+  configured Firebase Storage bucket + Storage security rules.
+- **Email/WhatsApp/SMS notification providers**: none configured (Phase
+  01 baseline). Real interface (`ChannelTransport`) built; honestly
+  reports `'queued'`, never a false `'delivered'`. **Unblocks with**: a
+  real provider SDK (e.g. SendGrid/Twilio/WhatsApp Business API) and
+  credentials.
+- **Payment gateway / bank statement feed**: none configured (Phase 01
+  baseline). Real interface (`ExternalRecordSource`) built.
+  **Unblocks with**: a real gateway/bank integration.
+- **Server-side request authentication**: `server.ts` has no middleware
+  verifying callers. Needs the `firebase-admin` package (not currently a
+  dependency) and a live token to test against — the same credential
+  gap as the Firestore item above. **Unblocks with**: `firebase-admin` +
+  real credentials to verify against.
+
+## Remaining production risks (named, not hidden)
+
+1. **The ~189 original screens are not yet enforced server-side** for
+   anything outside the Phase 04-12 migrated collections — client-side
+   authorization only for that majority, a real risk until screen-level
+   adoption (see Partial, above) proceeds.
+2. **96% of destructive-looking actions (43/45 components) have no
+   detectable confirmation step** — quantified in Phase 12, not fixed at
+   that scale in this pack.
+3. **Demo bypass credentials are shipped in the client bundle** (literal
+   OTP codes, a fallback password) — appropriate for the current demo/
+   sandbox product scope (and already downgraded from high-risk
+   permissions by Phase 05's identity-verification gate), but must be
+   removed before a genuine production launch.
+4. **No live-credentialed verification of anything built on Firestore**
+   in this session — real code, unverified end-to-end here (see Blocked).
+5. **Idempotency guard is not transaction-backed** (Phase 06 §3) — a
+   `get`-then-`create` check, adequate for this app's realistic
+   concurrency profile, not provably race-free under true simultaneous
+   requests at scale.
+6. **Single ~6.5MB JS bundle**, no code-splitting — a real performance/
+   field-network risk for the offline-first use case Phase 11 targets,
+   noted at Phase 01 baseline and not addressed by this pack (out of
+   this pack's explicit scope).
+
+---
