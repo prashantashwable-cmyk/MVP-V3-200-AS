@@ -239,5 +239,54 @@ service cloud.firestore {
       allow create: if isAuthenticated(); // any authenticated write path may register a dedup record
       allow update, delete: if false; // immutable — see comment above
     }
+
+    // 9. Phase 07 — event bus / workflow execution engine
+    // (src/events/bus.ts) and the entities its two worked-example
+    // handlers (QUOTE_ACCEPTED, QC_FAILED) create.
+    match /workflow_instances/{instanceId} {
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /workflow_executions/{executionId} {
+      // Every execution attempt, including dead-letters, is part of the
+      // audit trail for automation — immutable once written, same as
+      // audit_logs/idempotency_keys.
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    match /snags/{snagId} {
+      allow read: if isAdmin() || isRecordOwner('assignedTo');
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isRecordOwner('assignedTo');
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || isRecordOwner('audienceUserId');
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /handovers/{handoverId} {
+      // Admin-only write: Handover.qcPassed is the hard gate Phase 09
+      // relies on, and it must never be settable by anyone other than
+      // the automation engine / an admin action — not by a technician
+      // or customer request, however indirectly.
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /qc_inspections/{inspectionId} {
+      allow read: if isAdmin() || isRecordOwner('inspectorId');
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isRecordOwner('inspectorId');
+      allow delete: if false;
+    }
   }
 }

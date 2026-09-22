@@ -15,7 +15,7 @@
 import { getRepository } from './index';
 import type { RepositoryContext } from './types';
 import type { Customer, Site, Project, Quote, QuoteVersion, Contract, PaymentSchedule, Payment } from '../domain/entities';
-import type { PurchaseOrder } from '../domain/entities';
+import type { PurchaseOrder, Snag, NotificationRecord, Handover, QCInspection } from '../domain/entities';
 import { recordAuditEvent, newCorrelationId } from '../lib/audit';
 import { runIdempotent } from '../lib/idempotency';
 
@@ -28,6 +28,10 @@ export const contractRepository = (ctx: RepositoryContext) => getRepository<Cont
 export const paymentScheduleRepository = (ctx: RepositoryContext) => getRepository<PaymentSchedule>('payment_schedules', ctx);
 export const paymentRepository = (ctx: RepositoryContext) => getRepository<Payment>('payments', ctx);
 export const purchaseOrderRepository = (ctx: RepositoryContext) => getRepository<PurchaseOrder>('purchase_orders', ctx);
+export const snagRepository = (ctx: RepositoryContext) => getRepository<Snag>('snags', ctx);
+export const notificationRepository = (ctx: RepositoryContext) => getRepository<NotificationRecord>('notifications', ctx);
+export const handoverRepository = (ctx: RepositoryContext) => getRepository<Handover>('handovers', ctx);
+export const qcInspectionRepository = (ctx: RepositoryContext) => getRepository<QCInspection>('qc_inspections', ctx);
 
 /**
  * `contracts_v2` (not `contracts`): the repo already has a real `contracts`

@@ -519,3 +519,90 @@ Phase 06 — Audit, Versioning, Concurrency, and Idempotency.
 Phase 07 — Event Bus and Real Workflow Automation.
 
 ---
+
+## Phase 07 — Event Bus and Real Workflow Automation
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/events/types.ts`: `CanonicalEventType` — the exact 18-event
+  vocabulary from the pack, already aligned with the `event` values used
+  in Phase 03's workflow transitions.
+- Added `src/events/bus.ts`: `publishEvent()` — persists one
+  `WorkflowInstance` per event occurrence, runs every registered handler
+  through Phase 06's `runIdempotent()`, retries a failing handler up to
+  3 times, dead-letters on exhaustion with a real persisted
+  `WorkflowExecution` + `AuditEvent`, and marks the instance
+  completed/failed. `retryDeadLetter()` — manual retry / human
+  escalation path.
+- Added `src/events/handlers.ts`: real handlers for the two worked
+  examples — `QUOTE_ACCEPTED` (creates a real `Contract`, advances
+  `Project.stage`, queues finance+ops notifications, audits) and
+  `QC_FAILED` (creates a real `Snag` assigned to the technician, forces
+  `Handover.qcPassed = false`/`status: 'blocked_qc_not_passed'`, starts
+  an audited SLA marker) — plus `PAYMENT_RECEIVED` and a
+  deliberately-failable `PAYMENT_OVERDUE` handler used to exercise
+  retry/dead-letter in the acceptance check.
+- Added `src/events/index.ts` barrel (registers handlers as a side
+  effect, re-exports `publishEvent`/`retryDeadLetter`/`makeEvent`).
+- Extended `src/repository/entities.ts` with `snagRepository`,
+  `notificationRepository`, `handoverRepository`,
+  `qcInspectionRepository` accessors.
+- Extended `firestore.rules`: added `workflow_instances`,
+  `workflow_executions` (immutable, mirrors `audit_logs`), `snags`,
+  `notifications`, `handovers` (admin-write-only — `qcPassed` is too
+  important a gate for any non-admin path to set), `qc_inspections`. All
+  prior rules untouched.
+- Added `scripts/event-bus-check.ts` (`npm run eventbus:check`): 14
+  assertions — both worked examples produce real, readable-back records;
+  redelivery of the same event id is idempotent; a genuinely-failing
+  handler is retried 3× then dead-lettered with a real persisted record
+  carrying the actual error; manual retry after fixing the condition
+  succeeds.
+- Added `docs/architecture/07-event-bus.md`.
+
+### Files/subsystems touched
+
+- `src/events/types.ts`, `bus.ts`, `handlers.ts`, `index.ts` (new)
+- `src/repository/entities.ts` (added 4 repository accessors)
+- `firestore.rules` (6 new collections; all prior rules untouched)
+- `scripts/event-bus-check.ts` (new)
+- `docs/architecture/07-event-bus.md` (new)
+- `package.json` (added `eventbus:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (lint + domain + workflow + repository + authz +
+  audit + eventbus) — pass in full; `eventbus:check` 14/14 assertions
+  pass
+- `npx vite build` — pass
+
+### Known limitations
+
+- Runs in-process/synchronously — proves the execution model (idempotent,
+  retried, audited, dead-letterable) is real, not that a durable
+  cross-process queue exists behind it. Documented in
+  `07-event-bus.md` §2 as a scope boundary for a future production
+  hardening pass, not silently assumed solved.
+- Only 4 of the 18 canonical events have a real handler
+  (`QUOTE_ACCEPTED`, `QC_FAILED`, `PAYMENT_RECEIVED`,
+  `PAYMENT_OVERDUE`) — deliberately: registering a handler with no real
+  effect would itself be the "simulated automation" anti-pattern this
+  phase exists to fix. The remaining events get real handlers as Phases
+  08/09 implement the workflows that produce them.
+- No existing screen calls `publishEvent()` yet — Phases 08/09 wire
+  screens to the real engine as each workflow is rebuilt.
+- SLA timers/`SLA_BREACHED` are not a running background job — `QC_FAILED`
+  records an audited due-by marker; the actual breach-detection job is
+  Phase 12's control-tower/observability work.
+
+### Next phase
+
+Phase 08 — Implement the Commercial Core Workflows (Sales, Quote,
+Contract, Finance, Procurement).
+
+---
