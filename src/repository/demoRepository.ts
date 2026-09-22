@@ -60,7 +60,15 @@ export function createDemoRepository<T extends { id: string; version?: number }>
           throw makeStaleWriteError(currentVersion, expectedVersion);
         }
       }
-      const updated = { ...current, ...patch } as T;
+      // Auto-increment version on every optimistically-concurrent update,
+      // unless the caller explicitly set it in `patch` — callers should
+      // not have to remember to bump it themselves (Phase 08 found this
+      // the hard way: a service function that checked `expectedVersion`
+      // but forgot to also set the next version left every record
+      // permanently stuck at version 0, so the SECOND legitimate update
+      // was always rejected as "stale").
+      const nextVersion = 'version' in patch ? (patch as any).version : (expectedVersion !== undefined ? expectedVersion + 1 : current.version);
+      const updated = { ...current, ...patch, version: nextVersion } as T;
       store.set(id, updated);
       notify();
       return updated;

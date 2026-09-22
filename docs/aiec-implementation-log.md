@@ -606,3 +606,82 @@ Phase 08 — Implement the Commercial Core Workflows (Sales, Quote,
 Contract, Finance, Procurement).
 
 ---
+
+## Phase 08 — Commercial Core Workflows
+
+**Date:** 2026-09-22
+**Status:** Complete (orchestration layer; screen rewiring deferred to
+Phase 10 per the pack's own explicit sequencing — see doc)
+
+### What changed
+
+- Added `src/services/commercialWorkflow.ts`: real orchestration
+  functions covering Quote (create/approve/send/customer-decision) →
+  Contract (sign, creates PaymentSchedule) → Payment (idempotent
+  installment collection) → Procurement (PO create/approve/supplier
+  acceptance/dispatch), each permission-checked (Phase 05), persisted via
+  the repository layer (Phase 04), audited (Phase 06), and event-driven
+  via the Phase 07 bus where a real handler exists. Accepting a quote
+  publishes `QUOTE_ACCEPTED`, which the Phase 07 handler routes to —
+  automatically creating the Contract with no direct call between the
+  two modules — the concrete proof of "without the user needing to
+  manually stitch screens together."
+- **Found and fixed a real bug in the Phase 04 repository layer**: both
+  `demoRepository.update()` and `firestoreRepository.update()` checked
+  `expectedVersion` but never wrote a new version back unless the
+  caller's patch explicitly included one, so a second optimistic-
+  concurrency update from a new call site always failed as "stale." Now
+  auto-increments to `expectedVersion + 1` by default. Re-ran the full
+  `npm run checks` suite (all prior phases) after the fix — all still
+  pass, zero regressions.
+- Added `scripts/commercial-workflow-check.ts`
+  (`npm run commercial:check`): 21 assertions running an early version
+  of Phase 13's Scenario A+B — quote through contract, payment, and
+  procurement dispatch, including 3 unauthorized-action denials and a
+  duplicate-payment-request check, with every record traced back to one
+  `projectId`.
+- Added `docs/architecture/08-commercial-workflows.md`, explicit about
+  scope: this phase is the real, tested orchestration/business-logic
+  layer; wiring the 189 existing screens to call it is Phase 10's job
+  per `RUN_ALL.md`'s own instruction not to do UX work before phases
+  02-09 establish the model.
+
+### Files/subsystems touched
+
+- `src/services/commercialWorkflow.ts` (new)
+- `src/repository/demoRepository.ts`, `firestoreRepository.ts` (bug fix:
+  auto-increment version on optimistic update)
+- `scripts/commercial-workflow-check.ts` (new)
+- `docs/architecture/08-commercial-workflows.md` (new)
+- `package.json` (added `commercial:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 8 acceptance scripts) — pass in full; 21/21 new
+  assertions, zero regressions in the prior 100+ from Phases 02-07
+- `npx vite build` — pass
+
+### Known limitations
+
+- No existing screen calls `commercialWorkflow.ts` yet — by design, per
+  the pack's own phase ordering (see doc §1).
+- Sales sub-workflow's pre-quote stages (qualification/assignment/
+  follow-up/site survey) were not given new service functions — they
+  operate on `Lead`, which already has a working real persistence path
+  with a different shape than the canonical `CanonicalLead`; building a
+  third parallel Lead-mutation path was judged to add technical debt
+  rather than reduce it. Documented as deferred, not silently skipped.
+- `collectInstallment`'s "advance project to procurement" rule is
+  simplified to "first confirmed payment," not a full schedule-completion
+  check — adequate for proving the orchestration chain, not a complete
+  finance implementation (ledger/reconciliation depth is Phase 11's
+  reconciliation-model job).
+
+### Next phase
+
+Phase 09 — Implement Operations Through Handover (Delivery,
+Installation, QC, Handover).
+
+---

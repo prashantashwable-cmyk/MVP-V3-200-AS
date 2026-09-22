@@ -81,6 +81,7 @@ export function createFirestoreRepository<T extends { id: string; version?: numb
 
     async update(id, patch, expectedVersion) {
       const ref = doc(requireDb(), collectionName, id);
+      let effectivePatch: Partial<T> = patch;
       if (expectedVersion !== undefined) {
         const current = await getDoc(ref);
         if (!current.exists()) throw makeNotFoundError(collectionName, id);
@@ -88,8 +89,14 @@ export function createFirestoreRepository<T extends { id: string; version?: numb
         if (currentVersion !== expectedVersion) {
           throw makeStaleWriteError(currentVersion, expectedVersion);
         }
+        // Auto-increment unless the caller explicitly set `version` in
+        // the patch — see the matching comment in demoRepository.ts for
+        // why this must not be left to every caller to remember.
+        if (!('version' in patch)) {
+          effectivePatch = { ...patch, version: expectedVersion + 1 } as Partial<T>;
+        }
       }
-      await updateDoc(ref, stripUndefined(patch) as any);
+      await updateDoc(ref, stripUndefined(effectivePatch) as any);
       const updated = await getDoc(ref);
       if (!updated.exists()) throw makeNotFoundError(collectionName, id);
       return updated.data() as T;
