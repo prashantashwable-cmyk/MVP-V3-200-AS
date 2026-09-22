@@ -1216,6 +1216,76 @@ deleted or broken by any phase.
   gap as the Firestore item above. **Unblocks with**: `firebase-admin` +
   real credentials to verify against.
 
+## Phase 14 — Screen Migration Factory
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/migration/types.ts`: the pack's exact 7-value
+  `MigrationStatus` vocabulary (`MIGRATED`/`PARTIALLY_MIGRATED`/`LEGACY`/
+  `CONTEXTUAL`/`COMMAND_ONLY`/`CONTROL_ONLY`/`RETIRED`) plus
+  `MigrationMatrixRow`.
+- Added `src/migration/registry.ts`: browser-safe migration-status
+  registry, separate from Phase 03's generated `screenRegistry.ts` so
+  migration progress never requires hand-editing a 2001-line generated
+  file. `migrationOverrides` starts empty — populated one real entry per
+  screen in the same commit that actually migrates it, starting in Phase
+  15; anything not overridden gets an honest default derived from the
+  real Phase 01/03 `dataSource` finding.
+- Added `scripts/dbmanager-usage-scan.ts` (`npm run migration:scan`):
+  live, `fs`-based scan of every `.ts`/`.tsx` file under `src/` (not just
+  `src/components/`) for actual `DbManager` imports/calls. Found 149
+  files with real usage (144 components + 5 outside components —
+  `App.tsx`, `language.ts`, `theme.ts`, `AdminRouter.tsx`,
+  `SurveyorRouter.tsx`), 689 total call sites — a live measurement the
+  Phase 01 CSV (scoped only to `src/components/*.tsx`) could not produce.
+- Added `scripts/generate-migration-matrix.ts` (`npm run
+  migration:matrix`): generates `docs/migration/screen-migration-matrix.md`
+  from the Phase 03 registry + Phase 14 migration registry + the live
+  scan — entity inferred by keyword, authorization status cross-checked
+  against real `firestore.rules` collections, test status cross-checked
+  against which entities the acceptance scripts actually exercise.
+- Added `scripts/migration-factory-check.ts` (`npm run migration:check`,
+  wired into `npm run checks`): asserts all 189 screens classify, legacy
+  usage is measurable, and — the key regression guard — zero drift
+  between a screen's claimed `MIGRATED` status and whether it still
+  literally imports `DbManager` on disk.
+- Added `docs/architecture/14-migration-factory.md`.
+
+### Files/subsystems touched
+
+- `src/migration/types.ts`, `registry.ts` (new)
+- `scripts/dbmanager-usage-scan.ts`, `generate-migration-matrix.ts`,
+  `migration-factory-check.ts` (new)
+- `docs/migration/screen-migration-matrix.md` (new, generated)
+- `docs/architecture/14-migration-factory.md` (new)
+- `package.json` (added `migration:scan`/`migration:matrix`/
+  `migration:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified — purely
+  additive measurement/classification infrastructure per this phase's own
+  "do not block the build simply because legacy screens remain."
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 15 scripts, incl. new `migration:check`) — pass
+  in full, zero regressions in the prior 325 assertions
+- `npm run build` — pass, bundle size unchanged (no screen touched)
+
+### Baseline measured this phase
+
+LEGACY 155, CONTEXTUAL 33, PARTIALLY_MIGRATED 1, MIGRATED 0,
+COMMAND_ONLY 1, CONTROL_ONLY 1 (191 total = 189 legacy + 2
+infrastructure).
+
+### Next phase
+
+Phase 15 — Migrate Commercial Core (Lead → Quote → Contract → Payment).
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

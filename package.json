@@ -22,7 +22,10 @@
     "reliability:check": "tsx scripts/notification-reconciliation-check.ts",
     "controltower:check": "tsx scripts/control-tower-check.ts",
     "e2e:check": "tsx scripts/final-e2e-acceptance.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check"
+    "migration:scan": "tsx scripts/dbmanager-usage-scan.ts",
+    "migration:matrix": "tsx scripts/generate-migration-matrix.ts",
+    "migration:check": "tsx scripts/migration-factory-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check && npm run migration:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
