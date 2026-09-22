@@ -6,6 +6,7 @@ import {
   Phone, User, Check
 } from 'lucide-react';
 import { DbManager } from '../lib/db';
+import { bridgeDeliveryScheduled } from '../services/legacyCommercialBridge';
 import { DeliverySchedule, SiteReadinessChecklist, User as UserType, Job } from '../types';
 
 interface Props {
@@ -168,6 +169,17 @@ export const DeliverySchedulingScreen: React.FC<Props> = ({ user, onNavigateToTr
     loadData();
     setShowScheduleLockModal(false);
     showToast(`✅ Delivery date locked for ${scheduledDate}! Technician ${updated.assignedTechnicianName} notified and installation job auto-created.`);
+
+    // Phase 17: bridge into a real canonical Shipment (scheduled), in
+    // addition to the DbManager write above — see legacyCommercialBridge.ts.
+    bridgeDeliveryScheduled(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      updated.poId,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 17 bridge] delivery schedule for PO ${updated.poId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   // Open Reschedule Modal

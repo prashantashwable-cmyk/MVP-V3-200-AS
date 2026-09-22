@@ -1470,6 +1470,79 @@ Verification → Receipt, with the Damaged/Missing exception path).
 
 ---
 
+## Phase 17 — Migrate Delivery
+
+**Date:** 2026-09-22
+**Status:** Complete (real dual-write migration of schedule → arrival →
+receipt, including the damaged/missing exception path; damage-claim
+detail screen and reporting/config screens deferred — see doc §3)
+
+### What changed
+
+- Extended `src/services/legacyCommercialBridge.ts` with
+  `bridgeDeliveryScheduled()`, `bridgeShipmentArrived()`, and
+  `bridgeMaterialReceiptRecorded()` — all keyed off the legacy PO id the
+  Phase 16 bridge already resolves a canonical PurchaseOrder/Project
+  from. The receipt bridge is the first real legacy-screen exercise of
+  Phase 09's damaged/missing exception path: an `'ok'` condition
+  publishes the real `MATERIAL_RECEIVED` event, a discrepancy records an
+  audited incident (`DeliveryReceipt.incidentId`) instead of a fabricated
+  success.
+- Wired into `DeliverySchedulingScreen.tsx` (lock schedule + assign
+  technician), `LiveShipmentTrackingScreen.tsx` (milestone → `'arrived'`),
+  and `SiteDeliveryChecklistScreen.tsx` (checklist completion — the exact
+  screen that also sets the legacy PO to `'Delivered'`, closing the gap
+  Phase 16 explicitly deferred).
+- Added `scripts/delivery-bridge-check.ts` (`npm run
+  delivery-bridge:check`, wired into `npm run checks`): 15 assertions —
+  honest non-bridge for an unbridged PO, schedule → real Shipment
+  (status + Project linkage), idempotent re-scheduling, arrival, a clean
+  receipt (no incident id), idempotent re-completion, and the damaged
+  exception path on a second project producing a receipt with a real
+  incident id.
+- Updated `src/migration/registry.ts`: `PARTIALLY_MIGRATED` overrides for
+  the 3 wired screens.
+- Regenerated `docs/migration/screen-migration-matrix.md`: 10
+  `PARTIALLY_MIGRATED` (up from 7), 146 `LEGACY` (down from 149).
+- Added `docs/architecture/17-delivery.md`.
+
+### Files/subsystems touched
+
+- `src/services/legacyCommercialBridge.ts` (3 new bridge functions)
+- `scripts/delivery-bridge-check.ts` (new)
+- `src/components/DeliverySchedulingScreen.tsx`,
+  `LiveShipmentTrackingScreen.tsx`, `SiteDeliveryChecklistScreen.tsx`
+  (additive: 1 import + a small non-blocking bridge call at each real
+  write site)
+- `src/migration/registry.ts` (3 new overrides)
+- `docs/migration/screen-migration-matrix.md` (regenerated)
+- `docs/architecture/17-delivery.md` (new)
+- `package.json` (added `delivery-bridge:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run delivery-bridge:check` — pass, 15/15 assertions
+- `npm run checks` (all 19 scripts) — pass in full, zero regressions in
+  the prior 370 assertions
+- `npm run build` — pass
+
+### Known limitations
+
+- Same dual-write caveat as Phases 15-16.
+- No automated supplier-resolution sub-workflow closes the loop from an
+  audited incident back to a resolved receipt — Phase 09's own
+  documented scope boundary, unchanged.
+- `DamagedMissingPartsReportScreen.tsx` (the more detailed damage-claim
+  screen) remains `LEGACY` — no canonical `Incident` entity exists to
+  attach a richer claim workflow to.
+
+### Next phase
+
+Phase 18 — Migrate Installation + QC + Handover.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

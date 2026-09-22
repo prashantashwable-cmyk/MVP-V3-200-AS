@@ -32,14 +32,15 @@ import type { Lead, Deal, Payment as LegacyPayment, PurchaseOrder as LegacyPurch
 import { resolveEnvironment } from '../lib/environment';
 import type { RepositoryContext } from '../repository/types';
 import { leadToCustomer, leadToSite, leadAndDealToProject } from '../domain/adapters';
-import { createProjectFromLead, projectRepository, paymentScheduleRepository, quoteRepository, purchaseOrderRepository } from '../repository/entities';
+import { createProjectFromLead, projectRepository, paymentScheduleRepository, quoteRepository, purchaseOrderRepository, shipmentRepository, deliveryReceiptRepository } from '../repository/entities';
 import {
   collectInstallment, createQuote, approveQuote, sendQuote, recordCustomerQuoteDecision,
   createProcurementPO, approvePO, recordSupplierAcceptance, markInProduction, dispatchMaterial,
 } from './commercialWorkflow';
+import { scheduleDelivery, markShipmentArrived, recordMaterialReceipt, type ReceiptCondition } from './operationsWorkflow';
 import type { CanonicalUserRole, Quote } from '../domain/entities';
 import { asId } from '../domain/ids';
-import type { ProjectId, PaymentScheduleId, ContractId, PurchaseOrderId, UserId } from '../domain/ids';
+import type { ProjectId, PaymentScheduleId, ContractId, PurchaseOrderId, ShipmentId, DeliveryReceiptId, UserId } from '../domain/ids';
 
 export interface BridgeActor {
   id: string;
@@ -211,6 +212,97 @@ export async function bridgeProcurementPoStatusChanged(
     } else if (targetStatus === 'Shipped') {
       await dispatchMaterial(ctx, poId);
     }
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Bridges the legacy Delivery lifecycle (`DeliverySchedulingScreen`,
+ * `LiveShipmentTrackingScreen`, `SiteDeliveryChecklistScreen`) into the
+ * real canonical Shipment/DeliveryReceipt records from Phase 09's
+ * `operationsWorkflow.ts` — Schedule -> Dispatch/Live Tracking -> Arrived
+ * -> Receipt (with the damaged/missing exception path). All three keyed
+ * by the same legacy PO id the Phase 16 procurement bridge already
+ * derives a canonical PurchaseOrder id from, so the canonical Project is
+ * resolved via that PO, not re-derived from a Lead/Deal here.
+ */
+async function resolveProjectForLegacyPo(ctx: RepositoryContext, legacyPoId: string): Promise<ProjectId | null> {
+  const po = await purchaseOrderRepository(ctx).get(canonicalPoId(legacyPoId));
+  return po ? po.projectId : null;
+}
+
+/** `'technician_assigned'` (`DeliverySchedulingScreen.handleConfirmScheduleLock`)
+ * bridges to a real canonical Shipment in `'scheduled'` status. Requires
+ * the PO to already have been bridged (Phase 16) — a delivery cannot be
+ * scheduled for material that was never ordered through the canonical
+ * model, and this reports that honestly rather than fabricating a PO. */
+export async function bridgeDeliveryScheduled(
+  actor: BridgeActor,
+  legacyPoId: string,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const projectId = await resolveProjectForLegacyPo(ctx, legacyPoId);
+    if (!projectId) return { bridged: false, reason: `no canonical PurchaseOrder found for legacy PO ${legacyPoId} — was it bridged at creation (Phase 16)?` };
+
+    const shipmentId = asId<ShipmentId>(`ship_${canonicalPoId(legacyPoId)}`);
+    const existing = await shipmentRepository(ctx).get(shipmentId);
+    if (existing) return { bridged: true }; // idempotent: already scheduled
+
+    await scheduleDelivery(ctx, canonicalPoId(legacyPoId), projectId);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** `'arrived'` milestone (`LiveShipmentTrackingScreen.handleAdvanceMilestone`)
+ * bridges to the canonical Shipment's `'arrived'` status. */
+export async function bridgeShipmentArrived(
+  actor: BridgeActor,
+  legacyPoId: string,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const shipmentId = asId<ShipmentId>(`ship_${canonicalPoId(legacyPoId)}`);
+    const existing = await shipmentRepository(ctx).get(shipmentId);
+    if (!existing) return { bridged: false, reason: `no canonical Shipment found for legacy PO ${legacyPoId} — was delivery scheduled through the bridge first?` };
+
+    await markShipmentArrived(ctx, shipmentId);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Delivery checklist completion (`SiteDeliveryChecklistScreen.handleCompleteChecklist`)
+ * bridges to a real canonical DeliveryReceipt — `condition: 'ok'`
+ * publishes the real `MATERIAL_RECEIVED` event; `'damaged'`/
+ * `'missing_items'` records an audited incident instead (Phase 09's
+ * documented "damaged/missing -> incident" exception path). Idempotent:
+ * a receipt already recorded for this PO is reported as already-bridged,
+ * never duplicated. */
+export async function bridgeMaterialReceiptRecorded(
+  actor: BridgeActor,
+  legacyPoId: string,
+  condition: ReceiptCondition,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const projectId = await resolveProjectForLegacyPo(ctx, legacyPoId);
+    if (!projectId) return { bridged: false, reason: `no canonical PurchaseOrder found for legacy PO ${legacyPoId}` };
+
+    const shipmentId = asId<ShipmentId>(`ship_${canonicalPoId(legacyPoId)}`);
+    const shipment = await shipmentRepository(ctx).get(shipmentId);
+    if (!shipment) return { bridged: false, reason: `no canonical Shipment found for legacy PO ${legacyPoId} — was delivery scheduled through the bridge first?` };
+
+    const receiptId = asId<DeliveryReceiptId>(`receipt_${shipmentId}`);
+    const existingReceipt = await deliveryReceiptRepository(ctx).get(receiptId);
+    if (existingReceipt) return { bridged: true }; // idempotent: already recorded
+
+    await recordMaterialReceipt(ctx, commercialActor(actor), shipmentId, projectId, condition);
     return { bridged: true };
   } catch (err) {
     return { bridged: false, reason: err instanceof Error ? err.message : String(err) };

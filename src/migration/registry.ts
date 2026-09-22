@@ -76,7 +76,26 @@ export const migrationOverrides: Record<
   SupplierOrderStatusTracking: {
     status: 'PARTIALLY_MIGRATED',
     targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (recordSupplierAcceptance/markInProduction/dispatchMaterial) → src/repository (PurchaseOrder)',
-    notes: 'Phase 16: updating a PO to Acknowledged/In Production/Shipped now also drives the matching real canonical PurchaseOrder transition (dispatch also advances the canonical Project to the delivery stage). Ready to Ship/Delivered/Cancelled have no canonical bridge yet (Delivered is Phase 17 scope). List/detail rendering remains DbManager-sourced.',
+    notes: 'Phase 16: updating a PO to Acknowledged/In Production/Shipped now also drives the matching real canonical PurchaseOrder transition (dispatch also advances the canonical Project to the delivery stage). Ready to Ship/Cancelled have no canonical bridge yet. List/detail rendering remains DbManager-sourced.',
+  },
+
+  // Phase 17 — Delivery. Same dual-write pattern, keyed off the same
+  // legacy PO id the Phase 16 procurement bridge already resolves a
+  // canonical PurchaseOrder/Project from.
+  DeliverySchedulingScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (scheduleDelivery) → src/repository (Shipment)',
+    notes: 'Phase 17: locking a delivery schedule now also creates a real canonical Shipment in "scheduled" status. Site-readiness checklist and rescheduling remain DbManager-only. List/detail rendering remains DbManager-sourced.',
+  },
+  LiveShipmentTrackingScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (markShipmentArrived) → src/repository (Shipment)',
+    notes: 'Phase 17: advancing a shipment to the "arrived" milestone now also updates the real canonical Shipment. Earlier milestones (dispatched/in_transit/nearby) and leg-switching remain DbManager-only. Tracking UI rendering remains DbManager-sourced.',
+  },
+  SiteDeliveryChecklistScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (recordMaterialReceipt) → src/repository (DeliveryReceipt)',
+    notes: 'Phase 17: completing the checklist now also creates a real canonical DeliveryReceipt — "ok" publishes the real MATERIAL_RECEIVED event; a discrepancy records an audited incident (Phase 09\'s damaged/missing exception path) instead of a fabricated success. Closes the "Delivered" gap Phase 16 documented as deferred. In-progress autosave and DamagedMissingPartsReportScreen\'s more detailed report remain DbManager-only.',
   },
 };
 

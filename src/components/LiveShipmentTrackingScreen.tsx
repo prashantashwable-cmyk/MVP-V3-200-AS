@@ -5,6 +5,7 @@ import {
   ExternalLink, Layers, User, Zap, Info, ArrowRight, ShieldAlert, Radio
 } from 'lucide-react';
 import { DbManager } from '../lib/db';
+import { bridgeShipmentArrived } from '../services/legacyCommercialBridge';
 import { LiveShipmentTracker, ShipmentTrackingLeg, User as UserType } from '../types';
 
 interface Props {
@@ -106,6 +107,20 @@ export const LiveShipmentTrackingScreen: React.FC<Props> = ({ user, selectedPoId
     setActiveLeg(updatedLeg);
     DbManager.updateShipmentTracker(updatedTracker);
     showToast(`✅ Milestone advanced to ${nextMilestone.toUpperCase()}! Automated customer WhatsApp message sent.`);
+
+    // Phase 17: "arrived" bridges into the canonical Shipment's real
+    // "arrived" status, in addition to the DbManager write above — see
+    // legacyCommercialBridge.ts.
+    if (nextMilestone === 'arrived') {
+      bridgeShipmentArrived(
+        { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+        updatedTracker.poId,
+      ).then(result => {
+        if (!result.bridged) {
+          console.warn(`[Phase 17 bridge] shipment arrival for PO ${updatedTracker.poId} not mirrored to canonical model: ${result.reason}`);
+        }
+      });
+    }
   };
 
   return (

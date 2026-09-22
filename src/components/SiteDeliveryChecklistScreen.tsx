@@ -5,6 +5,7 @@ import {
   Plus, Trash2, Info, Lock, Truck, RefreshCw, Check
 } from 'lucide-react';
 import { DbManager } from '../lib/db';
+import { bridgeMaterialReceiptRecorded } from '../services/legacyCommercialBridge';
 import { 
   SiteDeliveryChecklist, SiteDeliveryChecklistItem, 
   DiscrepancyReport, User as UserType 
@@ -215,6 +216,21 @@ export const SiteDeliveryChecklistScreen: React.FC<Props> = ({
     }
 
     showToast('Delivery Checklist Completed! Payment release milestone unlocked.');
+
+    // Phase 17: bridge into a real canonical DeliveryReceipt (ok, or an
+    // audited damaged/missing incident), in addition to the DbManager
+    // writes above — see legacyCommercialBridge.ts.
+    const missingItem = items.some(i => i.condition === 'missing');
+    const receiptCondition: 'ok' | 'damaged' | 'missing_items' = !hasDiscrepancy ? 'ok' : missingItem ? 'missing_items' : 'damaged';
+    bridgeMaterialReceiptRecorded(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      activeChecklist.poId,
+      receiptCondition,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 17 bridge] material receipt for PO ${activeChecklist.poId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
 
     if (onNavigateToConfirmation) {
       setTimeout(() => onNavigateToConfirmation(activeChecklist.poId), 600);
