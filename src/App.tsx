@@ -15,6 +15,7 @@ import { CommandPalette, registerSearchProvider } from './components/CommandPale
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
 import { ProjectOperatingView } from './components/ProjectOperatingView';
+import { WorkQueueScreen } from './components/WorkQueueScreen';
 import { resolveEnvironment } from './lib/environment';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
 import { installGlobalErrorCapture } from './lib/observability';
@@ -262,6 +263,12 @@ export default function App() {
               replacing anything. */}
           {activeTab === 'ProjectOperatingView' && (
             <ProjectOperatingView user={currentUser} />
+          )}
+
+          {/* Phase 22: next-best-action work queue — generated from live
+              workflow state (getWorkQueueItems), additive. */}
+          {activeTab === 'WorkQueue' && (
+            <WorkQueueScreen user={currentUser} />
           )}
         </motion.div>
       </AnimatePresence>
@@ -772,6 +779,7 @@ export default function App() {
       case 'admin':
         return [
           { id: 'Home', label: 'Overview', icon: LayoutDashboard },
+          { id: 'WorkQueue', label: 'My Work Queue ✅', icon: Layers },
           { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'CustomerHomeDashboard', label: 'Customer Portal 🏠', icon: Building },
@@ -905,6 +913,7 @@ export default function App() {
       case 'surveyor':
         return [
           { id: 'Home', label: 'Capture Portal', icon: Building },
+          { id: 'WorkQueue', label: 'My Work Queue ✅', icon: Layers },
           { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'LeadFollowUp', label: 'Follow-Ups 📅', icon: Calendar },

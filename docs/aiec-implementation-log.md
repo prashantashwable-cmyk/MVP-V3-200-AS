@@ -1850,6 +1850,72 @@ Phase 22 — Next Best Action + Work Queue.
 
 ---
 
+## Phase 22 — Next Best Action + Work Queue
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/services/workQueue.ts`: `getWorkQueueItems(ctx)` — one real
+  work item per actionable canonical Project (required action, owner,
+  priority, SLA text, blockers, exception flag), generated from live
+  workflow state, never a static card. Reuses (never duplicates) Phase
+  21's `NEXT_ACTION_BY_STAGE` and `computeBlockers()` (both exported for
+  this purpose) and Phase 12's `ControlTowerCategory` priority
+  vocabulary. Terminal `closed_lost` projects generate no item; sorted
+  most-urgent-first.
+- Added `src/components/WorkQueueScreen.tsx`: real, additive listing
+  screen. Clicking an item dispatches a new `aiec_open_project` custom
+  event (same established pattern as `aiec_switch_tab`) that
+  `ProjectOperatingView.tsx` now listens for (small, real addition
+  there) to deep-link straight into that project.
+- Mounted additively in `src/App.tsx`: 1 import, 1 new tab entry on
+  admin and surveyor tab lists, 1 new render guard.
+- Added `scripts/work-queue-check.ts` (`npm run work-queue:check`, wired
+  into `npm run checks`): 11 assertions — a clean project ranks on_track/
+  waiting with zero blockers; a PO-pending-approval project ranks
+  at_risk (not critical, since it's not a hard-gate blocker) and
+  surfaces the real reason; a closed_lost project generates no item at
+  all; correct urgency sort order; `currentStage` reflects the live
+  `Project.stage`.
+- Added `docs/architecture/22-work-queue.md`.
+
+### Files/subsystems touched
+
+- `src/services/workQueue.ts` (new)
+- `src/components/WorkQueueScreen.tsx` (new)
+- `src/services/projectOperatingView.ts` (exported `computeBlockers` and
+  `NEXT_ACTION_BY_STAGE` for reuse, no behavior change)
+- `src/components/ProjectOperatingView.tsx` (additive: one new
+  `aiec_open_project` listener)
+- `scripts/work-queue-check.ts` (new)
+- `src/App.tsx` (additive: 1 import, 2 tab-list entries, 1 render guard)
+- `docs/architecture/22-work-queue.md` (new)
+- `package.json` (added `work-queue:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run work-queue:check` — pass, 11/11 assertions
+- `npm run checks` (all 24 scripts) — pass in full, zero regressions in
+  the prior 455 assertions (466 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- No in-browser click-through verification.
+- No per-stage due-date model exists yet, so SLA is approximated from
+  `Project.updatedAt` only.
+- Not filtered to "assigned to me" yet — owner is displayed per item but
+  not used as a query filter.
+
+### Next phase
+
+Phase 23 — Security, Reliability, and Performance Lockdown.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

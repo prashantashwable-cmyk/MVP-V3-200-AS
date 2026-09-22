@@ -68,6 +68,18 @@ export const ProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user
   }, [ctx.environment]);
 
   useEffect(() => {
+    // Phase 22: the Work Queue dispatches this to deep-link straight to
+    // one project, the same custom-window-event pattern `aiec_switch_tab`
+    // already established — no new routing mechanism.
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === 'string') setSelectedProjectId(detail);
+    };
+    window.addEventListener('aiec_open_project', handler);
+    return () => window.removeEventListener('aiec_open_project', handler);
+  }, []);
+
+  useEffect(() => {
     if (!selectedProjectId) return;
     let cancelled = false;
     (async () => {

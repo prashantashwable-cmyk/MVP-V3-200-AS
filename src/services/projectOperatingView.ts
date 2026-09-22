@@ -33,7 +33,10 @@ export interface ProjectTimelineStep {
   status: 'done' | 'current' | 'pending';
 }
 
-const NEXT_ACTION_BY_STAGE: Record<ProjectStage, string> = {
+/** Exported for reuse by Phase 22's work-queue service — one shared
+ * source of truth for "what does this stage actually require next,"
+ * never duplicated. */
+export const NEXT_ACTION_BY_STAGE: Record<ProjectStage, string> = {
   lead: 'Confirm customer and site, then convert to a project',
   customer_site_confirmed: 'Prepare and create a quote',
   quoting: 'Get the quote approved internally and send it to the customer',
@@ -66,7 +69,10 @@ export interface ProjectOperatingView {
 /** Real conditions this project is genuinely stuck on — never a
  * hard-coded/simulated list. Each check reads a real canonical
  * collection; a blocker only appears if that record actually says so. */
-async function computeBlockers(ctx: RepositoryContext, projectId: ProjectId): Promise<string[]> {
+/** Exported for reuse by Phase 22's work-queue service, which needs the
+ * exact same real blocker computation per project without duplicating
+ * it. */
+export async function computeBlockers(ctx: RepositoryContext, projectId: ProjectId): Promise<string[]> {
   const blockers: string[] = [];
 
   const pos = await purchaseOrderRepository(ctx).query({ projectId });
