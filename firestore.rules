@@ -315,5 +315,24 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false;
     }
+
+    // 11. Phase 11 — media/document metadata and reconciliation records.
+    // Actual media BYTES are not stored in Firestore (Storage rules
+    // would govern those, in a real deployment with a bucket
+    // configured — see src/offline/mediaUpload.ts's documented gap);
+    // this collection is document METADATA only, written after a
+    // confirmed upload.
+    match /documents/{documentId} {
+      allow read: if isAdmin() || isRecordOwner('uploadedBy');
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if false; // versioning, not deletion, per the domain model
+    }
+
+    match /reconciliation_records/{recordId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
   }
 }

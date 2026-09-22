@@ -522,3 +522,31 @@ export interface WorkflowExecution {
   idempotencyKey: string;
   executedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// ReconciliationRecord — Phase 11. "Our record <-> External record."
+// ---------------------------------------------------------------------------
+
+export type ReconciliationStatus =
+  | 'matched'
+  | 'mismatch'
+  | 'missing_external'
+  | 'missing_internal'
+  | 'duplicate'
+  | 'pending'
+  | 'manual_resolution';
+
+export interface ReconciliationRecord {
+  id: string;
+  /** e.g. 'payment' — reusable across domains per Phase 11's "start with
+   * payments and expand." */
+  domain: string;
+  internalRecordId?: string;
+  externalRecordId?: string;
+  status: ReconciliationStatus;
+  internalAmount?: number;
+  externalAmount?: number;
+  reconciledAt: string;
+  resolvedBy?: string;
+  resolutionNote?: string;
+}

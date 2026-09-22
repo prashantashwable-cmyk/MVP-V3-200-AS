@@ -852,3 +852,91 @@ mounted live; full nav-chrome replacement scoped as follow-up — see doc)
 Phase 11 — Field Reliability, Media, Notifications, and Reconciliation.
 
 ---
+
+## Phase 11 — Field Reliability, Media, Notifications, Reconciliation
+
+**Date:** 2026-09-22
+**Status:** Complete (infrastructure layer; screen adoption deferred,
+same reasoning as Phases 08-10)
+
+### What changed
+
+- Added `src/offline/`: `DurableStore<T>` (mirrors Phase 04's
+  `Repository<T>` pattern) with a real IndexedDB implementation
+  (`indexedDbStore.ts`, raw browser API, no new dependency) and an
+  in-memory fallback (`memoryStore.ts`), picked by an explicit
+  `typeof indexedDB !== 'undefined'` check (`storeFactory.ts`). `Outbox<T>`
+  (`outbox.ts`): local-first enqueue with zero network dependency,
+  idempotent re-enqueue, `syncAll()` that never throws, reuses Phase 04's
+  `StaleWriteError` for conflict classification (field data preserved,
+  never discarded). `MediaUploadManager` (`mediaUpload.ts`): resumable
+  chunked upload with a real enforced size limit, checkpoint-based resume
+  after interruption, a real `FirebaseStorageTransport` interface that
+  throws naming the missing bucket config rather than faking success, and
+  a real `DocumentRecord` written via the repository layer only on
+  confirmed completion.
+- Added `src/services/notificationService.ts`: centralizes event →
+  audience → priority → channel policy → template → delivery → retry →
+  status → audit. Idempotent via Phase 06's `runIdempotent`. Structurally
+  enforces "do not simulate successful external delivery": `in_app` is a
+  real transport (`'delivered'` is true), `email`/`whatsapp`/`sms` all
+  honestly report `'queued'` with an explicit "no provider configured"
+  reason, never a false `'delivered'`.
+- Added `src/services/reconciliationService.ts`: `reconcile()` — a pure,
+  domain-agnostic matching function (matched/mismatch/missing_external/
+  missing_internal/duplicate) — plus `reconcilePayments()` wiring it to
+  the repository layer for the payments domain specifically, per "start
+  with payments and expand." Non-matched results are flagged `pending`
+  for triage (Phase 12's control tower), never silently treated as
+  resolved.
+- Extended `src/domain/entities.ts` with `ReconciliationRecord`/
+  `ReconciliationStatus` (exactly the pack's 7-status list).
+- Extended `firestore.rules`: `documents` (metadata only — object
+  storage itself is the documented gap), `reconciliation_records`. All
+  prior rules untouched.
+- Added `scripts/offline-sync-check.ts` (`npm run offline:check`, 17
+  assertions) and `scripts/notification-reconciliation-check.ts`
+  (`npm run reliability:check`, 18 assertions).
+- Added `docs/architecture/11-field-reliability.md`.
+
+### Files/subsystems touched
+
+- `src/offline/types.ts`, `memoryStore.ts`, `indexedDbStore.ts`,
+  `storeFactory.ts`, `outbox.ts`, `mediaUpload.ts` (new)
+- `src/services/notificationService.ts`, `reconciliationService.ts` (new)
+- `src/domain/entities.ts` (added `ReconciliationRecord`/
+  `ReconciliationStatus`, additive)
+- `firestore.rules` (2 new collections; all prior rules untouched)
+- `scripts/offline-sync-check.ts`,
+  `scripts/notification-reconciliation-check.ts` (new)
+- `docs/architecture/11-field-reliability.md` (new)
+- `package.json` (added `offline:check`, `reliability:check`, extended
+  `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 12 acceptance scripts) — pass in full; 35/35 new
+  assertions (17 + 18), zero regressions in the prior 250 (285 total)
+- `npx vite build` — pass
+
+### Known limitations
+
+- No existing field screen (check-in, evidence capture, etc.) calls into
+  this new offline layer yet — infrastructure built and proven; screen
+  adoption is follow-up work, same phase-ordering reasoning as Phases
+  08-10.
+- Real object-storage and external-notification-provider integrations
+  remain documented gaps (no credentials/bucket/provider exist in this
+  repo per Phase 01) — real interfaces are in place and ready for a
+  credentialed deployment, not faked.
+- Reconciliation's `pending → manual_resolution` triage is not automated
+  — feeds directly into Phase 12's control tower.
+
+### Next phase
+
+Phase 12 — Control Tower, Global Search, Observability, and Production
+Hardening.
+
+---

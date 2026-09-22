@@ -18,7 +18,9 @@
     "commercial:check": "tsx scripts/commercial-workflow-check.ts",
     "operations:check": "tsx scripts/operations-workflow-check.ts",
     "surfaces:check": "tsx scripts/five-surfaces-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check"
+    "offline:check": "tsx scripts/offline-sync-check.ts",
+    "reliability:check": "tsx scripts/notification-reconciliation-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
