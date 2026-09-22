@@ -761,3 +761,94 @@ Phase 10 — Replace Navigation Complexity With Five Operating Surfaces
 (project-centric UX rebuild).
 
 ---
+
+## Phase 10 — Five Operating Surfaces and Global Command Palette
+
+**Date:** 2026-09-22
+**Status:** Complete (command palette + surface model shipped and
+mounted live; full nav-chrome replacement scoped as follow-up — see doc)
+
+### What changed
+
+- First phase to touch the live, rendered application (Phases 02-09
+  were additive backend/service layers only).
+- Added `src/navigation/surfaces.ts`: `classifyTabSurface()` classifies
+  the REAL navigation vocabulary — `App.tsx`'s `getTabsByRole()` tab
+  list (a different, hand-curated ID vocabulary from Phase 03's
+  component-filename-keyed `screenRegistry`) — into the five surfaces,
+  chosen deliberately so the model is actually navigable in the running
+  app, not a second disconnected classification.
+- Added `src/components/CommandPalette.tsx`: real, working Ctrl/Cmd+K
+  global search/browse. Empty query browses the role's tabs grouped by
+  surface; non-empty query filters by substring; keyboard nav (↑↓Enter);
+  selecting a result dispatches the SAME `aiec_switch_tab` event other
+  components already use for navigation (verified real, e.g.
+  `LeadInbox.tsx`) — zero new routing mechanism. Includes a documented,
+  currently-unused `registerSearchProvider()` extension point for real
+  entity search once a domain has data wired to the Phase 04 repository
+  layer.
+- Mounted additively in `src/App.tsx`: one new import line + one new
+  JSX line (`<CommandPalette tabs={getTabsByRole(currentUser.role)} />`)
+  inserted as a sibling before the existing `<main>` — no existing JSX,
+  state, or handler touched. `getTabsByRole` deliberately left in place
+  (not extracted) to avoid risking a ~60-icon import mismatch for a UI
+  change this sandbox cannot visually re-verify; the palette receives it
+  via a prop instead.
+- Added `scripts/five-surfaces-check.ts` (`npm run surfaces:check`):
+  tests the classifier against the REAL 128-entry admin tab list
+  (transcribed verbatim from `App.tsx`, not synthetic). This caught and
+  led to fixing 2 real classifier bugs before they shipped: an
+  `^home$` regex that could never match once concatenated with a label,
+  and a bare `inbox` keyword that misclassified `LeadInbox` (a sales
+  pipeline view) as WORK instead of CUSTOMERS. Both are now explicit
+  regression-guard assertions.
+- Verified the live integration as thoroughly as this sandbox allows
+  without a browser: `tsc`/`vite build` pass; the built JS bundle
+  contains the palette's code (grep-confirmed); the full built server
+  was started and answered `GET /` (200, correct `<title>`) and
+  `GET /api/health` (200) — server boots and serves correctly with this
+  change in place. In-browser click-through could not be done here —
+  documented as a gap, not claimed as tested.
+- Added `docs/architecture/10-five-surfaces.md`.
+
+### Files/subsystems touched
+
+- `src/navigation/surfaces.ts` (new)
+- `src/components/CommandPalette.tsx` (new)
+- `src/App.tsx` (2 additive lines: 1 import, 1 JSX mount — no existing
+  code modified)
+- `scripts/five-surfaces-check.ts` (new)
+- `docs/architecture/10-five-surfaces.md` (new)
+- `package.json` (added `surfaces:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 10 acceptance scripts) — pass in full; 250
+  assertions total, zero regressions
+- `npm run build` (full build incl. server bundle) — pass
+- Server smoke test: built server started, `GET /` → 200 with correct
+  page title, `GET /api/health` → 200 `{"status":"ok"}`
+
+### Known limitations
+
+- The five surfaces are reachable via the new command palette, not (yet)
+  as replacement top-level nav chrome — the existing sidebar/bottom nav
+  is unchanged. A full chrome replacement is a larger, higher-risk
+  visual change this sandbox cannot verify without a browser; documented
+  as follow-up, not silently dropped.
+- No real entity search (Customer/Project/Quote by name) yet — gated on
+  data availability per `registerSearchProvider`'s doc comment.
+- `getTabsByRole` in `App.tsx` and the transcribed fixture in
+  `five-surfaces-check.ts` must be kept in sync by hand if the former
+  changes — documented in both files.
+- In-browser interaction (actually opening the palette and clicking
+  through) was not visually verified — no browser available in this
+  sandbox; verified instead via build output inspection and a server
+  boot/health smoke test.
+
+### Next phase
+
+Phase 11 — Field Reliability, Media, Notifications, and Reconciliation.
+
+---

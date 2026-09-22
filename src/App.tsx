@@ -11,6 +11,7 @@ import { SupplierOnboarding } from './components/SupplierOnboarding';
 import { CustomerQuickSignup } from './components/CustomerQuickSignup';
 import { ForgotPasswordReset } from './components/ForgotPasswordReset';
 import { PermissionsPrimer } from './components/PermissionsPrimer';
+import { CommandPalette } from './components/CommandPalette';
 import {
   Building,
   Phone,
@@ -2240,6 +2241,13 @@ export default function App() {
                     </button>
                   </div>
                 </header>
+
+                {/* Phase 10: global Ctrl/Cmd+K command palette — searches the same
+                    real, role-scoped tab list the sidebar/bottom nav use, grouped
+                    by the five operating surfaces when browsing. Purely additive:
+                    navigates via the existing aiec_switch_tab event, same as
+                    LeadInbox.tsx's cross-screen links — no routing logic touched. */}
+                <CommandPalette tabs={getTabsByRole(currentUser.role)} />
 
                 {/* 3. SCROLLABLE SCREEN STAGE CONTENT AREA */}
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8">
