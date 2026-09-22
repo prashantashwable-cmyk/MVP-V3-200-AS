@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, PurchaseOrder, POLineItem, POStatusHistoryEntry } from '../types';
 import { DbManager } from '../lib/db';
 import { Card } from './Common';
+import { bridgeProcurementPoStatusChanged } from '../services/legacyCommercialBridge';
 import { 
   Truck, Clock, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, 
   Search, Filter, Calendar, MapPin, Building, ArrowRight, UserCheck, 
@@ -112,6 +113,19 @@ export const SupplierOrderStatusTracking: React.FC<SupplierOrderStatusTrackingPr
     DbManager.updatePurchaseOrder(updatedPo);
     setIsUpdatingStatus(false);
     setActivePoModal(null);
+
+    // Phase 16: bridge into the matching canonical PurchaseOrder
+    // transition (Acknowledged/In Production/Shipped), in addition to
+    // the DbManager write above — see legacyCommercialBridge.ts.
+    bridgeProcurementPoStatusChanged(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      updatedPo,
+      updatedPo.status,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 16 bridge] PO ${updatedPo.id} status "${updatedPo.status}" not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   const handleUpdateLineItemStatus = (po: PurchaseOrder, itemId: string, itemStatus: POLineItem['itemStatus']) => {

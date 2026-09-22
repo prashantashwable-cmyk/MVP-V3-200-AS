@@ -26,7 +26,8 @@
     "migration:matrix": "tsx scripts/generate-migration-matrix.ts",
     "migration:check": "tsx scripts/migration-factory-check.ts",
     "bridge:check": "tsx scripts/commercial-core-bridge-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check && npm run migration:check && npm run bridge:check"
+    "procurement-bridge:check": "tsx scripts/procurement-bridge-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check && npm run migration:check && npm run bridge:check && npm run procurement-bridge:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

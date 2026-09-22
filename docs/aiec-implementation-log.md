@@ -1389,6 +1389,87 @@ Acceptance → Production → Dispatch).
 
 ---
 
+## Phase 16 — Migrate Procurement
+
+**Date:** 2026-09-22
+**Status:** Complete (real dual-write migration of PO drafting + the
+approval/acceptance/production/dispatch transition chain; supplier
+directory/catalog/onboarding and the ~15 supplier-payment/scorecard
+screens deferred — see doc §3)
+
+### What changed
+
+- Added `markInProduction()` to `src/services/commercialWorkflow.ts` —
+  the missing canonical transition (`in_production`) between
+  `recordSupplierAcceptance` and `dispatchMaterial`; same lightweight
+  shape as its two neighbors (no permission check — a pre-existing gap
+  in those two, not newly introduced or newly fixed here).
+- Extended `src/services/legacyCommercialBridge.ts`:
+  `bridgeProcurementPoCreated()` (legacy PO draft → real, idempotent
+  canonical `PurchaseOrder`, linked via the Phase 15 canonical Project)
+  and `bridgeProcurementPoStatusChanged()` (legacy status string →
+  matching canonical transition: `Sent`/`Acknowledged`/`In Production`/
+  `Shipped`; `Shipped` also advances the canonical Project to
+  `delivery`). Canonical PO id derived deterministically from the legacy
+  PO's own id, no mapping table needed.
+- Wired the bridge into `PurchaseOrderGenerator.tsx` (draft-from-deal,
+  send-to-supplier) and `SupplierOrderStatusTracking.tsx` (generic status
+  update), each as a small additive non-blocking call after the existing
+  `DbManager` write.
+- Added `scripts/procurement-bridge-check.ts` (`npm run
+  procurement-bridge:check`, wired into `npm run checks`): 17 assertions
+  against a real legacy Lead/Deal/PurchaseOrder fixture — draft → PO,
+  idempotent redraft, the full Sent→Acknowledged→In Production→Shipped
+  chain, dispatch advancing the Project to delivery, an honest non-bridge
+  for `Delivered` (Phase 17 scope), a soft failure for an unbridged PO,
+  and an unauthorized-role denial.
+- Updated `src/migration/registry.ts`: `PARTIALLY_MIGRATED` overrides for
+  `PurchaseOrderGenerator` and `SupplierOrderStatusTracking`.
+- Regenerated `docs/migration/screen-migration-matrix.md`: 7
+  `PARTIALLY_MIGRATED` (up from 5), 149 `LEGACY` (down from 151).
+- Added `docs/architecture/16-procurement.md`.
+
+### Files/subsystems touched
+
+- `src/services/commercialWorkflow.ts` (added `markInProduction`)
+- `src/services/legacyCommercialBridge.ts` (2 new bridge functions)
+- `scripts/procurement-bridge-check.ts` (new)
+- `src/components/PurchaseOrderGenerator.tsx`,
+  `SupplierOrderStatusTracking.tsx` (additive: 1 import + a small
+  non-blocking bridge call at each real write site)
+- `src/migration/registry.ts` (2 new overrides)
+- `docs/migration/screen-migration-matrix.md` (regenerated)
+- `docs/architecture/16-procurement.md` (new)
+- `package.json` (added `procurement-bridge:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run procurement-bridge:check` — pass, 17/17 assertions
+- `npm run checks` (all 18 scripts) — pass in full, zero regressions in
+  the prior 353 assertions
+- `npm run build` — pass
+
+### Known limitations
+
+- Same dual-write caveat as Phase 15 (not a distributed transaction).
+- `Ready to Ship`/`Delivered`/`Cancelled` legacy PO statuses have no
+  canonical bridge yet — `Delivered` explicitly deferred to Phase 17
+  (`DeliveryReceipt` is the canonical record for material receipt, not
+  `PurchaseOrder`); reported honestly, not silently dropped.
+- Split-PO and line-item editing remain DbManager-only (no canonical
+  equivalent operation exists for either).
+- Supplier directory/catalog/onboarding and supplier-payment/scorecard
+  screens remain `LEGACY`, honestly reported.
+
+### Next phase
+
+Phase 17 — Migrate Delivery (Ready for Delivery → Schedule → Dispatch →
+Live Tracking → Arrived → Site Delivery Checklist → Material
+Verification → Receipt, with the Damaged/Missing exception path).
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

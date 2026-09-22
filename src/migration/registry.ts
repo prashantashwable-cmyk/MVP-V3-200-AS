@@ -66,6 +66,18 @@ export const migrationOverrides: Record<
     targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (createQuote/.../recordCustomerQuoteDecision) → src/repository (Project/Quote/Contract)',
     notes: 'Phase 15: "Create Quotation" and moving a lead to "closed_won" now also drive the real canonical Quote/Contract lifecycle via the bridge, same as LeadKanban. Detail/timeline rendering remains DbManager-sourced.',
   },
+
+  // Phase 16 — Procurement. Same dual-write pattern as Phase 15.
+  PurchaseOrderGenerator: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (createProcurementPO/approvePO) → src/repository (PurchaseOrder)',
+    notes: 'Phase 16: drafting a PO and sending it to a supplier now also create/approve a real, idempotent canonical PurchaseOrder linked to the project. Split-PO and line-item editing remain DbManager-only. List/detail rendering remains DbManager-sourced.',
+  },
+  SupplierOrderStatusTracking: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (recordSupplierAcceptance/markInProduction/dispatchMaterial) → src/repository (PurchaseOrder)',
+    notes: 'Phase 16: updating a PO to Acknowledged/In Production/Shipped now also drives the matching real canonical PurchaseOrder transition (dispatch also advances the canonical Project to the delivery stage). Ready to Ship/Delivered/Cancelled have no canonical bridge yet (Delivered is Phase 17 scope). List/detail rendering remains DbManager-sourced.',
+  },
 };
 
 function defaultStatusFor(dataSource: string): MigrationStatus {

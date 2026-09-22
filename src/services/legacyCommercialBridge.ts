@@ -28,15 +28,18 @@
  */
 
 import { DbManager } from '../lib/db';
-import type { Lead, Deal, Payment as LegacyPayment } from '../types';
+import type { Lead, Deal, Payment as LegacyPayment, PurchaseOrder as LegacyPurchaseOrder } from '../types';
 import { resolveEnvironment } from '../lib/environment';
 import type { RepositoryContext } from '../repository/types';
 import { leadToCustomer, leadToSite, leadAndDealToProject } from '../domain/adapters';
-import { createProjectFromLead, projectRepository, paymentScheduleRepository, quoteRepository } from '../repository/entities';
-import { collectInstallment, createQuote, approveQuote, sendQuote, recordCustomerQuoteDecision } from './commercialWorkflow';
+import { createProjectFromLead, projectRepository, paymentScheduleRepository, quoteRepository, purchaseOrderRepository } from '../repository/entities';
+import {
+  collectInstallment, createQuote, approveQuote, sendQuote, recordCustomerQuoteDecision,
+  createProcurementPO, approvePO, recordSupplierAcceptance, markInProduction, dispatchMaterial,
+} from './commercialWorkflow';
 import type { CanonicalUserRole, Quote } from '../domain/entities';
 import { asId } from '../domain/ids';
-import type { ProjectId, PaymentScheduleId, ContractId, UserId } from '../domain/ids';
+import type { ProjectId, PaymentScheduleId, ContractId, PurchaseOrderId, UserId } from '../domain/ids';
 
 export interface BridgeActor {
   id: string;
@@ -130,6 +133,84 @@ export async function bridgeLegacyPaymentConfirmed(
       legacyPayment.paidAmount ?? legacyPayment.amount,
       `legacy:${legacyPayment.id}`,
     );
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Derives the canonical PurchaseOrderId from a legacy PO's own id — same
+ * `po_<idempotencyKey>` scheme `commercialWorkflow.createProcurementPO`
+ * uses, with the legacy PO id itself as the idempotency key, so the
+ * status-change bridge below can find the record created here without a
+ * separate id-mapping table. */
+function canonicalPoId(legacyPoId: string): PurchaseOrderId {
+  return asId<PurchaseOrderId>(`po_${legacyPoId}`);
+}
+
+/**
+ * Bridges a legacy PO draft (`PurchaseOrderGenerator.handleDraftPoFromDeal`)
+ * into a real, idempotent canonical PurchaseOrder — linked to the same
+ * canonical Project the Lead/Deal already resolve to (Phase 15).
+ */
+export async function bridgeProcurementPoCreated(
+  actor: BridgeActor,
+  legacyPo: LegacyPurchaseOrder,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const deal = DbManager.getDealById(legacyPo.linkedDealId);
+    if (!deal) return { bridged: false, reason: `Deal ${legacyPo.linkedDealId} not found for PO ${legacyPo.id}` };
+    const lead = DbManager.getLeadById(deal.leadId);
+    if (!lead) return { bridged: false, reason: `Lead ${deal.leadId} not found for deal ${deal.id}` };
+
+    const ctx = ctxFor(actor);
+    const { projectId } = await ensureCanonicalProject(ctx, lead, deal);
+    await createProcurementPO(ctx, commercialActor(actor), projectId, legacyPo.supplierId, legacyPo.totalAmount, legacyPo.id);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Bridges a legacy PO status change into the matching canonical
+ * PurchaseOrder transition:
+ *   'Sent'          -> approvePO-equivalent (pending_approval -> sent_to_supplier)
+ *   'Acknowledged'   -> recordSupplierAcceptance (-> accepted_by_supplier)
+ *   'In Production'  -> markInProduction (-> in_production)
+ *   'Shipped'        -> dispatchMaterial (-> dispatched; advances the
+ *                        canonical Project to the delivery stage)
+ * Other legacy statuses ('Ready to Ship', 'Delivered', 'Cancelled') have
+ * no canonical equivalent wired yet — 'Delivered' belongs to Phase 17's
+ * Delivery workflow migration; reported as an explicit non-bridge, never
+ * silently dropped.
+ */
+export async function bridgeProcurementPoStatusChanged(
+  actor: BridgeActor,
+  legacyPo: LegacyPurchaseOrder,
+  targetStatus: LegacyPurchaseOrder['status'],
+): Promise<{ bridged: boolean; reason?: string }> {
+  const bridgeable = ['Sent', 'Acknowledged', 'In Production', 'Shipped'];
+  if (!bridgeable.includes(targetStatus)) {
+    return { bridged: false, reason: `no bridge defined yet for PO status "${targetStatus}"` };
+  }
+  try {
+    const ctx = ctxFor(actor);
+    const poId = canonicalPoId(legacyPo.id);
+    const existing = await purchaseOrderRepository(ctx).get(poId);
+    if (!existing) {
+      return { bridged: false, reason: `no canonical PurchaseOrder found for legacy PO ${legacyPo.id} — was it created through bridgeProcurementPoCreated first?` };
+    }
+
+    if (targetStatus === 'Sent' && existing.status === 'pending_approval') {
+      await approvePO(ctx, commercialActor(actor), poId);
+    } else if (targetStatus === 'Acknowledged') {
+      await recordSupplierAcceptance(ctx, poId);
+    } else if (targetStatus === 'In Production') {
+      await markInProduction(ctx, poId);
+    } else if (targetStatus === 'Shipped') {
+      await dispatchMaterial(ctx, poId);
+    }
     return { bridged: true };
   } catch (err) {
     return { bridged: false, reason: err instanceof Error ? err.message : String(err) };

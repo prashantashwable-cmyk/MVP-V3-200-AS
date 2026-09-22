@@ -8,6 +8,7 @@ import { Card, Button } from './Common';
 import { User, PurchaseOrder, POLineItem, Supplier, Deal } from '../types';
 import { DbManager } from '../lib/db';
 import { useLanguage } from '../lib/language';
+import { bridgeProcurementPoCreated, bridgeProcurementPoStatusChanged } from '../services/legacyCommercialBridge';
 
 interface PurchaseOrderGeneratorProps {
   user: User;
@@ -123,6 +124,18 @@ export const PurchaseOrderGenerator: React.FC<PurchaseOrderGeneratorProps> = ({
     setSelectedDealId('');
     setSelectedSupplierId('');
     setNotification({ msg: `Auto-drafted ${newPoId} linked to Deal ${matchedDeal.id}.`, type: 'success' });
+
+    // Phase 16: bridge this draft into a real, idempotent canonical
+    // PurchaseOrder in addition to the DbManager write above — see
+    // legacyCommercialBridge.ts.
+    bridgeProcurementPoCreated(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      newPo,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 16 bridge] PO ${newPo.id} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   // Action: Send PO to Supplier
@@ -148,9 +161,22 @@ export const PurchaseOrderGenerator: React.FC<PurchaseOrderGeneratorProps> = ({
     };
 
     DbManager.updatePurchaseOrder(updatedPo);
-    setNotification({ 
-      msg: `✈️ ${po.id} transmitted to ${po.supplierName}. Supplier communication thread ${threadRef} opened with PO attachment.`, 
-      type: 'success' 
+    setNotification({
+      msg: `✈️ ${po.id} transmitted to ${po.supplierName}. Supplier communication thread ${threadRef} opened with PO attachment.`,
+      type: 'success'
+    });
+
+    // Phase 16: bridge into the canonical PO's pending_approval ->
+    // sent_to_supplier transition, in addition to the DbManager write
+    // above — see legacyCommercialBridge.ts.
+    bridgeProcurementPoStatusChanged(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      updatedPo,
+      'Sent',
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 16 bridge] PO ${po.id} "Sent" not mirrored to canonical model: ${result.reason}`);
+      }
     });
   };
 

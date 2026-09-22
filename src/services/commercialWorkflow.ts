@@ -300,6 +300,20 @@ export async function recordSupplierAcceptance(ctx: RepositoryContext, poId: str
   return (await purchaseOrderRepository(ctx).update(poId, { status: 'accepted_by_supplier' } as any)) as PurchaseOrder;
 }
 
+/** Phase 16: the "Production" stage of the procurement workflow
+ * (`src/workflows/definitions/procurement.ts`'s `production` state,
+ * `PurchaseOrderStatus`'s `'in_production'` value) between supplier
+ * acceptance and dispatch. Same lightweight shape as
+ * `recordSupplierAcceptance`/`dispatchMaterial` (no `assertPermission`
+ * call — matching those two's existing, already-accepted scope; a
+ * stricter per-step permission model for the post-approval procurement
+ * lifecycle is future hardening, not introduced piecemeal here). */
+export async function markInProduction(ctx: RepositoryContext, poId: string): Promise<PurchaseOrder> {
+  const current = await purchaseOrderRepository(ctx).get(poId);
+  if (!current) throw new Error(`PurchaseOrder ${poId} not found`);
+  return (await purchaseOrderRepository(ctx).update(poId, { status: 'in_production' } as any)) as PurchaseOrder;
+}
+
 export async function dispatchMaterial(ctx: RepositoryContext, poId: string): Promise<PurchaseOrder> {
   const current = await purchaseOrderRepository(ctx).get(poId);
   if (!current) throw new Error(`PurchaseOrder ${poId} not found`);
