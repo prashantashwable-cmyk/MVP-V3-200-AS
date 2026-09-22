@@ -170,14 +170,17 @@ export const DeliverySchedulingScreen: React.FC<Props> = ({ user, onNavigateToTr
     setShowScheduleLockModal(false);
     showToast(`✅ Delivery date locked for ${scheduledDate}! Technician ${updated.assignedTechnicianName} notified and installation job auto-created.`);
 
-    // Phase 17: bridge into a real canonical Shipment (scheduled), in
+    // Phase 17: bridge into a real canonical Shipment (scheduled).
+    // Phase 18: also assigns the real canonical InstallationJob to the
+    // technician, so their later check-in has a job to check into — in
     // addition to the DbManager write above — see legacyCommercialBridge.ts.
     bridgeDeliveryScheduled(
       { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
       updated.poId,
+      selectedTechnician,
     ).then(result => {
       if (!result.bridged) {
-        console.warn(`[Phase 17 bridge] delivery schedule for PO ${updated.poId} not mirrored to canonical model: ${result.reason}`);
+        console.warn(`[Phase 17/18 bridge] delivery schedule for PO ${updated.poId} not mirrored to canonical model: ${result.reason}`);
       }
     });
   };

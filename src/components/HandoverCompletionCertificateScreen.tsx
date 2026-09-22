@@ -34,6 +34,7 @@ import {
   StaffLifecyclePayout
 } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeHandoverCertificateIssued } from '../services/legacyCommercialBridge';
 
 interface HandoverCompletionCertificateScreenProps {
   user: UserType;
@@ -116,6 +117,19 @@ export const HandoverCompletionCertificateScreen: React.FC<HandoverCompletionCer
         payoutsBreakdown: updatedPayouts
       });
     }
+
+    // Phase 18: bridge into the real canonical Handover's certificate
+    // issuance (Phase 09's hard gate — customer acceptance must already
+    // be recorded — is enforced by issueCertificate() unmodified), in
+    // addition to the DbManager write above — see legacyCommercialBridge.ts.
+    bridgeHandoverCertificateIssued(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      jobId,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] handover certificate for job ${jobId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
 
     setShowPayoutToast(true);
     setTimeout(() => setShowPayoutToast(false), 2500);

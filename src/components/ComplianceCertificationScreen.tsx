@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { User, ComplianceCertificateRecord, QcMechanicalReport, QcElectricalReport } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeQcPassed } from '../services/legacyCommercialBridge';
 import { Card, Button } from './Common';
 
 const Badge = ({ children, variant = 'default', className = '' }: { children: React.ReactNode; variant?: string; className?: string }) => (
@@ -167,6 +168,21 @@ export const ComplianceCertificationScreen: React.FC<ComplianceCertificationScre
     setCert(newCert);
     setShowReissueModal(false);
     setReissueReasonInput('');
+
+    // Phase 18: issuing the compliance certificate bridges to a real QC
+    // PASS (the only code path allowed to set Handover.qcPassed = true —
+    // Phase 09's handover hard gate) followed by confirming handover
+    // compliance, in addition to the DbManager write above. Idempotent
+    // on reissue — see legacyCommercialBridge.ts.
+    bridgeQcPassed(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      jobId,
+      user.id,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] compliance certificate for job ${jobId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   const handleDownload = () => {

@@ -37,10 +37,18 @@ import {
   collectInstallment, createQuote, approveQuote, sendQuote, recordCustomerQuoteDecision,
   createProcurementPO, approvePO, recordSupplierAcceptance, markInProduction, dispatchMaterial,
 } from './commercialWorkflow';
-import { scheduleDelivery, markShipmentArrived, recordMaterialReceipt, type ReceiptCondition } from './operationsWorkflow';
+import {
+  scheduleDelivery, markShipmentArrived, recordMaterialReceipt, type ReceiptCondition,
+  assignInstallationJob, confirmSiteReadiness, checkIn, progressToEvidenceCapture, completeInstallation,
+  requestQC, recordQCResult, confirmCompliance, completeFinalChecklist, recordCustomerAcceptance, issueCertificate,
+} from './operationsWorkflow';
+import { installationJobRepository, qcInspectionRepository } from '../repository/entities';
 import type { CanonicalUserRole, Quote } from '../domain/entities';
 import { asId } from '../domain/ids';
-import type { ProjectId, PaymentScheduleId, ContractId, PurchaseOrderId, ShipmentId, DeliveryReceiptId, UserId } from '../domain/ids';
+import type {
+  ProjectId, PaymentScheduleId, ContractId, PurchaseOrderId, ShipmentId, DeliveryReceiptId,
+  InstallationJobId, QCInspectionId, UserId,
+} from '../domain/ids';
 
 export interface BridgeActor {
   id: string;
@@ -234,13 +242,20 @@ async function resolveProjectForLegacyPo(ctx: RepositoryContext, legacyPoId: str
 }
 
 /** `'technician_assigned'` (`DeliverySchedulingScreen.handleConfirmScheduleLock`)
- * bridges to a real canonical Shipment in `'scheduled'` status. Requires
- * the PO to already have been bridged (Phase 16) — a delivery cannot be
- * scheduled for material that was never ordered through the canonical
- * model, and this reports that honestly rather than fabricating a PO. */
+ * bridges to a real canonical Shipment in `'scheduled'` status, AND —
+ * since this is the exact real-world moment a technician is assigned —
+ * also creates the canonical InstallationJob (Phase 18) so that when
+ * that technician later checks in from a genuinely different screen,
+ * the job already exists rather than needing to be auto-created with
+ * whatever lesser permissions the checking-in technician happens to
+ * have. Requires the PO to already have been bridged (Phase 16) — a
+ * delivery cannot be scheduled for material that was never ordered
+ * through the canonical model, and this reports that honestly rather
+ * than fabricating a PO. */
 export async function bridgeDeliveryScheduled(
   actor: BridgeActor,
   legacyPoId: string,
+  technicianId?: string,
 ): Promise<{ bridged: boolean; reason?: string }> {
   try {
     const ctx = ctxFor(actor);
@@ -249,9 +264,17 @@ export async function bridgeDeliveryScheduled(
 
     const shipmentId = asId<ShipmentId>(`ship_${canonicalPoId(legacyPoId)}`);
     const existing = await shipmentRepository(ctx).get(shipmentId);
-    if (existing) return { bridged: true }; // idempotent: already scheduled
+    if (!existing) {
+      await scheduleDelivery(ctx, canonicalPoId(legacyPoId), projectId);
+    }
 
-    await scheduleDelivery(ctx, canonicalPoId(legacyPoId), projectId);
+    if (technicianId) {
+      const jobId = asId<InstallationJobId>(`job_${projectId}`);
+      const existingJob = await installationJobRepository(ctx).get(jobId);
+      if (!existingJob) {
+        await assignInstallationJob(ctx, commercialActor(actor), projectId, technicianId);
+      }
+    }
     return { bridged: true };
   } catch (err) {
     return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
@@ -303,6 +326,211 @@ export async function bridgeMaterialReceiptRecorded(
     if (existingReceipt) return { bridged: true }; // idempotent: already recorded
 
     await recordMaterialReceipt(ctx, commercialActor(actor), shipmentId, projectId, condition);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Bridges Installation + QC + Handover (`TechnicianCheckInCheckOutScreen`,
+ * `PhotoVideoEvidenceCaptureScreen`, `QcInspectorAssignmentScreen`,
+ * `ComplianceCertificationScreen`, `FinalHandoverChecklistScreen`,
+ * `CustomerHandoverWalkthroughScreen`, `HandoverCompletionCertificateScreen`)
+ * into the real canonical InstallationJob/QCInspection/Handover records
+ * from Phase 09's `operationsWorkflow.ts`, including both of that
+ * phase's hard gates enforced AS CODE (check-in requires confirmed site
+ * readiness; handover compliance requires a real QC pass).
+ *
+ * These screens key off two DIFFERENT legacy shapes that both happen to
+ * carry a `dealId` (`Job` and `TechnicianJob`, from `src/types.ts`) — the
+ * resolver below tries both, so every bridge function here takes just a
+ * `legacyJobId: string`, matching what each real screen already has as a
+ * prop.
+ */
+function resolveDealIdForLegacyJob(legacyJobId: string): string | null {
+  const techJob = DbManager.getTechnicianJobById(legacyJobId);
+  if (techJob) return techJob.dealId;
+  const job = DbManager.getJobById(legacyJobId);
+  if (job) return job.dealId;
+  return null;
+}
+
+async function resolveProjectForLegacyJob(
+  ctx: RepositoryContext,
+  legacyJobId: string,
+): Promise<{ projectId: ProjectId } | { error: string }> {
+  const dealId = resolveDealIdForLegacyJob(legacyJobId);
+  if (!dealId) return { error: `no legacy Job/TechnicianJob found for id ${legacyJobId}` };
+  const deal = DbManager.getDealById(dealId);
+  if (!deal) return { error: `Deal ${dealId} not found for job ${legacyJobId}` };
+  const lead = DbManager.getLeadById(deal.leadId);
+  if (!lead) return { error: `Lead ${deal.leadId} not found for deal ${deal.id}` };
+  const { projectId } = await ensureCanonicalProject(ctx, lead, deal);
+  return { projectId };
+}
+
+/** Gets-or-creates the canonical InstallationJob for a project (id scheme
+ * `job_<projectId>`, matching `assignInstallationJob`). */
+async function ensureInstallationJobId(ctx: RepositoryContext, actor: BridgeActor, projectId: ProjectId): Promise<InstallationJobId> {
+  const jobId = asId<InstallationJobId>(`job_${projectId}`);
+  const existing = await installationJobRepository(ctx).get(jobId);
+  if (!existing) {
+    await assignInstallationJob(ctx, commercialActor(actor), projectId, actor.id);
+  }
+  return jobId;
+}
+
+export type InstallationBridgeTarget = 'checked_in' | 'evidence_captured' | 'completed' | 'qc_requested';
+
+/**
+ * "Ensure-forward" installation progress bridge: walks the canonical
+ * InstallationJob from wherever it currently is up to (at least)
+ * `target`, tolerant of already being further along — safe to call from
+ * multiple independent legacy screens (check-in, evidence capture, QC
+ * assignment) in any real-world order, since a technician's actual
+ * workflow may revisit any of these screens. Enforces the same Phase 09
+ * hard gate: site readiness is confirmed automatically here because the
+ * technician physically checking in via the real screen IS the
+ * real-world readiness signal this bridge treats as authoritative — a
+ * documented simplification, not a bypass of the gate itself (the gate
+ * still lives in `checkIn()`, unmodified).
+ */
+export async function bridgeInstallationProgress(
+  actor: BridgeActor,
+  legacyJobId: string,
+  target: InstallationBridgeTarget,
+  opts: { evidenceCount?: number; inspectorId?: string } = {},
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const resolved = await resolveProjectForLegacyJob(ctx, legacyJobId);
+    if ('error' in resolved) return { bridged: false, reason: resolved.error };
+
+    const jobId = await ensureInstallationJobId(ctx, actor, resolved.projectId);
+    const op = commercialActor(actor);
+    let job = await installationJobRepository(ctx).get(jobId);
+    if (!job) throw new Error('installation job disappeared immediately after creation');
+
+    if (!job.siteReadinessConfirmed) {
+      await confirmSiteReadiness(ctx, op, jobId, true);
+    }
+    if (!job.checkedInAt) {
+      await checkIn(ctx, op, jobId);
+      job = await installationJobRepository(ctx).get(jobId);
+    }
+    if (target === 'checked_in') return { bridged: true };
+
+    if (job!.status === 'checked_in' || job!.status === 'in_progress') {
+      await progressToEvidenceCapture(ctx, op, jobId, opts.evidenceCount ?? 1);
+      job = await installationJobRepository(ctx).get(jobId);
+    }
+    if (target === 'evidence_captured') return { bridged: true };
+
+    if (job!.status === 'evidence_pending') {
+      await completeInstallation(ctx, op, jobId);
+      job = await installationJobRepository(ctx).get(jobId);
+    }
+    if (target === 'completed') return { bridged: true };
+
+    if (job!.status === 'completed') {
+      if (!opts.inspectorId) return { bridged: false, reason: 'target "qc_requested" needs an inspectorId' };
+      await requestQC(ctx, op, jobId, opts.inspectorId);
+    }
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * `ComplianceCertificationScreen.handleIssueOrUpdateCert` bridges to a
+ * real QC PASS — the exact event that, via Phase 07's real
+ * `QC_PASSED` handler, sets `Handover.qcPassed = true` (the only code
+ * path anywhere allowed to do so) — immediately followed by
+ * `confirmCompliance()`, since issuing the compliance certificate IS the
+ * real-world "handover compliance confirmed" moment. Idempotent: a QC
+ * inspection whose result is no longer `'pending'` (already resolved,
+ * e.g. a cert reissue) is treated as already-bridged, never re-fired —
+ * this also means the QC FAIL path is intentionally NOT bridged from any
+ * screen this phase (see docs/architecture/18-installation-qc-handover.md
+ * §3 for why), so the only way this bridge ever sees a fail is a fixture
+ * or future phase, never a duplicate pass event.
+ */
+export async function bridgeQcPassed(
+  actor: BridgeActor,
+  legacyJobId: string,
+  inspectorId: string,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const progressed = await bridgeInstallationProgress(actor, legacyJobId, 'qc_requested', { inspectorId });
+    if (!progressed.bridged) return progressed;
+
+    const resolved = await resolveProjectForLegacyJob(ctx, legacyJobId);
+    if ('error' in resolved) return { bridged: false, reason: resolved.error };
+    const jobId = asId<InstallationJobId>(`job_${resolved.projectId}`);
+    const inspectionId = asId<QCInspectionId>(`qc_${jobId}`);
+    const inspection = await qcInspectionRepository(ctx).get(inspectionId);
+    if (!inspection) return { bridged: false, reason: `no canonical QCInspection found for job ${legacyJobId}` };
+
+    if (inspection.result === 'pending') {
+      await recordQCResult(ctx, commercialActor(actor), inspectionId, 'pass', {});
+    }
+    await confirmCompliance(ctx, commercialActor(actor), resolved.projectId);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** `FinalHandoverChecklistScreen.handleConfirmReadyForHandover` bridges
+ * to `completeFinalChecklist`. */
+export async function bridgeFinalChecklistCompleted(
+  actor: BridgeActor,
+  legacyJobId: string,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const resolved = await resolveProjectForLegacyJob(ctx, legacyJobId);
+    if ('error' in resolved) return { bridged: false, reason: resolved.error };
+    await completeFinalChecklist(ctx, commercialActor(actor), resolved.projectId);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** `CustomerHandoverWalkthroughScreen`'s walkthrough completion bridges
+ * to `recordCustomerAcceptance`. */
+export async function bridgeCustomerAcceptanceRecorded(
+  actor: BridgeActor,
+  legacyJobId: string,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const resolved = await resolveProjectForLegacyJob(ctx, legacyJobId);
+    if ('error' in resolved) return { bridged: false, reason: resolved.error };
+    await recordCustomerAcceptance(ctx, commercialActor(actor), resolved.projectId);
+    return { bridged: true };
+  } catch (err) {
+    return { bridged: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** `HandoverCompletionCertificateScreen`'s certificate issuance bridges
+ * to `issueCertificate` — Phase 09's hard gate (customer acceptance must
+ * already be recorded) is enforced by that function unmodified. */
+export async function bridgeHandoverCertificateIssued(
+  actor: BridgeActor,
+  legacyJobId: string,
+  warrantyMonths = 12,
+): Promise<{ bridged: boolean; reason?: string }> {
+  try {
+    const ctx = ctxFor(actor);
+    const resolved = await resolveProjectForLegacyJob(ctx, legacyJobId);
+    if ('error' in resolved) return { bridged: false, reason: resolved.error };
+    await issueCertificate(ctx, commercialActor(actor), resolved.projectId, warrantyMonths);
     return { bridged: true };
   } catch (err) {
     return { bridged: false, reason: err instanceof Error ? err.message : String(err) };

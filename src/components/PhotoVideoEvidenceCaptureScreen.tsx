@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, TechnicianJob, InstallationSopStep, InstallationEvidenceItem } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeInstallationProgress } from '../services/legacyCommercialBridge';
 import { 
   Camera, Video, ArrowLeft, Upload, CheckCircle2, AlertTriangle, 
   Trash2, RefreshCw, Layers, ShieldCheck, Eye, Plus, Sparkles, X, FileText
@@ -93,6 +94,20 @@ export const PhotoVideoEvidenceCaptureScreen: React.FC<PhotoVideoEvidenceCapture
     };
 
     DbManager.addInstallationEvidence(newEvidence);
+
+    // Phase 18: bridge into the real canonical InstallationJob's
+    // evidence-capture progression, in addition to the DbManager write
+    // above — see legacyCommercialBridge.ts.
+    bridgeInstallationProgress(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      jobId,
+      'evidence_captured',
+      { evidenceCount: evidenceList.length + 1 },
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] evidence capture for job ${jobId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
 
     setIsCapturing(false);
     setPreviewMediaUrl(null);

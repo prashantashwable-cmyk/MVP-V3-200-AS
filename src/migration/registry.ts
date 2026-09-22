@@ -84,8 +84,8 @@ export const migrationOverrides: Record<
   // canonical PurchaseOrder/Project from.
   DeliverySchedulingScreen: {
     status: 'PARTIALLY_MIGRATED',
-    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (scheduleDelivery) → src/repository (Shipment)',
-    notes: 'Phase 17: locking a delivery schedule now also creates a real canonical Shipment in "scheduled" status. Site-readiness checklist and rescheduling remain DbManager-only. List/detail rendering remains DbManager-sourced.',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (scheduleDelivery/assignInstallationJob) → src/repository (Shipment/InstallationJob)',
+    notes: 'Phase 17: locking a delivery schedule now also creates a real canonical Shipment in "scheduled" status. Phase 18: the same action now also assigns the real canonical InstallationJob to the technician, so their later check-in bridge (Phase 18) has a real job to check into. Site-readiness checklist and rescheduling remain DbManager-only. List/detail rendering remains DbManager-sourced.',
   },
   LiveShipmentTrackingScreen: {
     status: 'PARTIALLY_MIGRATED',
@@ -96,6 +96,43 @@ export const migrationOverrides: Record<
     status: 'PARTIALLY_MIGRATED',
     targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (recordMaterialReceipt) → src/repository (DeliveryReceipt)',
     notes: 'Phase 17: completing the checklist now also creates a real canonical DeliveryReceipt — "ok" publishes the real MATERIAL_RECEIVED event; a discrepancy records an audited incident (Phase 09\'s damaged/missing exception path) instead of a fabricated success. Closes the "Delivered" gap Phase 16 documented as deferred. In-progress autosave and DamagedMissingPartsReportScreen\'s more detailed report remain DbManager-only.',
+  },
+
+  // Phase 18 — Installation + QC + Handover. Same dual-write pattern.
+  TechnicianCheckInCheckOutScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (checkIn) → src/repository (InstallationJob)',
+    notes: 'Phase 18: check-in now also drives a real canonical InstallationJob through Phase 09\'s hard gate (site readiness confirmed automatically here, since the real check-in IS the readiness signal). Check-out/SOP-pending warning remain DbManager-only.',
+  },
+  PhotoVideoEvidenceCaptureScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (progressToEvidenceCapture) → src/repository (InstallationJob)',
+    notes: 'Phase 18: saving evidence now also progresses the real canonical InstallationJob to evidence_pending. Per-step SOP checklist rendering remains DbManager-only.',
+  },
+  QcInspectorAssignmentScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (completeInstallation/requestQC) → src/repository (InstallationJob/QCInspection)',
+    notes: 'Phase 18: confirming an inspector assignment now also completes the real canonical InstallationJob and requests QC (Phase 09\'s hard gate — a real check-in and captured evidence — enforced along the way, not bypassed).',
+  },
+  ComplianceCertificationScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (recordQCResult pass/confirmCompliance) → src/repository (QCInspection/Handover)',
+    notes: 'Phase 18: issuing the compliance certificate now also records a real QC PASS (the only path allowed to set Handover.qcPassed=true) and confirms handover compliance. QC FAIL is deliberately not bridged from any screen this phase — see docs/architecture/18-installation-qc-handover.md §3.',
+  },
+  FinalHandoverChecklistScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (completeFinalChecklist) → src/repository (Handover)',
+    notes: 'Phase 18: confirming handover readiness now also drives the real canonical Handover\'s final-checklist transition.',
+  },
+  CustomerHandoverWalkthroughScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (recordCustomerAcceptance) → src/repository (Handover)',
+    notes: 'Phase 18: customer sign-off now also records real canonical customer acceptance — Phase 09\'s hard gate the certificate screen depends on.',
+  },
+  HandoverCompletionCertificateScreen: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/operationsWorkflow.ts (issueCertificate) → src/repository (Handover)',
+    notes: 'Phase 18: triggering final payouts (the screen\'s concluding action) now also issues the real canonical handover certificate — blocked by Phase 09\'s hard gate if customer acceptance was never recorded.',
   },
 };
 

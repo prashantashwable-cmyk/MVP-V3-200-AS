@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, TechnicianJob, TechnicianCheckInRecord } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeInstallationProgress } from '../services/legacyCommercialBridge';
 import { 
   MapPin, Clock, ArrowLeft, CheckCircle2, AlertTriangle, ShieldCheck, 
   Navigation, RefreshCw, FileText, Lock, Play, Square, History, Layers
@@ -78,6 +79,20 @@ export const TechnicianCheckInCheckOutScreen: React.FC<TechnicianCheckInCheckOut
 
     DbManager.checkInTechnician(newRecord);
     loadData();
+
+    // Phase 18: bridge into a real canonical InstallationJob check-in
+    // (Phase 09's hard gate — site readiness must be confirmed first —
+    // stays enforced in checkIn() itself), in addition to the DbManager
+    // write above — see legacyCommercialBridge.ts.
+    bridgeInstallationProgress(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      job.id,
+      'checked_in',
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] check-in for job ${job.id} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   const handlePerformCheckOut = () => {

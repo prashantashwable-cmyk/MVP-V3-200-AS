@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { User, FinalHandoverChecklistRecord, DefectSnagRecord, Job } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeFinalChecklistCompleted } from '../services/legacyCommercialBridge';
 import { Card, Button } from './Common';
 
 const Badge = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -168,6 +169,19 @@ export const FinalHandoverChecklistScreen: React.FC<FinalHandoverChecklistScreen
 
     setRecord(updated);
     DbManager.updateFinalHandoverChecklist(updated);
+
+    // Phase 18: bridge into the real canonical Handover's final-checklist
+    // transition (still gated on a real QC pass inside confirmCompliance,
+    // called earlier in the chain — see legacyCommercialBridge.ts), in
+    // addition to the DbManager write above.
+    bridgeFinalChecklistCompleted(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      jobId,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] final checklist for job ${jobId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
 
     setSuccessBanner('Final Handover Gate Passed! "Customer Handover Walkthrough" is now unlocked.');
     setTimeout(() => {

@@ -4,6 +4,7 @@ import {
   User, QcInspectorAssignmentRecord, TechnicianJob, InstallationSopStep, SafetyComplianceItem 
 } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeInstallationProgress } from '../services/legacyCommercialBridge';
 import { Card, Button } from './Common';
 import { 
   ShieldCheck, CheckCircle2, AlertTriangle, Calendar, Clock, UserCheck, 
@@ -150,6 +151,22 @@ export const QcInspectorAssignmentScreen: React.FC<QcInspectorAssignmentScreenPr
     DbManager.saveQcAssignment(assignmentRecord);
     setNotificationSent(true);
     setShowSuccessModal(true);
+
+    // Phase 18: bridge into the real canonical InstallationJob's
+    // completion + QC request (Phase 09's hard gate — a real check-in
+    // and captured evidence — is enforced by the functions this walks
+    // through, not bypassed), in addition to the DbManager write above —
+    // see legacyCommercialBridge.ts.
+    bridgeInstallationProgress(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      activeJob.id,
+      'qc_requested',
+      { inspectorId: assignmentRecord.assignedInspectorId },
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] QC assignment for job ${activeJob.id} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   return (

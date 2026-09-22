@@ -1543,6 +1543,104 @@ Phase 18 — Migrate Installation + QC + Handover.
 
 ---
 
+## Phase 18 — Migrate Installation + QC + Handover
+
+**Date:** 2026-09-22
+**Status:** Complete (real dual-write migration of check-in through
+handover certificate, both Phase 09 hard gates genuinely enforced; QC
+FAIL/Snag/Rework loop deliberately deferred — see doc §3)
+
+### What changed
+
+- Extended `src/services/legacyCommercialBridge.ts` with
+  `bridgeInstallationProgress()` (an "ensure-forward" bridge walking the
+  canonical InstallationJob through checked_in → evidence_captured →
+  completed → qc_requested, tolerant of being called from 3 independent
+  screens in any order), `bridgeQcPassed()` (real QC PASS + confirmed
+  compliance), `bridgeFinalChecklistCompleted()`,
+  `bridgeCustomerAcceptanceRecorded()`, and
+  `bridgeHandoverCertificateIssued()`. A shared `resolveProjectForLegacyJob()`
+  resolves the canonical Project from either of the two legacy job shapes
+  (`Job`/`TechnicianJob`) these screens use.
+- **Found and fixed a real sequencing gap while wiring this**: a
+  technician bridging their own check-in for a job never assigned to
+  them correctly fails (`assignInstallationJob` requires `project.update`,
+  which technicians do not have) — extended Phase 17's
+  `bridgeDeliveryScheduled()` (the real "technician assigned" moment, an
+  admin action) to also create the canonical InstallationJob, so it
+  genuinely exists by the time a real technician's check-in bridge runs.
+  Backward compatible (new parameter is optional).
+- Wired into 7 real screens: `TechnicianCheckInCheckOutScreen.tsx`
+  (check-in), `PhotoVideoEvidenceCaptureScreen.tsx` (evidence),
+  `QcInspectorAssignmentScreen.tsx` (inspector assignment → completes
+  installation + requests QC), `ComplianceCertificationScreen.tsx`
+  (certificate issuance → real QC PASS + compliance confirmed),
+  `FinalHandoverChecklistScreen.tsx`, `CustomerHandoverWalkthroughScreen.tsx`
+  (customer acceptance), `HandoverCompletionCertificateScreen.tsx`
+  (certificate issuance).
+- Investigated the QC FAIL path directly (`QualityChecklistMechanicalScreen`/
+  `QualityChecklistElectricalScreen`): both recompute status on every
+  single item toggle with no discrete submit action — bridging every
+  toggle would fire duplicate `QC_FAILED` events/Snags. `DefectSnagListScreen`'s
+  snag creation was considered and rejected (not a clean 1:1 mapping to
+  "this inspection failed" — a job can have many independent snags).
+  Deliberately left unbridged and documented, not silently skipped or
+  approximated.
+- Added `scripts/installation-qc-handover-bridge-check.ts` (`npm run
+  installation-qc-handover-bridge:check`, wired into `npm run checks`):
+  23 assertions running the ENTIRE chain on one real project, including
+  a genuine proof that the handover certificate is BLOCKED before
+  customer acceptance (not just a happy-path assertion).
+- Updated `src/migration/registry.ts`: `PARTIALLY_MIGRATED` overrides for
+  the 7 wired screens plus an updated note on `DeliverySchedulingScreen`.
+- Regenerated `docs/migration/screen-migration-matrix.md`: 17
+  `PARTIALLY_MIGRATED` (up from 10), 139 `LEGACY` (down from 146).
+- Added `docs/architecture/18-installation-qc-handover.md`.
+
+### Files/subsystems touched
+
+- `src/services/legacyCommercialBridge.ts` (5 new bridge functions +
+  extended `bridgeDeliveryScheduled` with an optional `technicianId`)
+- `scripts/installation-qc-handover-bridge-check.ts` (new)
+- `src/components/TechnicianCheckInCheckOutScreen.tsx`,
+  `PhotoVideoEvidenceCaptureScreen.tsx`, `QcInspectorAssignmentScreen.tsx`,
+  `ComplianceCertificationScreen.tsx`, `FinalHandoverChecklistScreen.tsx`,
+  `CustomerHandoverWalkthroughScreen.tsx`,
+  `HandoverCompletionCertificateScreen.tsx`, `DeliverySchedulingScreen.tsx`
+  (additive: 1 import + a small non-blocking bridge call at each real
+  write site; `DeliverySchedulingScreen` also passes the new
+  `technicianId` argument)
+- `src/migration/registry.ts` (7 new overrides + 1 updated note)
+- `docs/migration/screen-migration-matrix.md` (regenerated)
+- `docs/architecture/18-installation-qc-handover.md` (new)
+- `package.json` (added `installation-qc-handover-bridge:check`,
+  extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run installation-qc-handover-bridge:check` — pass, 23/23
+  assertions
+- `npm run checks` (all 20 scripts) — pass in full, zero regressions in
+  the prior 385 assertions (`delivery-bridge:check` re-verified backward
+  compatible against the extended `bridgeDeliveryScheduled` signature)
+- `npm run build` — pass
+
+### Known limitations
+
+- Same dual-write caveat as Phases 15-17.
+- QC FAIL/Snag/Rework/Re-inspection loop remains entirely DbManager-only
+  — the largest single remaining gap in operations-side migration,
+  honestly documented rather than approximated with a misfiring bridge.
+- `HandoverCompletionCertificateScreen`'s bridge point (final payouts) is
+  a reasonable but imperfect proxy for certificate issuance.
+
+### Next phase
+
+Phase 19 — Migrate Customer, Supplier, Technician Portals.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { User, CustomerHandoverWalkthroughRecord, Job } from '../types';
 import { DbManager } from '../lib/db';
+import { bridgeCustomerAcceptanceRecorded } from '../services/legacyCommercialBridge';
 import { Card, Button } from './Common';
 
 const Badge = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -138,6 +139,19 @@ export const CustomerHandoverWalkthroughScreen: React.FC<CustomerHandoverWalkthr
         status: 'completed'
       });
     }
+
+    // Phase 18: bridge into the real canonical Handover's customer
+    // acceptance (Phase 09's hard gate — a certificate cannot be issued
+    // without this), in addition to the DbManager writes above — see
+    // legacyCommercialBridge.ts.
+    bridgeCustomerAcceptanceRecorded(
+      { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+      jobId,
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 18 bridge] customer acceptance for job ${jobId} not mirrored to canonical model: ${result.reason}`);
+      }
+    });
 
     if (onNavigateToWarranty) {
       setTimeout(() => {
