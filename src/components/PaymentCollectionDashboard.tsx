@@ -33,6 +33,7 @@ import { Card, Button, Badge } from './Common';
 import { useLanguage } from '../lib/language';
 import { DbManager } from '../lib/db';
 import { User, Payment } from '../types';
+import { bridgeLegacyPaymentConfirmed } from '../services/legacyCommercialBridge';
 
 interface PaymentCollectionDashboardProps {
   user: User;
@@ -353,6 +354,25 @@ export const PaymentCollectionDashboard: React.FC<PaymentCollectionDashboardProp
     setSelectedPayItem(null);
     loadData();
     showToast(t.paymentMarkedToast);
+
+    // Phase 15: mirror a confirmed/partial installment collection into
+    // the real canonical Project/PaymentSchedule/Payment graph (audited,
+    // idempotent via legacy:<paymentId>, event-driven) in addition to the
+    // DbManager write above. Only the "mark paid" business event maps to
+    // commercialWorkflow.collectInstallment — dispute/pause/resume below
+    // remain legacy-only status flags, not new installment collections,
+    // so this screen is PARTIALLY_MIGRATED, not fully MIGRATED (see
+    // docs/migration/screen-migration-matrix.md).
+    if (newStatus === 'paid' || newStatus === 'partial') {
+      bridgeLegacyPaymentConfirmed(
+        { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+        updated,
+      ).then(result => {
+        if (!result.bridged) {
+          console.warn(`[Phase 15 bridge] payment ${updated.id} not mirrored to canonical model: ${result.reason}`);
+        }
+      });
+    }
   };
 
   const handleOpenDispute = (item: Payment) => {

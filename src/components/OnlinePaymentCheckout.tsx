@@ -22,6 +22,7 @@ import { Card, Button, Badge } from './Common';
 import { useLanguage } from '../lib/language';
 import { DbManager } from '../lib/db';
 import { User, Payment } from '../types';
+import { bridgeLegacyPaymentConfirmed } from '../services/legacyCommercialBridge';
 
 interface OnlinePaymentCheckoutProps {
   user: User;
@@ -215,6 +216,21 @@ export const OnlinePaymentCheckout: React.FC<OnlinePaymentCheckoutProps> = ({
         DbManager.updatePayment(updatedPayment);
         setSelectedPayment(updatedPayment);
         setCheckoutState('success');
+
+        // Phase 15: bridge this confirmed payment into the real canonical
+        // Project/PaymentSchedule/Payment graph (audited, idempotent,
+        // event-driven) in addition to the DbManager write above, which
+        // remains authoritative for this screen's own rendering. Never
+        // blocks the UI and never throws — see legacyCommercialBridge.ts.
+        bridgeLegacyPaymentConfirmed(
+          { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+          updatedPayment,
+        ).then(result => {
+          if (!result.bridged) {
+            console.warn(`[Phase 15 bridge] payment ${updatedPayment.id} not mirrored to canonical model: ${result.reason}`);
+          }
+        });
+
         if (onSuccess) onSuccess();
       } else {
         setCheckoutState('failed');

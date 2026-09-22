@@ -36,8 +36,36 @@ export const migrationOverrides: Record<
   string,
   { status: MigrationStatus; targetDataSource: string; notes?: string }
 > = {
-  // Phase 15+ entries are added here, one per screen actually migrated,
-  // in the same commit that does the migration — never in advance of it.
+  // Phase 15 — Commercial Core. Each of these screens keeps its
+  // DbManager write as the authoritative source for its own rendering
+  // (a full cutover risks breaking complex UI this sandbox cannot
+  // visually re-verify without a browser — see docs/architecture/
+  // 15-commercial-core.md §1) but now ALSO mirrors the real business
+  // event into the canonical repository/domain-service/event-bus stack
+  // via src/services/legacyCommercialBridge.ts — audited, idempotent,
+  // and visible to the control tower/search/data-quality checks. Hence
+  // PARTIALLY_MIGRATED, not MIGRATED: honest about what still reads from
+  // DbManager vs. what is now real dual-write.
+  OnlinePaymentCheckout: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (collectInstallment) → src/repository (Payment)',
+    notes: 'Phase 15: a confirmed checkout now also records a real, idempotent canonical Payment via the bridge. DbManager.updatePayment remains this screen\'s own read/render path.',
+  },
+  PaymentCollectionDashboard: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (collectInstallment) → src/repository (Payment)',
+    notes: 'Phase 15: "mark paid"/"partial" now also records a real canonical Payment via the bridge. Dispute/pause/resume remain DbManager-only status flags (no canonical equivalent yet). List/detail rendering remains DbManager-sourced.',
+  },
+  LeadKanban: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (createQuote/approveQuote/sendQuote/recordCustomerQuoteDecision) → src/repository (Project/Quote/Contract)',
+    notes: 'Phase 15: dragging a card to "quoted" now also creates+approves+sends a real canonical Quote; to "closed_won" now also records customer acceptance, which the real Phase 07 event bus turns into a drafted canonical Contract. Board rendering remains DbManager-sourced.',
+  },
+  LeadDetail: {
+    status: 'PARTIALLY_MIGRATED',
+    targetDataSource: 'src/services/legacyCommercialBridge.ts → src/services/commercialWorkflow.ts (createQuote/.../recordCustomerQuoteDecision) → src/repository (Project/Quote/Contract)',
+    notes: 'Phase 15: "Create Quotation" and moving a lead to "closed_won" now also drive the real canonical Quote/Contract lifecycle via the bridge, same as LeadKanban. Detail/timeline rendering remains DbManager-sourced.',
+  },
 };
 
 function defaultStatusFor(dataSource: string): MigrationStatus {

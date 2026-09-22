@@ -12,6 +12,7 @@ import { useLanguage } from '../lib/language';
 import { DbManager } from '../lib/db';
 import { STAGE_CONFIG } from './LeadInbox';
 import { LeadDetail } from './LeadDetail';
+import { bridgeLeadStageTransition } from '../services/legacyCommercialBridge';
 
 // Localization translations
 const localizations = {
@@ -299,6 +300,27 @@ export const LeadKanban: React.FC<{ user: UserType; onBackToInbox?: () => void }
         };
         DbManager.addDeal(newDeal);
       }
+    }
+
+    // Phase 15: bridge the two real business-meaningful stage moves
+    // ('quoted' -> a real Quote; 'closed_won' -> quote accepted, which
+    // the real Phase 07 event bus turns into a drafted canonical
+    // Contract) into the canonical model, in addition to the DbManager
+    // writes above (which remain authoritative for this screen). Never
+    // blocks the UI and never throws — see legacyCommercialBridge.ts.
+    if (targetStage === 'quoted' || targetStage === 'closed_won') {
+      const dealForBridge = deals.find(d => d.leadId === lead.id);
+      bridgeLeadStageTransition(
+        { id: user.id, role: user.role, isDemo: user.isDemo, authMethod: user.authMethod },
+        updatedLead,
+        dealForBridge,
+        targetStage,
+        { quoteAmount: overridePrice ?? dealForBridge?.agreedPrice ?? getLeadValue(lead) },
+      ).then(result => {
+        if (!result.bridged) {
+          console.warn(`[Phase 15 bridge] lead ${lead.id} stage "${targetStage}" not mirrored to canonical model: ${result.reason}`);
+        }
+      });
     }
 
     // 4. Record to unified AIEC audit logs

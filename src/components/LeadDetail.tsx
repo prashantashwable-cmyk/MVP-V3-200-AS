@@ -11,6 +11,7 @@ import { User, Lead, LeadStage } from '../types';
 import { Card, Button, Badge } from './Common';
 import { useLanguage } from '../lib/language';
 import { STAGE_CONFIG } from './LeadInbox';
+import { bridgeLeadStageTransition } from '../services/legacyCommercialBridge';
 
 const localizations = {
   en: {
@@ -304,6 +305,24 @@ export const LeadDetail: React.FC<{
       note: `Elevator phase shifted to ${newStage}`
     });
     localStorage.setItem('aiec_lead_audit_logs', JSON.stringify(logs));
+
+    // Phase 15: bridge 'closed_won' into the real canonical Quote/
+    // Contract lifecycle, in addition to the DbManager write above (see
+    // legacyCommercialBridge.ts for the full explanation and why this
+    // never blocks the UI or throws).
+    if (newStage === 'closed_won') {
+      const linkedDeal = DbManager.getDeals().find(d => d.leadId === lead.id);
+      bridgeLeadStageTransition(
+        { id: currentUser.id, role: currentUser.role, isDemo: currentUser.isDemo, authMethod: currentUser.authMethod },
+        updatedLead,
+        linkedDeal,
+        'closed_won',
+      ).then(result => {
+        if (!result.bridged) {
+          console.warn(`[Phase 15 bridge] lead ${lead.id} stage "closed_won" not mirrored to canonical model: ${result.reason}`);
+        }
+      });
+    }
   };
 
   // Inline action: Owner Delegation
@@ -560,6 +579,21 @@ export const LeadDetail: React.FC<{
     };
     saveEvents([event, ...timelineEvents]);
     triggerToast("Commercial quotation created and linked successfully!");
+
+    // Phase 15: bridge into a real canonical Quote (created, approved,
+    // sent) in addition to the DbManager Deal write above — see
+    // legacyCommercialBridge.ts.
+    bridgeLeadStageTransition(
+      { id: currentUser.id, role: currentUser.role, isDemo: currentUser.isDemo, authMethod: currentUser.authMethod },
+      lead,
+      mockQuotation as any,
+      'quoted',
+      { quoteAmount: mockQuotation.agreedPrice },
+    ).then(result => {
+      if (!result.bridged) {
+        console.warn(`[Phase 15 bridge] lead ${lead.id} quotation not mirrored to canonical model: ${result.reason}`);
+      }
+    });
   };
 
   if (!lead) {
