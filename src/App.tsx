@@ -14,6 +14,7 @@ import { PermissionsPrimer } from './components/PermissionsPrimer';
 import { CommandPalette, registerSearchProvider } from './components/CommandPalette';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
+import { ProjectOperatingView } from './components/ProjectOperatingView';
 import { resolveEnvironment } from './lib/environment';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
 import { installGlobalErrorCapture } from './lib/observability';
@@ -253,6 +254,14 @@ export default function App() {
               tabs={getTabsByRole(currentUser.role)}
               onSelectTab={(tabId) => setActiveTab(tabId)}
             />
+          )}
+
+          {/* Phase 21: project-centric operating view — the first screen
+              to read the canonical repository layer directly through a
+              domain service (getProjectOperatingView), additive, not
+              replacing anything. */}
+          {activeTab === 'ProjectOperatingView' && (
+            <ProjectOperatingView user={currentUser} />
           )}
         </motion.div>
       </AnimatePresence>
@@ -764,6 +773,7 @@ export default function App() {
         return [
           { id: 'Home', label: 'Overview', icon: LayoutDashboard },
           { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
+          { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'CustomerHomeDashboard', label: 'Customer Portal 🏠', icon: Building },
           { id: 'ProjectStatusTracker', label: 'Project Status Tracker ⏱️', icon: Clock },
           { id: 'LeadInbox', label: 'Lead Inbox 📥', icon: FileText },
@@ -896,6 +906,7 @@ export default function App() {
         return [
           { id: 'Home', label: 'Capture Portal', icon: Building },
           { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
+          { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'LeadFollowUp', label: 'Follow-Ups 📅', icon: Calendar },
           { id: 'Incentives', label: 'History', icon: Users },
           { id: 'Settings', label: 'Settings', icon: Settings }

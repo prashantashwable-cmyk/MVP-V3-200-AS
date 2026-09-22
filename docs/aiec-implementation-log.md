@@ -1777,6 +1777,79 @@ Phase 21 — Project-Centric Operating Experience.
 
 ---
 
+## Phase 21 — Project-Centric Operating Experience
+
+**Date:** 2026-09-22
+**Status:** Complete
+
+### What changed
+
+- Added `src/services/projectOperatingView.ts`:
+  `getProjectOperatingView(ctx, projectId)` — Customer, Site, Current
+  Stage, Timeline, Next Action, Owner, Financial State, Blockers (real,
+  computed from actual canonical conditions — never hard-coded), and
+  Audit History, in one call. Extends Phase 19's
+  `getCustomerPortalSummary()` with the project-management fields that
+  summary left out.
+- Added `src/components/ProjectOperatingView.tsx`: the first screen in
+  this entire pack to read the canonical repository layer DIRECTLY
+  through a domain service rather than `DbManager` — the target
+  `UI → Domain Service → Repository` architecture demonstrated end to
+  end on a new, additive screen. Self-contained project picker, needs
+  only a `user` prop.
+- Mounted additively in `src/App.tsx`: 1 import, 1 new tab entry on
+  admin and surveyor tab lists, 1 new render guard — nothing existing
+  touched.
+- Added `scripts/project-operating-view-check.ts` (`npm run
+  project-operating-view:check`, wired into `npm run checks`): 14
+  assertions across two scenarios — a project driven through the entire
+  real bridge chain (asserting timeline/next-action/owner/financial/audit
+  are correct AND that a clean project has zero blockers) and a
+  deliberately-stuck project (a PO left pending approval) proving the
+  blocker computation surfaces the real, specific reason.
+- **Real finding documented, not silently patched around**: the
+  assumption that `advanceProjectStage()` (Phase 06) is what records
+  project-stage-change audit events was wrong — the actual commercial/
+  operations workflow services bypass it with raw repository updates (a
+  pre-existing Phase 08/09 characteristic). The test was corrected to
+  assert the real event the bridge chain actually produces
+  (`QUOTE_ACCEPTED_CONTRACT_CREATED` from the Phase 07 event handler).
+- Added `docs/architecture/21-project-centric.md`.
+
+### Files/subsystems touched
+
+- `src/services/projectOperatingView.ts` (new)
+- `src/components/ProjectOperatingView.tsx` (new)
+- `scripts/project-operating-view-check.ts` (new)
+- `src/App.tsx` (additive: 1 import, 2 tab-list entries, 1 render guard)
+- `docs/architecture/21-project-centric.md` (new)
+- `package.json` (added `project-operating-view:check`, extended
+  `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run project-operating-view:check` — pass, 14/14 assertions
+- `npm run checks` (all 23 scripts) — pass in full, zero regressions in
+  the prior 441 assertions (455 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- No in-browser click-through verification — no browser in this
+  sandbox.
+- `advanceProjectStage()` remains unused by the real workflow services —
+  named, not fixed (out of this phase's scope).
+- The 14-stage timeline is a linear simplification of a workflow model
+  that has some branching/exception paths — documented, not silently
+  flattened without saying so.
+
+### Next phase
+
+Phase 22 — Next Best Action + Work Queue.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
