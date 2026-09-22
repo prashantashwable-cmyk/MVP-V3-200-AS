@@ -288,5 +288,32 @@ service cloud.firestore {
       allow update: if isAdmin() || isRecordOwner('inspectorId');
       allow delete: if false;
     }
+
+    // 10. Phase 09 — delivery, installation, and warranty entities.
+    match /shipments/{shipmentId} {
+      allow read: if isAdmin() || isTechnician();
+      allow create, update: if isAdmin() || isTechnician();
+      allow delete: if false;
+    }
+
+    match /delivery_receipts/{receiptId} {
+      allow read: if isAdmin() || isRecordOwner('receivedBy');
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if false; // a receipt is a point-in-time record; corrections happen via a new record, not an edit
+    }
+
+    match /installation_jobs/{jobId} {
+      allow read: if isAdmin() || isRecordOwner('technicianId');
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isRecordOwner('technicianId');
+      allow delete: if false;
+    }
+
+    match /warranties/{warrantyId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
   }
 }

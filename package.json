@@ -16,7 +16,8 @@
     "audit:check": "tsx scripts/idempotency-audit-check.ts",
     "eventbus:check": "tsx scripts/event-bus-check.ts",
     "commercial:check": "tsx scripts/commercial-workflow-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check"
+    "operations:check": "tsx scripts/operations-workflow-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

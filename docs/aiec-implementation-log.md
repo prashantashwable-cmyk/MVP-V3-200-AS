@@ -685,3 +685,79 @@ Phase 09 — Implement Operations Through Handover (Delivery,
 Installation, QC, Handover).
 
 ---
+
+## Phase 09 — Operations Through Handover
+
+**Date:** 2026-09-22
+**Status:** Complete (orchestration layer; screen rewiring deferred to
+Phase 10, same reasoning as Phase 08)
+
+### What changed
+
+- Added `src/services/operationsWorkflow.ts`: real orchestration for
+  Delivery (schedule/arrive/receipt with damaged/missing incident path)
+  → Installation (assign → site readiness → check-in → evidence →
+  completion → QC request) → QC (pass/fail, rework/re-inspection open
+  loop) → Handover (compliance → checklist → walkthrough → acceptance →
+  certificate). Implements Phase 09's two named hard gates AS CODE THAT
+  THROWS: a technician cannot check in without confirmed site readiness
+  or complete installation without evidence; handover cannot proceed
+  past compliance without a real QC pass, and cannot issue a certificate
+  without recorded customer acceptance.
+- Added two new real Phase 07 event handlers in `src/events/handlers.ts`:
+  `QC_PASSED` (`unblockHandoverOnQcPass` — the pass-path symmetric
+  counterpart to the existing `QC_FAILED` handler; sets
+  `Handover.qcPassed = true`; this is the ONLY code path anywhere that
+  may set it true) and `HANDOVER_COMPLETED`
+  (`startWarrantyOnHandoverCompletion` — creates a real `Warranty`
+  record; AMC deliberately not auto-created, since it's
+  customer/sales-initiated in the real business).
+- Extended `src/repository/entities.ts` with `shipmentRepository`,
+  `deliveryReceiptRepository`, `installationJobRepository`,
+  `warrantyRepository`.
+- Extended `firestore.rules`: `shipments`, `delivery_receipts`,
+  `installation_jobs`, `warranties`. All prior rules untouched.
+- Added `scripts/operations-workflow-check.ts`
+  (`npm run operations:check`): 17 assertions covering Phase 13
+  Scenarios C/D/E, including explicit attempts to bypass both hard gates
+  (both correctly blocked) before completing the happy path through to
+  a real, event-bus-created Warranty record.
+- Added `docs/architecture/09-operations-workflows.md`.
+
+### Files/subsystems touched
+
+- `src/services/operationsWorkflow.ts` (new)
+- `src/events/handlers.ts` (2 new handlers: `QC_PASSED`,
+  `HANDOVER_COMPLETED`)
+- `src/repository/entities.ts` (4 new repository accessors)
+- `firestore.rules` (4 new collections; all prior rules untouched)
+- `scripts/operations-workflow-check.ts` (new)
+- `docs/architecture/09-operations-workflows.md` (new)
+- `package.json` (added `operations:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run checks` (all 9 acceptance scripts) — pass in full; 17/17 new
+  assertions, zero regressions in the prior 90+ from Phases 02-08 (107
+  total assertions now passing)
+- `npx vite build` — pass
+
+### Known limitations
+
+- No existing screen calls `operationsWorkflow.ts` yet — by design, see
+  doc.
+- No distinct `Incident` entity for damaged/missing deliveries (not in
+  the Phase 02 domain model) — `DeliveryReceipt.incidentId` used as the
+  anchor instead.
+- QC `discipline` is accepted but not enforced against a per-technician
+  skill/certification check — a real skill-matching assignment rule is
+  future scope, not fabricated here.
+
+### Next phase
+
+Phase 10 — Replace Navigation Complexity With Five Operating Surfaces
+(project-centric UX rebuild).
+
+---

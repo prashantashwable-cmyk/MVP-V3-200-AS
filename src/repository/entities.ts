@@ -16,6 +16,7 @@ import { getRepository } from './index';
 import type { RepositoryContext } from './types';
 import type { Customer, Site, Project, Quote, QuoteVersion, Contract, PaymentSchedule, Payment } from '../domain/entities';
 import type { PurchaseOrder, Snag, NotificationRecord, Handover, QCInspection } from '../domain/entities';
+import type { Shipment, DeliveryReceipt, InstallationJob, Warranty } from '../domain/entities';
 import { recordAuditEvent, newCorrelationId } from '../lib/audit';
 import { runIdempotent } from '../lib/idempotency';
 
@@ -32,6 +33,10 @@ export const snagRepository = (ctx: RepositoryContext) => getRepository<Snag>('s
 export const notificationRepository = (ctx: RepositoryContext) => getRepository<NotificationRecord>('notifications', ctx);
 export const handoverRepository = (ctx: RepositoryContext) => getRepository<Handover>('handovers', ctx);
 export const qcInspectionRepository = (ctx: RepositoryContext) => getRepository<QCInspection>('qc_inspections', ctx);
+export const shipmentRepository = (ctx: RepositoryContext) => getRepository<Shipment>('shipments', ctx);
+export const deliveryReceiptRepository = (ctx: RepositoryContext) => getRepository<DeliveryReceipt>('delivery_receipts', ctx);
+export const installationJobRepository = (ctx: RepositoryContext) => getRepository<InstallationJob>('installation_jobs', ctx);
+export const warrantyRepository = (ctx: RepositoryContext) => getRepository<Warranty>('warranties', ctx);
 
 /**
  * `contracts_v2` (not `contracts`): the repo already has a real `contracts`

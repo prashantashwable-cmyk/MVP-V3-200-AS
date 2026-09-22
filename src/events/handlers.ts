@@ -44,10 +44,11 @@ import {
   snagRepository,
   handoverRepository,
   paymentScheduleRepository,
+  warrantyRepository,
 } from '../repository/entities';
 import type { RepositoryContext } from '../repository/types';
 import { asId } from '../domain/ids';
-import type { ContractId, ProjectId, NotificationId, SnagId, HandoverId, UserId, QuoteVersionId, QCInspectionId } from '../domain/ids';
+import type { ContractId, ProjectId, NotificationId, SnagId, HandoverId, UserId, QuoteVersionId, QCInspectionId, WarrantyId } from '../domain/ids';
 
 function queueNotification(
   ctx: RepositoryContext,
@@ -175,6 +176,86 @@ registerHandler<QcFailedPayload>('QC_FAILED', 'createSnagAndPauseHandover', asyn
     entityId: snagId,
     projectId,
     after: { snagId, slaDueBy, handoverBlocked: true },
+    source: 'automation',
+    correlationId: event.correlationId,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QC_PASSED — Phase 09. Symmetric to QC_FAILED above: the hard gate
+// ("a failed QC cannot accidentally reach handover") is only real if the
+// PASS path is exactly as explicit as the FAIL path. This is the ONLY
+// code path anywhere in the system that may set `Handover.qcPassed =
+// true` — src/services/operationsWorkflow.ts's QC functions never set it
+// directly, they only ever publish QC_PASSED/QC_FAILED and let these two
+// handlers be the single source of truth for the gate.
+// ---------------------------------------------------------------------------
+
+interface QcPassedPayload {
+  qcInspectionId: string;
+}
+
+registerHandler<QcPassedPayload>('QC_PASSED', 'unblockHandoverOnQcPass', async (ctx, event) => {
+  const projectId = event.projectId!;
+  const handoverId = `handover_${projectId}`;
+  const existingHandover = await handoverRepository(ctx).get(handoverId as any);
+  if (existingHandover) {
+    await handoverRepository(ctx).update(handoverId, {
+      qcPassed: true,
+      status: 'compliance_pending',
+    } as any);
+  } else {
+    await handoverRepository(ctx).create({
+      id: asId<HandoverId>(handoverId),
+      projectId: projectId as ProjectId,
+      qcPassed: true,
+      status: 'compliance_pending',
+    });
+  }
+  await recordAuditEvent(ctx, {
+    actorId: 'system',
+    actorRole: 'system',
+    action: 'QC_PASSED_HANDOVER_UNBLOCKED',
+    entityType: 'Handover',
+    entityId: handoverId,
+    projectId,
+    after: { qcPassed: true, status: 'compliance_pending' },
+    source: 'automation',
+    correlationId: event.correlationId,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HANDOVER_COMPLETED — Phase 09. "Warranty/AMC are post-handover
+// lifecycle stages": starting the Warranty clock is the one real,
+// automatic downstream effect of a completed handover this phase
+// implements (AMC booking is a customer/sales-initiated action, not an
+// automatic consequence of handover, so it is NOT created here).
+// ---------------------------------------------------------------------------
+
+interface HandoverCompletedPayload {
+  handoverId: string;
+  warrantyMonths: number;
+}
+
+registerHandler<HandoverCompletedPayload>('HANDOVER_COMPLETED', 'startWarrantyOnHandoverCompletion', async (ctx, event) => {
+  const startDate = event.occurredAt;
+  const endDate = new Date(Date.now() + event.payload.warrantyMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+  await warrantyRepository(ctx).create({
+    id: asId<WarrantyId>(`warranty_${event.projectId}`),
+    projectId: event.projectId as ProjectId,
+    handoverId: asId<HandoverId>(event.payload.handoverId),
+    startDate,
+    endDate,
+  });
+  await recordAuditEvent(ctx, {
+    actorId: 'system',
+    actorRole: 'system',
+    action: 'WARRANTY_STARTED',
+    entityType: 'Warranty',
+    entityId: `warranty_${event.projectId}`,
+    projectId: event.projectId,
+    after: { startDate, endDate },
     source: 'automation',
     correlationId: event.correlationId,
   });
