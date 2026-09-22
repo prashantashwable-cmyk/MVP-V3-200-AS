@@ -230,3 +230,105 @@ Phase 03 — Workflow State Machine and Screen Registry.
 Phase 04 — Real Persistence and Repository Layer.
 
 ---
+
+## Phase 04 — Real Persistence and Repository Layer
+
+**Date:** 2026-09-22
+**Status:** Complete (with one documented, unavoidable integration gap — see below)
+
+### What changed
+
+- Added `src/lib/environment.ts`: explicit `AppEnvironment = 'demo' |
+  'sandbox' | 'production'`, derived from the existing `User.isDemo`
+  signal plus an explicit `VITE_APP_ENV` build flag (missing config
+  defaults to the lower-trust `sandbox`, never silently to `production`).
+- Added `src/repository/types.ts`: the `Repository<T>` contract
+  (`get`/`list`/`query`/`create`/`update` with optimistic
+  `expectedVersion` + typed `StaleWriteError`/`NotFoundError` /
+  `subscribe`).
+- Added `src/repository/firestoreRepository.ts`: real Firestore-backed
+  generic implementation using the existing `db` instance
+  (`getDoc`/`setDoc`/`updateDoc`/`onSnapshot`/`query`+`where`), the same
+  pattern already proven live by `firestoreUsers.ts`/`firestoreLeads.ts`.
+- Added `src/repository/demoRepository.ts`: isolated in-memory (not
+  `localStorage`) implementation for `AppEnvironment === 'demo'` only.
+- Added `src/repository/index.ts` (`getRepository()` factory) and
+  `src/repository/entities.ts` (typed accessors + `createProjectFromLead`
+  /`advanceProjectStage` domain-service functions) for the vertical
+  slice: Customer, Site, Project, Quote, QuoteVersion, Contract,
+  PaymentSchedule, Payment.
+- Extended `firestore.rules` with a new §7 covering `customers`, `sites`,
+  `projects`, `quotes`, `quote_versions`, `contracts_v2`,
+  `payment_schedules`, `payments` — conservative (Admin + owning
+  surveyor/sales only; customer/supplier access deferred to Phase 05's
+  permission model rather than guessed). All 6 pre-existing rule blocks
+  left untouched.
+- Added `scripts/repository-two-user-check.ts`
+  (`npm run repository:check`): verifies two independent call sites
+  ("User A"/"User B") share one authoritative store, that `subscribe()`
+  propagates a change live without a manual refetch, that state agrees
+  after a simulated "refresh" (fresh `get()`), and that a stale-version
+  `update()` is rejected rather than silently applied (6/6 assertions
+  pass).
+- Added `docs/architecture/04-persistence.md`: architecture, the
+  demo/sandbox/production model, rules rationale (including why the new
+  `Contract` entity got its own `contracts_v2` collection instead of
+  colliding with the pre-existing `contracts` shape), and the
+  documented integration gap (next item).
+
+### Files/subsystems touched
+
+- `src/lib/environment.ts` (new)
+- `src/repository/types.ts`, `firestoreRepository.ts`,
+  `demoRepository.ts`, `index.ts`, `entities.ts` (new)
+- `firestore.rules` (extended, additive only)
+- `scripts/repository-two-user-check.ts` (new)
+- `docs/architecture/04-persistence.md` (new)
+- `package.json` (added `repository:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified — per
+  Phase 04's own "do NOT rewrite every component at once."
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run repository:check` — pass, 6/6 assertions
+- `npx vite build` — pass, bundle size unchanged (no screen imports the
+  new modules yet)
+- Direct network probe: `curl https://firestore.googleapis.com/v1/...`
+  from this sandbox returns a real `403 PERMISSION_DENIED` JSON body —
+  confirms network path to Firestore is open; see integration gap below.
+
+### Known limitations / documented integration gap
+
+- **No live-authenticated end-to-end test of `firestoreRepository.ts`
+  was possible in this sandbox.** Verified directly: outbound network to
+  `firestore.googleapis.com` works (real API responses, including a real
+  permission decision), but no Firebase Auth credential of any kind
+  exists in this environment (no service account key, no OAuth flow, no
+  signed-in session — confirmed via `env` and a repo-wide search for
+  service-account files). `firestoreRepository.ts` is real,
+  production-shaped code using the identical SDK primitives already
+  proven live elsewhere in this repo, but was not — and could not be —
+  round-tripped as an authenticated user here. This is the pack's own
+  anticipated "external service that cannot be safely simulated" case;
+  per its instructions, the production-safe interface was built and the
+  gap documented rather than faking a pass. **Action needed to close this
+  gap:** run `repository-two-user-check.ts`'s scenario again with
+  `environment: 'sandbox'` against the live project using real Firebase
+  Auth credentials (or the Firebase Emulator Suite) in an environment
+  that has them.
+- No existing screen reads/writes through the new repository layer yet —
+  intentional, sequenced into Phases 08/09.
+- Idempotency on `Payment.create()`/`PurchaseOrder.create()` is not yet
+  enforced (the `idempotencyKey` field exists on the type since Phase 02
+  but nothing checks it yet) — that is Phase 06's explicit job.
+- New Firestore rules deny customer/supplier access to the 8 new
+  collections entirely, pending Phase 05's permission model and a
+  Customer↔uid link — documented as a deliberate, safe-by-default gap,
+  not an oversight.
+
+### Next phase
+
+Phase 05 — Identity, RBAC, and Server-Side Authorization.
+
+---

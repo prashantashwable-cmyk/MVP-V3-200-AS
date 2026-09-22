@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "domain:check": "tsx scripts/domain-graph-check.ts",
     "workflow:validate": "tsx scripts/workflow-validate.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate"
+    "repository:check": "tsx scripts/repository-two-user-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

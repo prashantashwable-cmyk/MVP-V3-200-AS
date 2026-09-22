@@ -106,5 +106,90 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // 7. Phase 04 — canonical project-spine collections (Customer, Site,
+    // Project, Quote, QuoteVersion, Contract, PaymentSchedule, Payment).
+    // See src/domain/entities.ts for the shapes and src/repository/ for
+    // the code that writes them.
+    //
+    // These rules are intentionally conservative pending Phase 05's full
+    // permission model: Admin has full access everywhere; the creating/
+    // owning internal user (surveyor/sales on Customer/Site/Project/Quote)
+    // can read and update their own records. Direct customer/supplier
+    // self-service access is deferred to Phase 05, which introduces the
+    // permission model and the Customer<->Firebase-Auth-uid link needed
+    // to scope it safely rather than guessing at an ownership check here
+    // that could be wrong in either direction (too open or too closed).
+    // Until Phase 05 lands, customer/supplier roles get NO direct access
+    // to these collections — safer than a guessed-wrong rule, and not a
+    // regression since none of these collections existed before this
+    // phase.
+    function isRecordOwner(field) {
+      return isAuthenticated() && resource.data[field] == request.auth.uid;
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAdmin() || isSurveyor();
+      allow create: if isAdmin() || isSurveyor();
+      allow update: if isAdmin() || isSurveyor();
+      allow delete: if isAdmin();
+    }
+
+    match /sites/{siteId} {
+      allow read: if isAdmin() || isSurveyor();
+      allow create: if isAdmin() || isSurveyor();
+      allow update: if isAdmin() || isSurveyor();
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAdmin() || isRecordOwner('ownerUserId');
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
+      allow update: if isAdmin() || isRecordOwner('ownerUserId');
+      allow delete: if isAdmin();
+    }
+
+    match /quotes/{quoteId} {
+      allow read: if isAdmin() || isRecordOwner('createdBy');
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
+      allow update: if isAdmin() || isRecordOwner('createdBy');
+      allow delete: if isAdmin();
+    }
+
+    match /quote_versions/{quoteVersionId} {
+      // Append-only per the domain model (src/domain/entities.ts):
+      // no update/delete once created.
+      allow read: if isAdmin() || isRecordOwner('createdBy');
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
+      allow update, delete: if false;
+    }
+
+    // `contracts_v2`: the canonical Contract entity (Phase 02). Distinct
+    // from the pre-existing `contracts` collection above, which has a
+    // different shape (see src/repository/entities.ts comment) — kept
+    // separate deliberately so this new rule can never be misread as
+    // governing the old collection or vice versa.
+    match /contracts_v2/{contractId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false; // contracts are void'd via status, never deleted
+    }
+
+    match /payment_schedules/{scheduleId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || isRecordOwner('createdBy');
+      allow create: if isAuthenticated();
+      // Payments are never edited in place once confirmed — status moves
+      // forward via new fields, not arbitrary field overwrite, and only
+      // Admin (finance role arrives with full RBAC in Phase 05) can post
+      // those transitions.
+      allow update: if isAdmin();
+      allow delete: if false; // immutable financial record
+    }
   }
 }
