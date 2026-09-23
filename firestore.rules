@@ -249,7 +249,29 @@ service cloud.firestore {
     match /idempotency_keys/{keyId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated(); // any authenticated write path may register a dedup record
-      allow update, delete: if false; // immutable — see comment above
+      // Phase 37 fix: a real, more fundamental bug found while building
+      // the transactional-idempotency concurrency tests — `allow update:
+      // if false` blocked EVERY completion write, meaning
+      // src/lib/idempotency.ts's documented CLAIM -> COMPLETE lifecycle
+      // could never actually reach 'completed' against real Firestore
+      // rules; every real production idempotency-guarded operation would
+      // have failed its own completion step. Scoped narrowly, not thrown
+      // open: exactly two transitions are allowed on THIS SAME record —
+      // (a) pending -> completed/failed (the real CLAIM -> COMPLETE/FAIL
+      // lifecycle) and (b) failed -> pending (a fresh retry reclaiming a
+      // record whose prior attempt genuinely failed, `src/lib/idempotency.ts`'s
+      // `isReclaimable()`). The identity fields (idempotencyKey/opType)
+      // can never be rewritten in either case — a completed record can
+      // never be reopened, and no one can claim a DIFFERENT key/opType by
+      // overwriting an existing document id.
+      allow update: if isAuthenticated() &&
+        request.resource.data.idempotencyKey == resource.data.idempotencyKey &&
+        request.resource.data.opType == resource.data.opType && (
+          (resource.data.status == 'pending' &&
+            (request.resource.data.status == 'completed' || request.resource.data.status == 'failed')) ||
+          (resource.data.status == 'failed' && request.resource.data.status == 'pending')
+        );
+      allow delete: if false; // still immutable — never deleted, only transitioned
     }
 
     // 9. Phase 07 — event bus / workflow execution engine

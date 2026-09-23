@@ -3111,3 +3111,78 @@ Phase 36 — Destructive Action Safety.
 ### Next phase
 
 Phase 37 — Transactional Idempotency.
+
+## Phase 37 — Transactional Idempotency
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- **Real bug #1 found and fixed, empirically**: the demo path's plain
+  get-then-create idempotency check was never actually safe against
+  concurrent async callers — Phase 06/23's own comment claimed
+  single-threaded JS made it adequate; this phase built a real
+  concurrency probe (`Promise.all` of two `runIdempotent()` calls, same
+  key, a guarded function with a real `await` inside) and reproduced a
+  genuine double-execution (`sideEffectCount: 2`) BEFORE fixing it.
+  Fixed with an in-process single-flight `Map<string, Promise>` in
+  `runIdempotentDemo()` — verified closed after the fix
+  (`sideEffectCount: 1`), not assumed.
+- **Real bug #2 found and fixed, more fundamental**: `firestore.rules`'
+  `idempotency_keys` collection had `allow update, delete: if false` —
+  meaning the documented CLAIM -> COMPLETE lifecycle's own completion
+  write would have been DENIED by the real deployed rules in every real
+  production run, a bug that predates this phase and was never caught
+  because it was never checked against the actual rules text. Fixed:
+  the rules now allow exactly two narrow transitions
+  (`pending -> completed/failed`, `failed -> pending`), identity fields
+  locked, collection otherwise still immutable.
+- **New `'failed'` status** on `IdempotencyRecord`: a genuine `fn()`
+  failure now transitions the record here instead of leaving an
+  unreclaimable stuck `'pending'` — the prior bug where a retry after a
+  genuine failure would silently report `{ wasDuplicate: true, result:
+  undefined }`, treating a FAILED operation as an already-successful
+  duplicate.
+- **Honestly NOT fixed**: a caller that genuinely CRASHES (not a caught
+  failure) still leaves an orphaned `'pending'` record no client-side
+  code can safely reclaim — named, scoped, real follow-up (needs a
+  server-side scheduled cleanup or a rules change this sandbox cannot
+  verify against a live emulator), not guessed at blind.
+- New `scripts/transactional-idempotency-concurrency-test.ts`: all 5
+  named scenarios (request A, request A duplicate, request A CONCURRENT
+  duplicate, retry after timeout, retry after partial failure). Scenarios
+  1/2/3/5 are REALLY, genuinely executed (in-process, live async
+  execution — not mocked); scenario 4 (retry after timeout) and the
+  sandbox/production transaction itself are verified structurally (no
+  live Firestore credential in this sandbox), honestly labeled as such.
+- New `docs/architecture/37-transactional-idempotency.md` documents
+  datastore transaction semantics per this phase's own explicit ask.
+- `scripts/idempotency-audit-check.ts` (Phase 06/23) re-run clean — zero
+  regressions.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run transactional-idempotency:check` — pass, 18/18 assertions, 4
+  of which are real live concurrency/failure-retry proofs, not mocks.
+- `npm run idempotency-audit-check` (via `npm run audit:check`) — pass,
+  13/13 assertions, 0 regressions.
+- `npm run checks` (42 scripts) — pass, 1039 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `src/lib/idempotency.ts` (2 real bug fixes: demo single-flight lock,
+  `'failed'` status + reclaim logic)
+- `firestore.rules` (`idempotency_keys` update rule — the real, more
+  fundamental fix)
+- `scripts/transactional-idempotency-concurrency-test.ts` (new)
+- `docs/architecture/37-transactional-idempotency.md` (new)
+- `package.json` (new check script, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Next phase
+
+Phase 38 — Live End-to-End Production-Like Test (expected BLOCKED — same
+missing-credential reason as Phases 33/34).
