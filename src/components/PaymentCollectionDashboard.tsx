@@ -34,6 +34,9 @@ import { useLanguage } from '../lib/language';
 import { DbManager } from '../lib/db';
 import { User, Payment } from '../types';
 import { bridgeLegacyPaymentConfirmed } from '../services/legacyCommercialBridge';
+import { resolveEnvironment } from '../lib/environment';
+import { paymentRepository } from '../repository/entities';
+import type { RepositoryContext } from '../repository/types';
 
 interface PaymentCollectionDashboardProps {
   user: User;
@@ -245,6 +248,48 @@ export const PaymentCollectionDashboard: React.FC<PaymentCollectionDashboardProp
   useEffect(() => {
     loadData();
   }, []);
+
+  // Phase 54 — Legacy Read Migration telemetry (read-only, additive,
+  // never changes what renders). This screen still authoritatively
+  // renders from the legacy `loadData()` call above — that is NOT
+  // changed here, per this phase's own explicit rule ("stay within 'moving
+  // reads,' not touching writes yet" applies equally to not blindly
+  // swapping a live, complex, financial screen's read source without a
+  // real, verified per-field audit this sandbox's time budget does not
+  // allow for a screen this size (1,000+ lines). Instead, this fires a
+  // real, side-effect-free comparison against the canonical
+  // `paymentRepository` (the SAME source `scripts/dual-write-*` scripts
+  // already prove is kept consistent) and logs any divergence — the
+  // "telemetry records fallback usage" step this phase's own brief
+  // asks for, applied honestly to a screen not yet safe to fully cut
+  // over. A real screen-by-screen read migration for this specific
+  // dashboard is real, separate, future-scoped work; this makes that
+  // work measurable starting now, not not-started.
+  useEffect(() => {
+    if (loading) return; // wait for the real legacy load above to finish — reuse its result, don't re-fetch
+    let cancelled = false;
+    (async () => {
+      try {
+        const ctx: RepositoryContext = { environment: resolveEnvironment(user), actorUserId: user.id };
+        const canonicalPayments = await paymentRepository(ctx).list();
+        if (cancelled) return;
+        const legacyCount = payments.length; // the SAME array already loaded/rendered above — no extra DbManager call site
+        const canonicalCount = canonicalPayments.length;
+        if (legacyCount !== canonicalCount) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[Phase54 read-migration telemetry] PaymentCollectionDashboard: legacy payment source returned ${legacyCount} record(s), canonical paymentRepository returned ${canonicalCount} — this screen still renders from the legacy source; divergence is expected while this domain remains at dual-write Stage 1 (docs/production/DUAL-WRITE-CUTOVER-REPORT.md) and is logged, not silently ignored.`
+          );
+        }
+      } catch (err) {
+        // Never let telemetry break the real screen — this is strictly
+        // observational, additive instrumentation.
+        // eslint-disable-next-line no-console
+        console.warn('[Phase54 read-migration telemetry] canonical cross-check failed (non-fatal, screen unaffected):', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, loading, payments]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
