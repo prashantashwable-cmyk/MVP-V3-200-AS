@@ -2164,6 +2164,64 @@ Phase 26 — Data Quality and Single Source of Truth.
 
 ---
 
+## Phase 26 — Data Quality and Single Source of Truth
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Added 8 new checks to `src/services/dataQuality.ts`, following the
+  exact real-query pattern Phase 12 established: `findCustomersWithoutSite`,
+  `findSitesWithoutProject`, `findProjectsMissingQuoteOrContract`
+  (extends Phase 12's "stage implies a missing record" pattern to Quote/
+  Contract), `findOrphanedInstallationJobs`, `findQcWithoutInstallation`,
+  `findHandoverWithoutQcPass` (a defensive check — Phase 09's hard gate
+  already prevents this in normal operation; this catches a future
+  direct-write bypass), `findOrphanedDocuments`, `findDuplicateProjects`
+  (same customer+site pair). All 14 checks (6 Phase-12 + 8 new) wired
+  into `runAllDataQualityChecks()`.
+- Added `scripts/data-quality-phase26-check.ts` (`npm run
+  data-quality-phase26:check`, wired into `npm run checks`): 19
+  assertions — each new check finds a real seeded problem AND correctly
+  finds nothing wrong with a clean counterpart where one makes sense.
+  Found and fixed a real test-authoring mistake along the way (a site
+  used for the "without project" fixture later legitimately received
+  projects for other fixtures in the same script) by using a dedicated,
+  never-projected site rather than weakening the check's real logic.
+- Added `docs/architecture/26-data-quality.md`.
+
+### Files/subsystems touched
+
+- `src/services/dataQuality.ts` (8 new check functions, extended
+  `runAllDataQualityChecks`)
+- `scripts/data-quality-phase26-check.ts` (new)
+- `docs/architecture/26-data-quality.md` (new)
+- `package.json` (added `data-quality-phase26:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run data-quality-phase26:check` — pass, 19/19 assertions
+- `npm run checks` (all 30 scripts) — pass in full, zero regressions in
+  the prior 520 assertions (539 total); `control-tower-check.ts` (which
+  also calls `runAllDataQualityChecks()`) passes identically
+- `npm run build` — pass
+
+### Known limitations
+
+- "Invalid identifiers" and a generic catch-all "missing required
+  relationships" remain out of scope — same Phase 12 judgment (low value
+  given compile-time branded-ID safety), reaffirmed not revisited.
+- None of the 14 checks are yet rendered in any UI screen — real and
+  tested, not yet wired into a Control Tower/admin-tools view.
+
+### Next phase
+
+Phase 27 — Legacy DbManager Elimination (measurement).
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
