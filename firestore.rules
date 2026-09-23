@@ -210,7 +210,19 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if isAdmin() || isRecordOwner('createdBy');
-      allow create: if isAuthenticated();
+      // Phase 35 fix (real Phase 34 finding): previously bare
+      // `isAuthenticated()` let ANY signed-in user create a Payment
+      // document self-claiming ANY `createdBy` value — impersonating a
+      // different user's payment record. Now the created document must
+      // self-attest the real acting user's uid (or be created by an
+      // Admin on someone else's behalf), matching the same `createdBy`
+      // field the read rule above already trusts. Does not (yet) verify
+      // the referenced `projectId` is one this user actually owns — a
+      // deeper, cross-document check flagged as remaining, real,
+      // documented scope in docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md
+      // rather than guessed at without live verification.
+      allow create: if isAdmin() ||
+        (isAuthenticated() && request.resource.data.createdBy == request.auth.uid);
       // Payments are never edited in place once confirmed — status moves
       // forward via new fields, not arbitrary field overwrite, and only
       // Admin (finance role arrives with full RBAC in Phase 05) can post
@@ -284,7 +296,21 @@ service cloud.firestore {
 
     match /qc_inspections/{inspectionId} {
       allow read: if isAdmin() || isRecordOwner('inspectorId');
-      allow create: if isAuthenticated();
+      // Phase 35 fix (real Phase 34 finding): previously bare
+      // `isAuthenticated()` let ANY signed-in user (including a customer
+      // session) create a QC inspection record for ANY project — a
+      // quality-gate-integrity concern, since Handover.qcPassed (the
+      // Phase 09 hard gate) derives from this collection via the event
+      // bus. Deliberately uses `isTechnician()` (admin + technician +
+      // qc_inspector) rather than a strict `inspectorId == request.auth.uid`
+      // self-match: the real QC-assignment flow
+      // (QcInspectorAssignmentScreen -> requestQC()) lets one technician/
+      // admin assign a DIFFERENT technician as the inspector, which a
+      // strict self-match would have broken with no way to verify against
+      // a live emulator. This still closes the real gap found (customer/
+      // supplier sessions can no longer create QC records at all) without
+      // risking a regression on the legitimate assignment-by-a-peer path.
+      allow create: if isTechnician();
       allow update: if isAdmin() || isRecordOwner('inspectorId');
       allow delete: if false;
     }

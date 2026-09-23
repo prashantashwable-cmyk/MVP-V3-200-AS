@@ -2962,6 +2962,73 @@ from a static analysis this sandbox CAN do.
   documentation; the 8 real findings are fixed (where in scope) in Phase
   35, which explicitly owns closing authorization gaps.
 
+## Phase 35 — Close the Legacy Authorization Gap
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- **Real `firestore.rules` fixes (2 of the 8 Phase 34 findings, the
+  highest-confidence ones)**:
+  - `payments.create` now requires `request.resource.data.createdBy ==
+    request.auth.uid` (or Admin) — verified safe by reading the real
+    write path (`src/services/commercialWorkflow.ts` always sets
+    `createdBy: actor.userId`, which equals the real Firebase Auth uid
+    for a real session).
+  - `qc_inspections.create` now requires `isTechnician()` (admin +
+    technician + qc_inspector) rather than a strict `inspectorId ==
+    request.auth.uid` self-match — the real QC-assignment flow lets one
+    technician/admin assign a DIFFERENT technician as inspector, which a
+    strict self-match would have broken with no live emulator to verify
+    against.
+  - The other 6 findings (`workflow_instances`, `workflow_executions`,
+    `snags`, `notifications`, `delivery_receipts`, `documents`)
+    deliberately NOT changed — each either has no per-user field in its
+    domain model to scope against, or the real write path legitimately
+    creates a record on behalf of a different subject than the acting
+    user. Tightening blind, unverifiable against a live emulator, risks a
+    real regression — documented as real, prioritized, open follow-up
+    instead.
+- New `scripts/generate-legacy-authorization-remediation.ts` and
+  `docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md`: maps all 101
+  client-only screens to P0 (8) / P1 (12) / P2 (81) using the phase
+  brief's own keyword lists (screen name + entity match) — a real,
+  repeatable rule, not a hand-picked list. For every P0 screen, reports
+  whether its underlying DATA is now server-enforced (separate from
+  whether the SCREEN's own render path has been migrated) — the actual
+  security-relevant question per this phase's own stated objective ("no
+  security-sensitive operation can be performed by bypassing the UI," not
+  "101 screens changed").
+- New `scripts/legacy-authz-remediation-check.ts`: verifies the report's
+  P0+P1+P2 counts sum to the live client-only screen count, and that both
+  real `firestore.rules` fixes are actually present in the deployed rules
+  text (not just claimed in the doc).
+- Non-negotiable rule honored explicitly: **did not** blindly rewrite all
+  101 screens — fixed 2 verifiably-safe data-layer gaps directly, mapped
+  every remaining screen honestly, and named exactly why the other 6
+  findings were not blind-fixed.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run legacy-authz-remediation:check` — pass, 6/6 assertions.
+- `npm run checks` (39 scripts) — pass, 1000 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `firestore.rules` (2 real create-rule tightenings, `payments` and `qc_inspections`)
+- `scripts/generate-legacy-authorization-remediation.ts` (new)
+- `scripts/legacy-authz-remediation-check.ts` (new)
+- `docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md` (new)
+- `package.json` (2 new scripts, check wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Next phase
+
+Phase 36 — Destructive Action Safety.
+
 ### Next phase
 
 Phase 35 — Close the Legacy Authorization Gap (the 101 client-only
