@@ -191,6 +191,13 @@ export default function App() {
     };
   }, []);
 
+  // The page/window is what actually scrolls here (main's overflow-y-auto
+  // is inert — no ancestor constrains its height), so a new page must
+  // reset window scroll, not a ref on <main>.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
+
   // Real (non-demo) sessions subscribe DbManager's Leads API to Firestore;
   // demo sessions (or no session) keep it 100% local. See DbManager.setSessionMode.
   useEffect(() => {
