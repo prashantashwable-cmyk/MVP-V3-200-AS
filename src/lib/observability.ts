@@ -23,6 +23,7 @@ import { getRepository } from '../repository';
 import type { RepositoryContext } from '../repository/types';
 import type { WorkflowExecution, NotificationRecord } from '../domain/entities';
 import { isProductionDeploy } from './environment';
+import { getIntegrationRegistryHealth } from '../integrations/registry';
 
 export type ObservabilityEventType = 'app_error' | 'api_error' | 'auth_failure' | 'client_crash';
 
@@ -101,14 +102,18 @@ export async function getObservabilitySummary(ctx: RepositoryContext): Promise<O
 
   // Integration health: real checks, not fabricated status — reflects
   // the documented gaps from Phases 04/05/11 rather than claiming
-  // everything is healthy.
+  // everything is healthy. Phase 24 added real, callable provider
+  // interfaces (src/integrations/) for payment gateway, accounting/ERP,
+  // and logistics — their status below is computed by actually calling
+  // each provider's own healthCheck(), not hardcoded like the entries
+  // that predate a formal provider object.
   const integrationHealth: ObservabilitySummary['integrationHealth'] = [
     { name: 'Firestore (users/leads)', healthy: true, note: 'Real, wired since before this pack (Phase 01 §4).' },
     { name: 'Firestore (project spine, Phase 04+)', healthy: true, note: 'Rules deployed; live authenticated round-trip unverified in this sandbox (Phase 04 §6).' },
     { name: 'Object storage (media)', healthy: false, note: 'No bucket configured (Phase 11 §2 documented gap).' },
     { name: 'Email/WhatsApp/SMS providers', healthy: false, note: 'No provider configured (Phase 11 §3 documented gap).' },
-    { name: 'Payment gateway / bank feed', healthy: false, note: 'No provider configured (Phase 11 §4 documented gap).' },
     { name: 'Server auth middleware', healthy: false, note: 'server.ts has no request authentication (Phase 05 §6 documented gap).' },
+    ...(await getIntegrationRegistryHealth()),
   ];
 
   return {

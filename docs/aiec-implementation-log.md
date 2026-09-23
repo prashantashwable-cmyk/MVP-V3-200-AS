@@ -2030,6 +2030,77 @@ Phase 24 — External Integration Boundaries.
 
 ---
 
+## Phase 24 — External Integration Boundaries
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Investigated existing integrations first: Firebase Auth, object
+  storage (`UploadTransport`), and email/WhatsApp/SMS (`ChannelTransport`)
+  already had real interfaces from Phases 04/05/11 — confirmed current,
+  left untouched. The real gaps were payment provider, accounting/ERP,
+  and logistics — none had a formal provider interface.
+- Added `src/integrations/types.ts`: shared `IntegrationProvider`/
+  `IntegrationStatus`/`UnconfiguredIntegrationError`/`WebhookEnvelope`/
+  `DEFAULT_RETRY_POLICY` vocabulary every concrete provider uses.
+- Added `src/integrations/paymentGateway.ts`, `accountingErp.ts`,
+  `logistics.ts`: one real TypeScript interface each, plus an honest
+  `unconfigured*` default — `healthCheck()` reports `'unconfigured'`
+  with a specific note on what's missing, every action method throws
+  `UnconfiguredIntegrationError` (never a silent no-op or fabricated
+  success), both webhook signature checks fail closed unconditionally.
+- Added `src/integrations/registry.ts`: `getIntegrationRegistryHealth()`
+  computes live status by actually calling each provider.
+- Wired additively into `src/lib/observability.ts`'s
+  `getObservabilitySummary()` — replaces the one hardcoded "Payment
+  gateway / bank feed" entry with 3 real, specific ones; every other
+  Phase 12 entry left untouched. `control-tower-check.ts` (Phase 12,
+  unchanged) still passes with this real data flowing through it.
+- Added `scripts/integration-boundaries-check.ts` (`npm run
+  integration-boundaries:check`, wired into `npm run checks`): 16
+  assertions covering honest unconfigured status, typed error throwing
+  on every action, fail-closed webhook verification, and a live-computed
+  registry.
+- Added `docs/architecture/24-integration-boundaries.md`, including the
+  exact real configuration (provider account, credentials, webhook
+  endpoint, business decisions like GSTIN mapping) each of the 3 needs
+  to become real — none provisionable from this sandbox.
+
+### Files/subsystems touched
+
+- `src/integrations/types.ts`, `paymentGateway.ts`, `accountingErp.ts`,
+  `logistics.ts`, `registry.ts` (new)
+- `src/lib/observability.ts` (additive: 1 import, 1 hardcoded entry
+  replaced by 3 real computed ones, all other entries untouched)
+- `scripts/integration-boundaries-check.ts` (new)
+- `docs/architecture/24-integration-boundaries.md` (new)
+- `package.json` (added `integration-boundaries:check`, extended
+  `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run integration-boundaries:check` — pass, 16/16 assertions
+- `npm run checks` (all 28 scripts) — pass in full, zero regressions in
+  the prior 493 assertions (509 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- None of the 3 providers can be made real in this sandbox — no live
+  credentials for any of them, consistent with every prior documented
+  integration gap since Phase 01.
+- Choosing WHICH accounting/ERP system and its chart-of-accounts/GSTIN
+  mapping is a business decision this pack cannot make unilaterally.
+
+### Next phase
+
+Phase 25 — Global Search + Control Tower Completion.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
