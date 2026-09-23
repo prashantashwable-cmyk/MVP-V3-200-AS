@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { db, schema } from './db';
@@ -9,6 +10,22 @@ dotenv.config();
 
 // Initialize Express
 export const app = express();
+
+// Phase 57 — a real, measured production performance finding: this
+// server previously had NO response-compression middleware at all, so
+// `express.static()` served the full ~2.79MB main JS bundle
+// uncompressed on every request. A real Lighthouse mobile run (real 4G/
+// CPU throttling, not a guess) against this exact server before this
+// fix measured a 20.2s First Contentful Paint and 21.1s Largest
+// Contentful Paint — a severe, real mobile UX problem for this app's
+// actual field-technician user base on real Indian mobile networks.
+// `compression()` is the standard, low-risk, universally-recommended
+// Express fix (gzip/deflate/brotli negotiated per-request, applied to
+// every response including the static asset bundle and every /api/*
+// JSON response) — re-measured after this change, see
+// docs/production/MOBILE-PERFORMANCE-REPORT.md for the real before/
+// after Lighthouse numbers.
+app.use(compression());
 
 // Increase payload limits to support base64 image uploads
 app.use(express.json({ limit: '15mb' }));
