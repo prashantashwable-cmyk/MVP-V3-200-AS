@@ -100,3 +100,164 @@ Firestore document's `role` field set accordingly) plus, ideally, a real
 service-account credential (`FIREBASE_ADMIN_SA_JSON`) to set up/tear down
 those identities' custom claims and Firestore role documents
 programmatically rather than by hand. None exist in this sandbox.
+
+## Part 3 — Phase 44: deeper static analysis (read/create/update/delete
+escalation, cross-project escalation, payment fabrication, role
+escalation) against the CURRENT `firestore.rules` text
+
+Re-read directly this session (30 collection blocks, unchanged count from
+Phase 34; every line quoted below is the ACTUAL current rule, not
+paraphrased). This is explicitly labeled static rules analysis — reasoning
+through the deployed rule text the same way Phase 34's Part 2 did — never
+live execution. It does not repeat Phase 34's create-side findings
+(tracked in `docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md`); it adds
+coverage Phase 34 did not: update/delete escalation, role escalation, and
+a residual payment-fabrication gap Phase 35's fix did not fully close.
+
+### 3a. Role escalation — `users/{userId}` (the single collection that
+could grant a role, so the only one where "role escalation" is a
+meaningful distinct test)
+
+```
+allow create: if isAuthenticated() && request.auth.uid == userId &&
+  (isOwnerEmail() || request.resource.data.role != 'admin');
+allow update: if isAdmin() || (
+  isAuthenticated() && request.auth.uid == userId &&
+  request.resource.data.role == resource.data.role &&
+  request.resource.data.status == resource.data.status
+);
+```
+
+**Attack attempted (on paper): a `customer` session tries to self-write
+`role: 'admin'` on their own `users/{uid}` document.**
+- Via `create` (document doesn't exist yet): blocked — `role != 'admin'`
+  is enforced unless the token's email is the hardcoded owner email
+  (`isOwnerEmail()`), which a customer session's token cannot satisfy.
+- Via `update` (document exists): blocked — `request.resource.data.role
+  == resource.data.role` forces the role field to stay byte-identical to
+  its current value on any self-authored update; only `isAdmin()` (a
+  DIFFERENT session, already privileged) can change it.
+
+**Verdict: SECURE.** This is the real Phase 05 fix, re-verified against
+today's rule text, not merely re-cited from Phase 34's report. No role
+self-escalation path exists in the deployed rules.
+
+### 3b. Update/delete escalation sweep — all 30 collections
+
+Every `update`/`delete` rule in the file was checked for the same
+pattern as 3a: can the ACTING user's own identity be used to unlock a
+transition on a document that does not already name them as its owner,
+or can an owner rewrite a document into a shape that grants them a
+capability they should not have? Full result:
+
+| Result | Collections |
+|---|---|
+| **SECURE — admin-only** (no non-admin update/delete path exists at all) | `contracts`, `site_sops` (create/delete only), `audit_logs` (immutable), `help_articles`, `contracts_v2`, `payment_schedules`, `payments` (update), `purchase_orders`, `workflow_executions` (immutable), `handovers`, `warranties`, `documents` (update), `reconciliation_records`, `observability_events` (immutable), `installation_jobs` (create) |
+| **SECURE — self-ownership-gated, field-locked appropriately** | `users` (role/status frozen on self-update, see 3a), `leads` (surveyorId-owner only), `site_sops` (assigned-technician only), `breakdown_sos` (assigned-technician only), `customers`/`sites` (admin/surveyor internal-team scope, no external role can reach these at all), `projects` (ownerUserId-owner only), `quotes`/`quote_versions` (createdBy-owner only, versions immutable), `snags` (assignedTo-owner only), `notifications` (update is admin-only, not self-writable), `qc_inspections` (inspectorId-owner or admin), `shipments` (admin/technician), `delivery_receipts` (update admin-only), `installation_jobs` (technicianId-owner) |
+| **SECURE — immutable by design** (`allow update, delete: if false` or `allow delete: if false` with no update path at risk) | `quote_versions`, `contracts_v2` (delete), `payment_schedules` (delete), `payments` (delete), `idempotency_keys` (delete; update is transition-locked — see 3c), `workflow_instances` (delete), `workflow_executions`, `snags` (delete), `notifications` (delete), `handovers` (delete), `qc_inspections` (delete), `shipments` (delete), `delivery_receipts` (delete), `installation_jobs` (delete), `warranties` (delete), `documents` (delete), `reconciliation_records` (delete), `observability_events` |
+| **GAP — unscoped `update`** | `workflow_instances`: `allow create, update: if isAuthenticated();` — ANY authenticated user, including `customer`/`supplier`, can rewrite ANY workflow-instance document's fields (not just create one), with no ownership or role check at all. This is a real escalation beyond what Phase 34's Part 2 named (which flagged only the create half) — an attacker with any authenticated session could, for example, forge a workflow instance's `status` field to a value automation logic elsewhere trusts. **New finding this phase.** |
+
+**Verdict:** 29 of 30 collections' update/delete rules are SECURE against
+both role escalation and unauthorized-ownership escalation, re-verified
+directly against today's rule text. `workflow_instances`' `update` clause
+is a real, previously under-scoped GAP (Phase 34 only flagged its
+`create` half) — recorded in the summary table below as real, open,
+not-yet-fixed follow-up (the actual generated remediation tracker,
+`docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md`, is a script output
+this phase does not hand-edit; its script would need to be extended in a
+future phase to also enumerate `update` rules, not just `create`).
+
+### 3c. `idempotency_keys` re-verified as a transition-lock, not an open door
+
+```
+allow update: if isAuthenticated() &&
+  request.resource.data.idempotencyKey == resource.data.idempotencyKey &&
+  request.resource.data.opType == resource.data.opType && (...)
+```
+
+Confirmed: the identity fields (`idempotencyKey`, `opType`) cannot be
+rewritten by anyone, closing the one escalation this rule's flexibility
+could otherwise have allowed (claiming a different key by overwriting an
+existing doc's identity). **SECURE**, re-verified.
+
+### 3d. Payment fabrication — residual gap even after Phase 35's fix
+
+```
+allow create: if isAdmin() ||
+  (isAuthenticated() && request.resource.data.createdBy == request.auth.uid);
+```
+
+Phase 35 closed the IMPERSONATION half of this gap (a user could
+previously self-claim ANY `createdBy`, i.e. forge a payment as someone
+else). **Re-analyzed this phase, a real residual gap remains**: the rule
+places **no role condition** on `create` at all beyond "authenticated,
+and the new doc's `createdBy` equals me." A `customer` or `supplier`
+session — not `admin`, not `surveyor` — can write a brand-new `payments`
+document directly via the Firestore SDK (bypassing this app's own UI,
+which never exposes such an action to those roles) with:
+- an arbitrary `amount`,
+- an arbitrary `status` (e.g. `'confirmed'` on first write — the rule
+  does not restrict the initial `status` value the way `update` restricts
+  transitions),
+- an arbitrary `projectId` (no check the referenced project belongs to
+  this user at all — the SAME cross-document gap Phase 35's own comment
+  already named as "not yet verified... flagged as remaining, real,
+  documented scope").
+
+**Blast radius, honestly assessed (not overstated):** the read rule
+(`isAdmin() || isRecordOwner('createdBy')`) means only the fabricator
+themselves and an admin can ever SEE the forged record — it cannot be
+used to impersonate a payment on someone else's account, and it cannot
+silently show up to a different customer. But it IS a real, unauthorized
+write of financial-shaped data by a role (`customer`/`supplier`) the
+application's own permission model (`src/domain/permissions.ts`) never
+grants `payment.create` to, reachable only by bypassing the UI and
+calling Firestore directly — exactly the "direct repository/service
+invocation bypassing UI" attack class Phase 52 names. **New finding this
+phase**, more precise than Phase 34's original (which only covered the
+pre-Phase-35 impersonation variant); not yet fixed (a real behavior
+change — restricting `payments.create` to `isAdmin() ||
+(isSurveyor() && ...)` or similar — needs a live-rules-emulator
+verification this sandbox cannot perform before being deployed, per this
+pack's own rule against guessing at a security-relevant change without
+verification).
+
+### 3e. Cross-project escalation — general pattern check
+
+For every collection scoped by an ownership field
+(`ownerUserId`/`createdBy`/`assignedTo`/`inspectorId`/`technicianId`/
+`assignedTechnicianId`/`audienceUserId`/`receivedBy`/`uploadedBy`), the
+scoping field lives ON THE DOCUMENT ITSELF, not derived by walking up to
+a parent project — meaning a user cannot use a project they legitimately
+own to read/write an unrelated document merely by matching `projectId`;
+each document must independently name them in its own ownership field.
+**This pattern is SECURE by construction** for every collection that has
+a real create-side scope gate. It is only as strong as the create-side
+gate, though: for the 6 collections with an unscoped `create`
+(`workflow_instances`, `workflow_executions`, `snags`, `notifications`,
+`delivery_receipts`, `documents` — tracked in
+`docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md`), a malicious session
+COULD fabricate a document carrying ANOTHER user's project's `projectId`
+and their own uid as the owner field — a real cross-project fabrication
+capability, not a cross-project READ escalation (the fabricator still
+can't read someone else's genuine records). This is the same 6-item list
+Phase 34/35 already tracked, reframed here explicitly as "cross-project
+escalation," per this phase's required scenario category, rather than a
+new, seventh finding.
+
+## Part 3 summary — new findings this phase
+
+| Finding | Severity | Status |
+|---|---|---|
+| `users` role self-escalation | N/A | **SECURE, re-verified** — no live regression |
+| Update/delete escalation, 29/30 collections | N/A | **SECURE, re-verified** |
+| `workflow_instances.update` unscoped | Real gap, new this phase | Not fixed — documented here as real, open follow-up |
+| `payments.create` — no role gate, no amount/status validation, no cross-document project-ownership check | Real gap, refined this phase from Phase 34's original (broader) framing | Not fixed — needs live-rules-emulator verification before a safe change can be deployed, per this pack's own non-negotiable rule against unverified security-rule changes |
+| Cross-project fabrication via the 6 already-tracked unscoped-create collections | Real, reframed | Already tracked in `docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md`, not duplicated as new |
+
+**Nothing in Part 3 is reported as a live PASS.** Every result above is
+explicitly static rules analysis against the current `firestore.rules`
+text, cross-checked line-by-line against the actual file content quoted
+in this document — the same category of real, grounded work Phase 34's
+Part 2 did, extended to update/delete/role/cross-project/payment-specific
+categories Phase 34's Part 2 did not explicitly cover.
