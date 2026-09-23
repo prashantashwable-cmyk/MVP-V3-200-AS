@@ -2323,8 +2323,10 @@ export default function App() {
                       ))}
                     </div>
 
-                    <button 
+                    <button
                       onClick={handleLogout}
+                      aria-label="Sign out"
+                      title="Sign out"
                       className="p-2 rounded-lg bg-error/10 text-error hover:bg-error/15 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
