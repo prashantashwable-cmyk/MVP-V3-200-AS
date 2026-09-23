@@ -59,6 +59,11 @@ export const StageWisePayoutTrackerScreen: React.FC<StageWisePayoutTrackerScreen
   };
 
   const handleApproveAllPending = () => {
+    // Phase 36 — LEVEL 3 (financial): bulk-approving EVERY pending
+    // commission payout had no confirmation of any kind before this fix.
+    if (!window.confirm('Approve ALL pending commission payouts? This affects every partner with a pending payout, not just one.')) {
+      return;
+    }
     const approvedCount = DbManager.approveAllPendingCommissionPayouts();
     refreshData();
     showToast(`Successfully batch-approved ${approvedCount} pending commission payouts!`);

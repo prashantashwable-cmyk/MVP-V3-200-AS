@@ -255,6 +255,11 @@ export const MapFiltersLayersControlPanel: React.FC<MapFiltersLayersControlPanel
   // Delete saved view
   const handleDeleteView = (viewId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Phase 36 — LEVEL 4 (irreversible): deleting a saved map view preset
+    // had no confirmation of any kind before this fix.
+    if (!window.confirm('Delete this saved map view preset? This cannot be undone.')) {
+      return;
+    }
     const updated = savedViews.filter(v => v.id !== viewId);
     saveViewsToStorage(updated);
     onShowAlert('Map view preset deleted.', 'info');

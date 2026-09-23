@@ -253,6 +253,11 @@ export const AutoNegotiationBotConfig: React.FC<{
   };
 
   const handleDeleteScenario = (id: string) => {
+    // Phase 36 — LEVEL 4 (irreversible): deleting a negotiation scenario
+    // had no confirmation of any kind before this fix.
+    if (!window.confirm('Delete this negotiation scenario? This cannot be undone.')) {
+      return;
+    }
     setScenarios(prev => prev.filter(sc => sc.id !== id));
     triggerToast(t.toastDeleteScenario);
   };

@@ -3029,8 +3029,85 @@ from a static analysis this sandbox CAN do.
 
 Phase 36 — Destructive Action Safety.
 
+## Phase 36 — Destructive Action Safety
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- New `scripts/generate-destructive-action-levels.ts` and
+  `docs/security/DESTRUCTIVE-ACTION-SAFETY.md`, using the real LEVEL 1-4
+  vocabulary from this phase's own brief (reversible / important /
+  financial-security / irreversible-high-risk), superseding Phase 23's
+  `DESTRUCTIVE_ACTIONS_INVENTORY.md` for classification purposes (kept,
+  not deleted).
+- **Real, previously-unmeasured blind spot found and fixed within this
+  same phase**: Phase 23's scanner only considered a file a candidate at
+  all if it had a delete/remove/revoke/deactivate/disable-SHAPED handler
+  NAME — a financial action named e.g. `handleApproveBatch` or
+  `handleExecuteBatchDisbursement` (no delete/remove-shaped word) was
+  never looked at, even though the tier keyword list technically covered
+  "refund"/"payout" text. This scanner adds a second, independent net
+  matched against the SCREEN NAME (calibrated against this codebase's
+  real convention, where a screen's overall subject is financial/
+  security-sensitive but its individual handlers use generic verbs) —
+  first pass with only the old net found 0 LEVEL 3 items; the widened
+  scanner found 12.
+- **8 real, high-confidence gaps fixed with `window.confirm()`** (the
+  same established, already-verified pattern from Phase 23's
+  `UserRolePermissionManagementScreen` fix):
+  - LEVEL 3 (financial): `AutomatedPayoutDisbursementScreen.handleExecuteBatchDisbursement`,
+    `PayoutApprovalQueueScreen.handleApproveBatch`,
+    `StageWisePayoutTrackerScreen.handleApproveAllPending`,
+    `SupplierPaymentApprovalScreen.handleExecuteBatchApprove`,
+    `RefundDisputeManagement.handleFinalizeResolution` (already required
+    a written reason before this fix — added the missing explicit
+    confirmation step).
+  - LEVEL 4 (irreversible): `AutoNegotiationBotConfig.handleDeleteScenario`,
+    `MapFiltersLayersControlPanel.handleDeleteView`,
+    `PricingRulesMarginConfig.handleDeleteAMCTier`.
+- **4 real manual-review findings, documented rather than blindly
+  "fixed"**: `FollowUpStageRules.handleDeleteRule` already has a real
+  inline confirm/cancel state pattern (`deleteConfirmId`) — a false
+  positive, same class as Phase 23's `SecuritySessionManagementScreen`
+  finding. `PermissionsPrimer` matched "permission" by screen name but is
+  about BROWSER DEVICE permissions, not app role/permission management —
+  the browser's own native prompt is the real confirmation.
+  `PayoutHistoryStatementsScreen` has exactly one action
+  (`handleDownloadStatement`, a read/export, not a mutation).
+  `PaymentStageScheduleSetup.handleDeleteStage` (carried over from Phase
+  23) only edits an in-memory draft.
+- Honest scope statement on LEVEL 3's full "authorization + confirmation
+  + reason + audit" ask: this phase adds confirmation; authorization is
+  Phase 35's separate, larger effort; a mandatory reason field on the
+  other 4 screens and wiring them into the canonical audit trail
+  (Phase 15-18's dual-write pattern) are real, named, NOT fabricated
+  follow-up work — not silently skipped.
+- New `scripts/destructive-action-safety-check.ts`: verifies each of the
+  8 real fixes' `window.confirm()` guard is actually present in the real
+  component source, and that the manual-review findings are documented.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run destructive-action-safety:check` — pass, 20/20 assertions.
+- `npm run checks` (41 scripts) — pass, 1021 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `scripts/generate-destructive-action-levels.ts` (new)
+- `scripts/destructive-action-safety-check.ts` (new)
+- `docs/security/DESTRUCTIVE-ACTION-SAFETY.md` (new)
+- `src/components/AutomatedPayoutDisbursementScreen.tsx`,
+  `PayoutApprovalQueueScreen.tsx`, `StageWisePayoutTrackerScreen.tsx`,
+  `SupplierPaymentApprovalScreen.tsx`, `RefundDisputeManagement.tsx`,
+  `AutoNegotiationBotConfig.tsx`, `MapFiltersLayersControlPanel.tsx`,
+  `PricingRulesMarginConfig.tsx` (8 real `window.confirm()` guards added)
+- `package.json` (2 new scripts, check wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
 ### Next phase
 
-Phase 35 — Close the Legacy Authorization Gap (the 101 client-only
-screens, prioritized P0/P1/P2, plus the 8 firestore.rules findings this
-phase surfaced).
+Phase 37 — Transactional Idempotency.

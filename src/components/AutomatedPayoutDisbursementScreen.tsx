@@ -61,6 +61,11 @@ export const AutomatedPayoutDisbursementScreen: React.FC<AutomatedPayoutDisburse
 
   const handleExecuteBatchDisbursement = () => {
     if (approvedEntries.length === 0) return;
+    // Phase 36 — LEVEL 3 (financial): a batch bank disbursement had no
+    // confirmation of any kind before this fix.
+    if (!window.confirm(`Execute batch disbursement of ${formatCurrency(totalApprovedPoolAmount)} across ${approvedEntries.length} entries? This transfers real funds and cannot be undone from here.`)) {
+      return;
+    }
     setIsProcessingBatch(true);
 
     setTimeout(() => {

@@ -187,6 +187,12 @@ export const PricingRulesMarginConfig: React.FC<{
   };
 
   const handleDeleteAMCTier = (name: string) => {
+    // Phase 36 — LEVEL 4 (irreversible): deleting an AMC pricing tier
+    // (affects future quotes/pricing configuration) had no confirmation
+    // of any kind before this fix.
+    if (!window.confirm(`Delete the "${name}" AMC service tier? This affects future quotes and cannot be undone.`)) {
+      return;
+    }
     setAmcTiers(prev => prev.filter(t => t.name !== name));
     handleTriggerToast("AMC Service tier successfully removed.");
   };

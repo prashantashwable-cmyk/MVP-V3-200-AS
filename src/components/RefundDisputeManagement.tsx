@@ -63,6 +63,17 @@ export const RefundDisputeManagement: React.FC<RefundDisputeManagementProps> = (
 
     let finalAmount = resolutionType === 'Rejected' ? 0 : (resolutionType === 'Full Refund' ? selectedDispute.disputeAmount : resolutionAmount);
 
+    // Phase 36 — LEVEL 3 (financial): finalizing a refund dispute had no
+    // confirmation of any kind before this fix (it already required a
+    // reason/explanation, which is kept — this adds the missing explicit
+    // "are you sure" step for a real money-movement decision).
+    const confirmMsg = resolutionType === 'Rejected'
+      ? 'Finalize this dispute as REJECTED (no refund issued)? This cannot be undone from here.'
+      : `Finalize this dispute with a ${resolutionType} of ₹${finalAmount.toLocaleString('en-IN')}? This generates a credit note and cannot be undone from here.`;
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
     let creditNoteGeneratedId = undefined;
 
     // If approved full or partial refund, generate downstream Credit Note automatically

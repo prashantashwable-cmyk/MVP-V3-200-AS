@@ -104,6 +104,12 @@ export const PayoutApprovalQueueScreen: React.FC<PayoutApprovalQueueScreenProps>
   };
 
   const handleApproveBatch = () => {
+    // Phase 36 — LEVEL 3 (financial): batch commission-payout approval had
+    // no confirmation of any kind before this fix.
+    if (selectedForBatch.length === 0) return;
+    if (!window.confirm(`Approve ${selectedForBatch.length} commission payout(s) for disbursement? This moves them to "approved, pending payout".`)) {
+      return;
+    }
     selectedForBatch.forEach(id => {
       DbManager.updateCommissionPayoutStatus(id, 'approved_pending_payout');
     });

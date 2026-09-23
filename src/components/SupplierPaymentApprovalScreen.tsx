@@ -144,6 +144,14 @@ export const SupplierPaymentApprovalScreen: React.FC<Props> = ({
   };
 
   const handleExecuteBatchApprove = () => {
+    // Phase 36 — LEVEL 3 (financial): batch supplier-payment approval had
+    // no confirmation of any kind before this fix (a 15-minute reversal
+    // window exists after approval, but confirming INTENT before acting
+    // is still the right default for a financial batch action).
+    if (selectedPaymentIds.length === 0) return;
+    if (!window.confirm(`Approve ${selectedPaymentIds.length} supplier payment(s) for transfer? You will have a 15-minute window to reverse this batch.`)) {
+      return;
+    }
     const reversalExpiry = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const batchId = `BATCH-${Date.now().toString().slice(-4)}`;
 
