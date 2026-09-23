@@ -1,80 +1,80 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Settings } from 'lucide-react';
 import { User } from '../types';
 import { DbManager } from '../lib/db';
-import { AdminDashboard } from '../components/Dashboards';
-import { AdminRoleManagement } from '../components/RoleSelectionWizard';
+const AdminDashboard = React.lazy(() => import('../components/Dashboards').then(m => ({ default: m.AdminDashboard })));
+const AdminRoleManagement = React.lazy(() => import('../components/RoleSelectionWizard').then(m => ({ default: m.AdminRoleManagement })));
 import { Button, Card } from '../components/Common';
-import { AlertsExceptionsDashboard } from '../components/AlertsExceptionsDashboard';
-import { AutoNegotiationBotConfig } from '../components/AutoNegotiationBotConfig';
-import { AutoPoTriggerRules } from '../components/AutoPoTriggerRules';
-import { AutomatedSequenceBuilder } from '../components/AutomatedSequenceBuilder';
-import { AutomationHealthMonitor } from '../components/AutomationHealthMonitor';
-import { BulkLeadImportExport } from '../components/BulkLeadImportExport';
-import { CallLogAutoDialer } from '../components/CallLogAutoDialer';
-import { CommAnalytics } from '../components/CommAnalytics';
-import { CommComplianceManager } from '../components/CommComplianceManager';
-import { CommunicationTemplatesLibrary } from '../components/CommunicationTemplatesLibrary';
-import { CompetitorBattlecard } from '../components/CompetitorBattlecard';
-import { ConversationAIBotConfig } from '../components/ConversationAIBotConfig';
-import { ConversionRateAnalytics } from '../components/ConversionRateAnalytics';
-import { CounterOfferApproval } from '../components/CounterOfferApproval';
-import { CustomerObjectionHandling } from '../components/CustomerObjectionHandling';
-import { CustomerReplyInbox } from '../components/CustomerReplyInbox';
-import { DealClosureConfirmation } from '../components/DealClosureConfirmation';
-import { DealTermsFinalization } from '../components/DealTermsFinalization';
-import { DealWonCelebration } from '../components/DealWonCelebration';
-import { DeliveryAnalyticsScreen } from '../components/DeliveryAnalyticsScreen';
-import { DeliveryDelayAlertEscalationScreen } from '../components/DeliveryDelayAlertEscalationScreen';
-import { DeliveryPartnerManagementScreen } from '../components/DeliveryPartnerManagementScreen';
-import { DeliverySopConfigScreen } from '../components/DeliverySopConfigScreen';
-import { DigitalContractGenerator } from '../components/DigitalContractGenerator';
-import { DiscountApprovalWorkflow } from '../components/DiscountApprovalWorkflow';
-import { ESignatureCapture } from '../components/ESignatureCapture';
-import { EmergencyEscalationAlert } from '../components/EmergencyEscalationAlert';
-import { FinancialCashFlowReceivables } from '../components/FinancialCashFlowReceivables';
-import { FollowUpStageRules } from '../components/FollowUpStageRules';
-import { GeofenceTerritoryManagement } from '../components/GeofenceTerritoryManagement';
-import { LeadAssignment } from '../components/LeadAssignment';
-import { LeadDensityHeatmap } from '../components/LeadDensityHeatmap';
-import { LeadFollowUpScheduler } from '../components/LeadFollowUpScheduler';
-import { LeadInbox } from '../components/LeadInbox';
-import { LeadKanban } from '../components/LeadKanban';
-import { LeadMergeResolution } from '../components/LeadMergeResolution';
-import { LeadScoring } from '../components/LeadScoring';
-import { LeadSourceAttribution } from '../components/LeadSourceAttribution';
-import { LiveActivityFeed } from '../components/LiveActivityFeed';
-import { LiveMapDashboard } from '../components/LiveMapDashboard';
-import { LiveNegotiationThread } from '../components/LiveNegotiationThread';
-import { LoanPartnerIntegration } from '../components/LoanPartnerIntegration';
-import { LostLeadDisqualification } from '../components/LostLeadDisqualification';
-import { MilestonePaymentReleaseScreen } from '../components/MilestonePaymentReleaseScreen';
-import { MultiOptionComparison } from '../components/MultiOptionComparison';
-import { OverduePaymentEscalation } from '../components/OverduePaymentEscalation';
-import { PaymentCollectionDashboard } from '../components/PaymentCollectionDashboard';
-import { PaymentReminderConfig } from '../components/PaymentReminderConfig';
-import { PaymentStageScheduleSetup } from '../components/PaymentStageScheduleSetup';
-import { PricingRulesMarginConfig } from '../components/PricingRulesMarginConfig';
-import { QuotationAnalyticsWinLoss } from '../components/QuotationAnalyticsWinLoss';
-import { QuotationInputSpecs } from '../components/QuotationInputSpecs';
-import { QuotationPreview } from '../components/QuotationPreview';
-import { QuotationSendEDelivery } from '../components/QuotationSendEDelivery';
-import { QuotationTemplateBranding } from '../components/QuotationTemplateBranding';
-import { QuotationVersionHistory } from '../components/QuotationVersionHistory';
-import { QuotePricing } from '../components/QuotePricing';
-import { RefundDisputeManagement } from '../components/RefundDisputeManagement';
-import { RevenueProfitAnalytics } from '../components/RevenueProfitAnalytics';
-import { RouteOptimizationSuggestion } from '../components/RouteOptimizationSuggestion';
-import { SMSBroadcastDeliveryReport } from '../components/SMSBroadcastDeliveryReport';
-import { SalesFunnelAnalytics } from '../components/SalesFunnelAnalytics';
-import { SiteVisitVerification } from '../components/SiteVisitVerification';
-import { StockInTransitScreen } from '../components/StockInTransitScreen';
-import { SupplierPaymentApprovalScreen } from '../components/SupplierPaymentApprovalScreen';
-import { SupplierPerformanceScorecard } from '../components/SupplierPerformanceScorecard';
-import { SurveyorLiveTrackingDetailView } from '../components/SurveyorLiveTrackingDetailView';
-import { TechnicianLiveTrackingDetailView } from '../components/TechnicianLiveTrackingDetailView';
-import { WhatsAppBusinessChatConsole } from '../components/WhatsAppBusinessChatConsole';
-import { WorkerPerformanceLeaderboard } from '../components/WorkerPerformanceLeaderboard';
+const AlertsExceptionsDashboard = React.lazy(() => import('../components/AlertsExceptionsDashboard').then(m => ({ default: m.AlertsExceptionsDashboard })));
+const AutoNegotiationBotConfig = React.lazy(() => import('../components/AutoNegotiationBotConfig').then(m => ({ default: m.AutoNegotiationBotConfig })));
+const AutoPoTriggerRules = React.lazy(() => import('../components/AutoPoTriggerRules').then(m => ({ default: m.AutoPoTriggerRules })));
+const AutomatedSequenceBuilder = React.lazy(() => import('../components/AutomatedSequenceBuilder').then(m => ({ default: m.AutomatedSequenceBuilder })));
+const AutomationHealthMonitor = React.lazy(() => import('../components/AutomationHealthMonitor').then(m => ({ default: m.AutomationHealthMonitor })));
+const BulkLeadImportExport = React.lazy(() => import('../components/BulkLeadImportExport').then(m => ({ default: m.BulkLeadImportExport })));
+const CallLogAutoDialer = React.lazy(() => import('../components/CallLogAutoDialer').then(m => ({ default: m.CallLogAutoDialer })));
+const CommAnalytics = React.lazy(() => import('../components/CommAnalytics').then(m => ({ default: m.CommAnalytics })));
+const CommComplianceManager = React.lazy(() => import('../components/CommComplianceManager').then(m => ({ default: m.CommComplianceManager })));
+const CommunicationTemplatesLibrary = React.lazy(() => import('../components/CommunicationTemplatesLibrary').then(m => ({ default: m.CommunicationTemplatesLibrary })));
+const CompetitorBattlecard = React.lazy(() => import('../components/CompetitorBattlecard').then(m => ({ default: m.CompetitorBattlecard })));
+const ConversationAIBotConfig = React.lazy(() => import('../components/ConversationAIBotConfig').then(m => ({ default: m.ConversationAIBotConfig })));
+const ConversionRateAnalytics = React.lazy(() => import('../components/ConversionRateAnalytics').then(m => ({ default: m.ConversionRateAnalytics })));
+const CounterOfferApproval = React.lazy(() => import('../components/CounterOfferApproval').then(m => ({ default: m.CounterOfferApproval })));
+const CustomerObjectionHandling = React.lazy(() => import('../components/CustomerObjectionHandling').then(m => ({ default: m.CustomerObjectionHandling })));
+const CustomerReplyInbox = React.lazy(() => import('../components/CustomerReplyInbox').then(m => ({ default: m.CustomerReplyInbox })));
+const DealClosureConfirmation = React.lazy(() => import('../components/DealClosureConfirmation').then(m => ({ default: m.DealClosureConfirmation })));
+const DealTermsFinalization = React.lazy(() => import('../components/DealTermsFinalization').then(m => ({ default: m.DealTermsFinalization })));
+const DealWonCelebration = React.lazy(() => import('../components/DealWonCelebration').then(m => ({ default: m.DealWonCelebration })));
+const DeliveryAnalyticsScreen = React.lazy(() => import('../components/DeliveryAnalyticsScreen').then(m => ({ default: m.DeliveryAnalyticsScreen })));
+const DeliveryDelayAlertEscalationScreen = React.lazy(() => import('../components/DeliveryDelayAlertEscalationScreen').then(m => ({ default: m.DeliveryDelayAlertEscalationScreen })));
+const DeliveryPartnerManagementScreen = React.lazy(() => import('../components/DeliveryPartnerManagementScreen').then(m => ({ default: m.DeliveryPartnerManagementScreen })));
+const DeliverySopConfigScreen = React.lazy(() => import('../components/DeliverySopConfigScreen').then(m => ({ default: m.DeliverySopConfigScreen })));
+const DigitalContractGenerator = React.lazy(() => import('../components/DigitalContractGenerator').then(m => ({ default: m.DigitalContractGenerator })));
+const DiscountApprovalWorkflow = React.lazy(() => import('../components/DiscountApprovalWorkflow').then(m => ({ default: m.DiscountApprovalWorkflow })));
+const ESignatureCapture = React.lazy(() => import('../components/ESignatureCapture').then(m => ({ default: m.ESignatureCapture })));
+const EmergencyEscalationAlert = React.lazy(() => import('../components/EmergencyEscalationAlert').then(m => ({ default: m.EmergencyEscalationAlert })));
+const FinancialCashFlowReceivables = React.lazy(() => import('../components/FinancialCashFlowReceivables').then(m => ({ default: m.FinancialCashFlowReceivables })));
+const FollowUpStageRules = React.lazy(() => import('../components/FollowUpStageRules').then(m => ({ default: m.FollowUpStageRules })));
+const GeofenceTerritoryManagement = React.lazy(() => import('../components/GeofenceTerritoryManagement').then(m => ({ default: m.GeofenceTerritoryManagement })));
+const LeadAssignment = React.lazy(() => import('../components/LeadAssignment').then(m => ({ default: m.LeadAssignment })));
+const LeadDensityHeatmap = React.lazy(() => import('../components/LeadDensityHeatmap').then(m => ({ default: m.LeadDensityHeatmap })));
+const LeadFollowUpScheduler = React.lazy(() => import('../components/LeadFollowUpScheduler').then(m => ({ default: m.LeadFollowUpScheduler })));
+const LeadInbox = React.lazy(() => import('../components/LeadInbox').then(m => ({ default: m.LeadInbox })));
+const LeadKanban = React.lazy(() => import('../components/LeadKanban').then(m => ({ default: m.LeadKanban })));
+const LeadMergeResolution = React.lazy(() => import('../components/LeadMergeResolution').then(m => ({ default: m.LeadMergeResolution })));
+const LeadScoring = React.lazy(() => import('../components/LeadScoring').then(m => ({ default: m.LeadScoring })));
+const LeadSourceAttribution = React.lazy(() => import('../components/LeadSourceAttribution').then(m => ({ default: m.LeadSourceAttribution })));
+const LiveActivityFeed = React.lazy(() => import('../components/LiveActivityFeed').then(m => ({ default: m.LiveActivityFeed })));
+const LiveMapDashboard = React.lazy(() => import('../components/LiveMapDashboard').then(m => ({ default: m.LiveMapDashboard })));
+const LiveNegotiationThread = React.lazy(() => import('../components/LiveNegotiationThread').then(m => ({ default: m.LiveNegotiationThread })));
+const LoanPartnerIntegration = React.lazy(() => import('../components/LoanPartnerIntegration').then(m => ({ default: m.LoanPartnerIntegration })));
+const LostLeadDisqualification = React.lazy(() => import('../components/LostLeadDisqualification').then(m => ({ default: m.LostLeadDisqualification })));
+const MilestonePaymentReleaseScreen = React.lazy(() => import('../components/MilestonePaymentReleaseScreen').then(m => ({ default: m.MilestonePaymentReleaseScreen })));
+const MultiOptionComparison = React.lazy(() => import('../components/MultiOptionComparison').then(m => ({ default: m.MultiOptionComparison })));
+const OverduePaymentEscalation = React.lazy(() => import('../components/OverduePaymentEscalation').then(m => ({ default: m.OverduePaymentEscalation })));
+const PaymentCollectionDashboard = React.lazy(() => import('../components/PaymentCollectionDashboard').then(m => ({ default: m.PaymentCollectionDashboard })));
+const PaymentReminderConfig = React.lazy(() => import('../components/PaymentReminderConfig').then(m => ({ default: m.PaymentReminderConfig })));
+const PaymentStageScheduleSetup = React.lazy(() => import('../components/PaymentStageScheduleSetup').then(m => ({ default: m.PaymentStageScheduleSetup })));
+const PricingRulesMarginConfig = React.lazy(() => import('../components/PricingRulesMarginConfig').then(m => ({ default: m.PricingRulesMarginConfig })));
+const QuotationAnalyticsWinLoss = React.lazy(() => import('../components/QuotationAnalyticsWinLoss').then(m => ({ default: m.QuotationAnalyticsWinLoss })));
+const QuotationInputSpecs = React.lazy(() => import('../components/QuotationInputSpecs').then(m => ({ default: m.QuotationInputSpecs })));
+const QuotationPreview = React.lazy(() => import('../components/QuotationPreview').then(m => ({ default: m.QuotationPreview })));
+const QuotationSendEDelivery = React.lazy(() => import('../components/QuotationSendEDelivery').then(m => ({ default: m.QuotationSendEDelivery })));
+const QuotationTemplateBranding = React.lazy(() => import('../components/QuotationTemplateBranding').then(m => ({ default: m.QuotationTemplateBranding })));
+const QuotationVersionHistory = React.lazy(() => import('../components/QuotationVersionHistory').then(m => ({ default: m.QuotationVersionHistory })));
+const QuotePricing = React.lazy(() => import('../components/QuotePricing').then(m => ({ default: m.QuotePricing })));
+const RefundDisputeManagement = React.lazy(() => import('../components/RefundDisputeManagement').then(m => ({ default: m.RefundDisputeManagement })));
+const RevenueProfitAnalytics = React.lazy(() => import('../components/RevenueProfitAnalytics').then(m => ({ default: m.RevenueProfitAnalytics })));
+const RouteOptimizationSuggestion = React.lazy(() => import('../components/RouteOptimizationSuggestion').then(m => ({ default: m.RouteOptimizationSuggestion })));
+const SMSBroadcastDeliveryReport = React.lazy(() => import('../components/SMSBroadcastDeliveryReport').then(m => ({ default: m.SMSBroadcastDeliveryReport })));
+const SalesFunnelAnalytics = React.lazy(() => import('../components/SalesFunnelAnalytics').then(m => ({ default: m.SalesFunnelAnalytics })));
+const SiteVisitVerification = React.lazy(() => import('../components/SiteVisitVerification').then(m => ({ default: m.SiteVisitVerification })));
+const StockInTransitScreen = React.lazy(() => import('../components/StockInTransitScreen').then(m => ({ default: m.StockInTransitScreen })));
+const SupplierPaymentApprovalScreen = React.lazy(() => import('../components/SupplierPaymentApprovalScreen').then(m => ({ default: m.SupplierPaymentApprovalScreen })));
+const SupplierPerformanceScorecard = React.lazy(() => import('../components/SupplierPerformanceScorecard').then(m => ({ default: m.SupplierPerformanceScorecard })));
+const SurveyorLiveTrackingDetailView = React.lazy(() => import('../components/SurveyorLiveTrackingDetailView').then(m => ({ default: m.SurveyorLiveTrackingDetailView })));
+const TechnicianLiveTrackingDetailView = React.lazy(() => import('../components/TechnicianLiveTrackingDetailView').then(m => ({ default: m.TechnicianLiveTrackingDetailView })));
+const WhatsAppBusinessChatConsole = React.lazy(() => import('../components/WhatsAppBusinessChatConsole').then(m => ({ default: m.WhatsAppBusinessChatConsole })));
+const WorkerPerformanceLeaderboard = React.lazy(() => import('../components/WorkerPerformanceLeaderboard').then(m => ({ default: m.WorkerPerformanceLeaderboard })));
 
 interface AdminRouterProps {
   currentUser: User;
@@ -92,7 +92,7 @@ interface AdminRouterProps {
 
 export function AdminRouter({ currentUser, activeTab, setActiveTab, appLanguage, googleMapsApiKey, hasValidGoogleMapsKey, selectedPaymentId, setSelectedPaymentId, setTrackingPoId, handleLogout, renderPreferencesSection }: AdminRouterProps) {
   return (
-    <>
+    <Suspense fallback={<div className="p-6 text-sm text-warmgray">Loading…</div>}>
           {currentUser.role === 'admin' && activeTab === 'Home' && <AdminDashboard user={currentUser} />}
           {currentUser.role === 'admin' && activeTab === 'LeadInbox' && (
             <LeadInbox user={currentUser} />
@@ -394,6 +394,6 @@ export function AdminRouter({ currentUser, activeTab, setActiveTab, appLanguage,
               {renderPreferencesSection()}
             </Card>
           )}
-    </>
+    </Suspense>
   );
 }

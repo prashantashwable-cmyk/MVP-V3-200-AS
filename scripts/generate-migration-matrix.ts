@@ -32,12 +32,21 @@ const SERVER_ENFORCED_COLLECTIONS = new Set([
   'handovers', 'qc_inspections', 'shipments', 'delivery_receipts',
   'installation_jobs', 'warranties', 'documents', 'reconciliation_records',
   'observability_events', 'audit_logs', 'users',
+  // Phase 23 correction: `leads` is a pre-existing (Phase 01), real,
+  // non-trivial Firestore-rules-governed collection (owner-surveyor-or-
+  // admin scoped, firestore.rules §"leads") — it was previously left
+  // unmapped here, which overstated the authorization gap for every
+  // Lead-related screen. Caveat, not a full pass: `DbManager.getLeads()`
+  // only routes to Firestore for a real (non-demo) session
+  // (`isRealSession`, src/lib/db.ts) — a demo session's Lead data never
+  // reaches this rule at all (pure localStorage, no server to protect).
+  'leads',
 ]);
 
 /** Screen-name keyword → (entity label, collection name for the
  * authorization-status lookup above). First match wins; order matters. */
 const ENTITY_KEYWORDS: Array<[RegExp, string, string | undefined]> = [
-  [/lead/i, 'Lead', undefined], // legacy `leads` collection — real rules, but pre-dates the canonical Customer/Site/Project model
+  [/lead/i, 'Lead', 'leads'], // real Firestore rule exists (Phase 01), but only reached by a real (non-demo) session — see the Phase 23 note on SERVER_ENFORCED_COLLECTIONS above
   [/customer/i, 'Customer', 'customers'],
   [/site/i, 'Site', 'sites'],
   [/project/i, 'Project', 'projects'],
@@ -107,7 +116,9 @@ function remainingRisk(status: string, importsDbManagerLive: boolean, collection
   return 'none';
 }
 
-function buildRows(): MigrationMatrixRow[] {
+/** Exported for reuse by scripts/generate-legacy-authorization-gaps.ts
+ * (Phase 23) — one real classification, never duplicated. */
+export function buildRows(): MigrationMatrixRow[] {
   const dbUsage = scanComponentDbManagerUsage();
   const rows: MigrationMatrixRow[] = screenRegistry.map(s => {
     const rec = getMigrationRecord(s.screenId, s.dataSource);

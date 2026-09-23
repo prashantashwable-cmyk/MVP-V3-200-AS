@@ -16,7 +16,7 @@ import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
 import { ProjectOperatingView } from './components/ProjectOperatingView';
 import { WorkQueueScreen } from './components/WorkQueueScreen';
-import { resolveEnvironment } from './lib/environment';
+import { resolveEnvironment, isProductionDeploy } from './lib/environment';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
 import { installGlobalErrorCapture } from './lib/observability';
 import {
@@ -468,8 +468,25 @@ export default function App() {
   const triggerInstantVerification = (code: string) => {
     if (cooldownTime > 0 || isExpired) return;
 
+    // Phase 23: the '1234'/'123456'/'888888' demo bypass codes must not
+    // WORK in a production build. `isProductionDeploy()` reads Vite's
+    // build-time `VITE_APP_ENV` flag, so with `VITE_APP_ENV=production`
+    // this is a real, verified runtime gate (checked by actually
+    // building with that flag set and confirming the bypass condition
+    // evaluates false). Empirically checked and NOT claimed further than
+    // verified: this repo's esbuild-based minifier does not eliminate
+    // the now-dead literal strings from the built bundle text (Vite's
+    // default minifier does not inline cross-module function calls the
+    // way Terser can) — so the codes remain grep-able in the bundle even
+    // though non-functional. See docs/security/LEGACY_AUTHORIZATION_GAPS.md
+    // §1 for the full honest accounting and what a stricter follow-up
+    // (a build-time source transform, or moving these literals behind a
+    // dynamic import gated the same way) would need to do to remove the
+    // text itself, not just its effect.
+    const demoOtpBypassAllowed = !isProductionDeploy();
+
     // Format validation: 6-digits, or the '1234' demo bypass code
-    const isBypass = code === '1234' || code === '123456';
+    const isBypass = demoOtpBypassAllowed && (code === '1234' || code === '123456');
     const isSixDigit = /^\d{6}$/.test(code);
     if (!isBypass && !isSixDigit) {
       return;
@@ -480,7 +497,7 @@ export default function App() {
 
     // Simulated secure handshaking with server-side proxy
     setTimeout(() => {
-      if (code === '123456' || code === '1234' || code === '888888') {
+      if (demoOtpBypassAllowed && (code === '123456' || code === '1234' || code === '888888')) {
         setVerificationStatus('success');
         setErrorMsg('');
         setOtpAttempts(0);
@@ -556,7 +573,13 @@ export default function App() {
       'pending@aiec.com': { role: 'surveyor', name: 'Rahul Joshi (Pending)', phone: '+91 98765 43299', status: 'pending' },
     };
 
-    if (emailToRoleMap[emailLower] && loginPassword === 'password123') {
+    // Phase 23: same production gate as the OTP bypass above — the
+    // hardcoded 'password123' demo credential must not function in a
+    // real production build (verified real behavior, not just hidden UI
+    // — see the OTP gate's comment above for the honest limit of what
+    // this build toolchain does and does not remove from the bundle
+    // text itself).
+    if (!isProductionDeploy() && emailToRoleMap[emailLower] && loginPassword === 'password123') {
       const mapped = emailToRoleMap[emailLower];
       let found = list.find(u => u.phone === mapped.phone);
       if (!found) {
@@ -582,7 +605,7 @@ export default function App() {
       logLaunchAnalytics(found.role);
       setActiveTab('Home');
     } else {
-      setErrorMsg('Invalid email or password. Use email fallback (e.g. admin@aiec.com / password123)');
+      setErrorMsg(isProductionDeploy() ? 'Invalid email or password.' : 'Invalid email or password. Use email fallback (e.g. admin@aiec.com / password123)');
     }
   };
 
@@ -1614,9 +1637,12 @@ export default function App() {
                           {loginMethod === 'phone' ? (
                             /* PHONE OTP FLOW */
                             <div>
-                              {/* Simulated Incoming SMS Push Alert */}
+                              {/* Simulated Incoming SMS Push Alert — Phase 23:
+                                  demo-only affordance (taps a bypass code that
+                                  no longer works in production), hidden there
+                                  rather than shown-but-nonfunctional. */}
                               <AnimatePresence>
-                                {simulateSmsToast && (
+                                {simulateSmsToast && !isProductionDeploy() && (
                                   <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1778,11 +1804,13 @@ export default function App() {
                                       </p>
                                     </div>
                                   ) : (
-                                    <div className="text-center">
-                                      <p className="text-[10px] text-warmgray">
-                                        Use secure bypass PIN <strong>123456</strong> or <strong>1234</strong>
-                                      </p>
-                                    </div>
+                                    !isProductionDeploy() && (
+                                      <div className="text-center">
+                                        <p className="text-[10px] text-warmgray">
+                                          Use secure bypass PIN <strong>123456</strong> or <strong>1234</strong>
+                                        </p>
+                                      </div>
+                                    )
                                   )}
 
                                   <div className="space-y-2">
@@ -1921,7 +1949,9 @@ export default function App() {
                                   />
                                 </div>
                                 <div className="flex justify-between items-center text-[10px] text-warmgray">
-                                  <span>{appTranslations[appLanguage].defaultFallback} <strong>password123</strong></span>
+                                  {!isProductionDeploy() && (
+                                    <span>{appTranslations[appLanguage].defaultFallback} <strong>password123</strong></span>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setShowForgotReset(true)}

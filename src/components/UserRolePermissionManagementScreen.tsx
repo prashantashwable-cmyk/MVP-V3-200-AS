@@ -154,6 +154,16 @@ export const UserRolePermissionManagementScreen: React.FC<UserRolePermissionMana
   };
 
   const handleRevokeOverride = (overrideId: string) => {
+    // Phase 23: financial_security-tier action (revokes a granted
+    // permission override immediately, on a single click, with no prior
+    // confirmation step anywhere in this screen) — a native confirm()
+    // is the minimal, appropriate guard per this pack's own "do not add
+    // pointless confirmation dialogs everywhere" rule: this one earns it,
+    // a reversible action would not.
+    const target = overrides.find(o => o.overrideId === overrideId);
+    if (!window.confirm(`Revoke the "${target?.grantedAction ?? 'this'}" permission override for ${target?.userName ?? 'this user'}? They will immediately lose this access.`)) {
+      return;
+    }
     const updatedList = overrides.map(ovr => {
       if (ovr.overrideId === overrideId) {
         return { ...ovr, isActive: false };

@@ -1916,6 +1916,120 @@ Phase 23 — Security, Reliability, and Performance Lockdown.
 
 ---
 
+## Phase 23 — Security, Reliability, and Performance Lockdown
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- **Demo credentials gated out of production**: `src/App.tsx`'s OTP
+  bypass codes (`'1234'`/`'123456'`/`'888888'`) and the
+  `password123` email fallback are now gated behind
+  `isProductionDeploy()` at every real login-grant site, plus the
+  visible UI hints. Verified structurally (reads the real source) and by
+  actually running `VITE_APP_ENV=production npx vite build`.
+  **Self-correction**: an initial code comment claimed the minifier would
+  dead-code-eliminate the bypass branches from the bundle; empirically
+  checked (built with the flag, grepped the output), found false (esbuild
+  does not cross-module-inline the way Terser can), and the comment was
+  corrected to state only the verified, real claim (the runtime gate
+  works; the literal strings remain in bundle text) rather than left
+  inaccurate.
+- Added `docs/security/LEGACY_AUTHORIZATION_GAPS.md`
+  (`npm run security:authz-gaps`), reusing the exact same per-screen
+  classification `generate-migration-matrix.ts` computes. **Real
+  correction found and fixed while building it**: `Lead` was mapped to no
+  Firestore collection at all, overstating its gap — `leads` is actually
+  a real, pre-existing, non-trivially-ruled collection; fixed the
+  entity/collection mapping (with an honest demo-vs-real-session caveat
+  preserved), reclassifying 13 screens from client-only to
+  server-enforced.
+- Upgraded `src/lib/idempotency.ts`: a real Firestore `runTransaction`
+  claim (two-phase `pending → completed`) for the sandbox/production
+  path, closing the concrete concurrent-duplicate-request race the pack's
+  own example list names. Demo path (no real Firestore) deliberately
+  unchanged — every existing acceptance script continues to pass
+  identically. Cannot be live-tested (same Firestore-credential gap
+  Phase 04 documented); verified via clean typecheck and unchanged demo
+  behavior.
+- Added `docs/security/DESTRUCTIVE_ACTIONS_INVENTORY.md`
+  (`npm run security:destructive-inventory`): live scan, 4-tier
+  classification, 60 components found. **Manual review, not blind
+  fixing**: found and documented a real false positive
+  (`SecuritySessionManagementScreen` already has a custom confirmation
+  modal the scanner couldn't detect) and a real over-classification
+  (`PaymentStageScheduleSetup`'s "delete" only edits an unsaved draft,
+  genuinely reversible). Fixed the one real, high-confidence gap found —
+  `UserRolePermissionManagementScreen.handleRevokeOverride` now confirms
+  before immediately revoking a user's permission override.
+- **Code splitting**: converted `SharedRoutes.tsx` (105 screens) and
+  `AdminRouter.tsx` (72 screens) — 177 combined — from static imports to
+  `React.lazy()` + a real `<Suspense>` boundary each, via a small,
+  reliable Node transform script (only import statements and the outer
+  JSX wrapper changed). **Measured**: main JS chunk 6,636 KB → 2,660 KB
+  (gzip ~1,548 KB → ~700 KB), ~60% reduction, 208 separate on-demand
+  chunks. Regression-guarded by a real build measurement in
+  `code-splitting-check.ts`, not just a one-time claim.
+- Added `scripts/production-demo-gate-check.ts` (8 assertions),
+  `scripts/code-splitting-check.ts` (8 assertions), and
+  `scripts/security-hardening-check.ts` (11 assertions) — all wired into
+  `npm run checks`.
+- Added `docs/architecture/23-security-reliability-performance.md`.
+
+### Files/subsystems touched
+
+- `src/App.tsx` (additive gating: demo-credential branches + UI hints;
+  no existing behavior removed, only made conditional on
+  `isProductionDeploy()`)
+- `src/lib/idempotency.ts` (real Firestore transactional claim added;
+  demo path unchanged)
+- `src/routers/SharedRoutes.tsx`, `AdminRouter.tsx` (lazy-loading
+  conversion; JSX content unchanged, only import mechanism)
+- `src/components/UserRolePermissionManagementScreen.tsx` (1 real
+  confirmation guard added)
+- `scripts/generate-legacy-authorization-gaps.ts`,
+  `generate-destructive-actions-inventory.ts`,
+  `production-demo-gate-check.ts`, `code-splitting-check.ts`,
+  `security-hardening-check.ts` (new)
+- `scripts/generate-migration-matrix.ts` (exported `buildRows` for
+  reuse; corrected the Lead/`leads` collection mapping)
+- `docs/security/LEGACY_AUTHORIZATION_GAPS.md`,
+  `DESTRUCTIVE_ACTIONS_INVENTORY.md` (new, generated)
+- `docs/architecture/23-security-reliability-performance.md` (new)
+- `package.json` (4 new scripts, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run production-demo-gate:check` — pass, 8/8 assertions
+- `npm run code-splitting:check` — pass, 8/8 assertions
+- `npm run security-hardening:check` — pass, 11/11 assertions
+- `npm run checks` (all 27 scripts) — pass in full, zero regressions in
+  the prior 466 assertions (493 total)
+- `npm run build` — pass; server smoke test — `GET /` → 200, correct
+  title
+
+### Known limitations
+
+- Demo credential literal strings remain in the built bundle TEXT (not
+  runtime behavior) — this build's esbuild minifier does not eliminate
+  them; documented honestly, not claimed solved.
+- Idempotency's transaction covers the claim step, not a full
+  multi-document ACID guarantee spanning the guarded operation's writes.
+- 1 of 56 real destructive-action gaps fixed this phase, by design
+  (judged, not mechanically applied at scale) — same accepted precedent
+  as Phase 12.
+- Server-side request authentication (`server.ts`) remains an open,
+  previously-documented gap — needs `firebase-admin` + real credentials.
+- The 4 small role routers were left as static imports.
+
+### Next phase
+
+Phase 24 — External Integration Boundaries.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

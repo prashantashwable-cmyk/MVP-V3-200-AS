@@ -25,6 +25,7 @@
     "migration:scan": "tsx scripts/dbmanager-usage-scan.ts",
     "migration:matrix": "tsx scripts/generate-migration-matrix.ts",
     "migration:check": "tsx scripts/migration-factory-check.ts",
+    "security:authz-gaps": "tsx scripts/generate-legacy-authorization-gaps.ts",
     "bridge:check": "tsx scripts/commercial-core-bridge-check.ts",
     "procurement-bridge:check": "tsx scripts/procurement-bridge-check.ts",
     "delivery-bridge:check": "tsx scripts/delivery-bridge-check.ts",
@@ -33,7 +34,11 @@
     "operating-surfaces-home:check": "tsx scripts/operating-surfaces-home-check.ts",
     "project-operating-view:check": "tsx scripts/project-operating-view-check.ts",
     "work-queue:check": "tsx scripts/work-queue-check.ts",
-    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check && npm run migration:check && npm run bridge:check && npm run procurement-bridge:check && npm run delivery-bridge:check && npm run installation-qc-handover-bridge:check && npm run portal-summary:check && npm run operating-surfaces-home:check && npm run project-operating-view:check && npm run work-queue:check"
+    "production-demo-gate:check": "tsx scripts/production-demo-gate-check.ts",
+    "code-splitting:check": "tsx scripts/code-splitting-check.ts",
+    "security:destructive-inventory": "tsx scripts/generate-destructive-actions-inventory.ts",
+    "security-hardening:check": "tsx scripts/security-hardening-check.ts",
+    "checks": "npm run lint && npm run domain:check && npm run workflow:validate && npm run repository:check && npm run authz:check && npm run audit:check && npm run eventbus:check && npm run commercial:check && npm run operations:check && npm run surfaces:check && npm run offline:check && npm run reliability:check && npm run controltower:check && npm run e2e:check && npm run migration:check && npm run bridge:check && npm run procurement-bridge:check && npm run delivery-bridge:check && npm run installation-qc-handover-bridge:check && npm run portal-summary:check && npm run operating-surfaces-home:check && npm run project-operating-view:check && npm run work-queue:check && npm run production-demo-gate:check && npm run code-splitting:check && npm run security-hardening:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
