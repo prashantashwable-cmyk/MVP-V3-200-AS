@@ -2894,3 +2894,76 @@ valid outcome, not a failure to fix).
 Phase 34 — Live Firestore Security Testing (also expected to be BLOCKED —
 same missing-credential reason — the security-boundary test harness and
 honest documentation are this sandbox's real, buildable deliverable).
+
+## Phase 34 — Live Firestore Security Testing
+
+**Date:** 2026-09-23
+**Status:** Complete — BLOCKED — MISSING CREDENTIAL for the live test
+matrix (same root cause as Phase 33), but with real, actionable findings
+from a static analysis this sandbox CAN do.
+
+### What changed
+
+- New `scripts/live-firestore-authorization-test.ts` and
+  `docs/security/LIVE-AUTHORIZATION-TEST-RESULTS.md` (the exact filename
+  this phase's brief requires).
+- **Explicit role mapping documented**: this phase's brief names 8 generic
+  roles (Admin/Sales/Finance/Procurement/Technician/QC/Customer/Supplier);
+  this codebase's real, canonical role model
+  (`src/domain/permissions.ts`) has 5 (`admin`/`surveyor`/`technician`/
+  `customer`/`supplier`). Mapped explicitly rather than inventing roles
+  that do not exist in the domain model or silently ignoring the
+  mismatch.
+- **Part 1 — the live test matrix**: 5 roles × 8 scenario kinds
+  (permitted/unauthorized read/write, cross-project, cross-customer,
+  privilege escalation, direct API bypass) = 40 scenarios. All 40
+  reported BLOCKED — MISSING CREDENTIAL — none executed, none fabricated
+  as PASS.
+- **Part 2 — real static analysis, not a live test, clearly labeled as
+  such**: the harness parses the ACTUAL deployed `firestore.rules` (30
+  collection blocks) and flags every collection whose `create`/`update`
+  rule is bare `if isAuthenticated();` — ANY authenticated user,
+  regardless of role or ownership — versus one gated by a role check or
+  an ownership condition. **8 real, concrete findings, none previously
+  documented**: `payments` (P0 — financial: any authenticated
+  user, including a customer, can create a Payment document for ANY
+  project with an arbitrary amount), `workflow_instances` (create AND
+  update both unscoped), `workflow_executions`, `qc_inspections` (a
+  quality-gate-integrity concern — `Handover.qcPassed` derives from this
+  collection), `snags`, `notifications` (a spoofing vector),
+  `delivery_receipts`, `documents`. 4 more (`idempotency_keys`,
+  `audit_logs`, `observability_events`, `breakdown_sos`) are unscoped by
+  INTENTIONAL design, verified against the rules file's own existing
+  comments, not findings.
+- These 8 findings feed directly into Phase 35's remediation
+  prioritization (`payments` lands squarely in Phase 35's own P0 list) —
+  documented here, not fixed here, since Phase 34's brief is testing/
+  documentation and Phase 35's is the authorization-gap remediation
+  itself; fixing them now under the wrong phase's name would blur the
+  record of which phase did what.
+- Wired `live-firestore-authz:check` into `npm run checks`.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run live-firestore-authz:check` — 40 honest BLOCKED (live matrix),
+  8 real FINDING (static, not a live-test result), 4 intentional-by-design
+  confirmed correct, 18 properly-scoped collections confirmed correct.
+- `npm run checks` (37 scripts) — pass, 994 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `scripts/live-firestore-authorization-test.ts` (new)
+- `docs/security/LIVE-AUTHORIZATION-TEST-RESULTS.md` (new)
+- `package.json` (new check script, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+- No `firestore.rules` change this phase — Phase 34 is testing/
+  documentation; the 8 real findings are fixed (where in scope) in Phase
+  35, which explicitly owns closing authorization gaps.
+
+### Next phase
+
+Phase 35 — Close the Legacy Authorization Gap (the 101 client-only
+screens, prioritized P0/P1/P2, plus the 8 firestore.rules findings this
+phase surfaced).
