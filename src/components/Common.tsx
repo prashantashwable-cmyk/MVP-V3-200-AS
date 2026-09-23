@@ -57,6 +57,45 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
+// Reusable icon-over-label tile — shared by the Operating Surfaces grid
+// and the mobile "All Screens" sheet so both stay visually consistent
+// instead of maintaining two near-identical implementations.
+interface IconTileProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick?: () => void;
+  selected?: boolean;
+  size?: 'sm' | 'md'; // 'sm' = All Screens sheet, 'md' = Operating Surfaces (default)
+  className?: string;
+}
+
+export const IconTile: React.FC<IconTileProps> = ({
+  icon: Icon, label, onClick, selected = false, size = 'md', className = ''
+}) => {
+  const isSm = size === 'sm';
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-center cursor-pointer transition-all group ${
+        selected ? 'bg-[#0E4B3D]/10' : 'hover:bg-[rgba(184,135,61,0.08)]'
+      } ${className}`}
+    >
+      {isSm ? (
+        <Icon className={`w-5 h-5 shrink-0 ${selected ? 'text-royalemerald' : 'text-warmgray'}`} />
+      ) : (
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+          selected ? 'bg-royalemerald/10' : 'bg-[rgba(184,135,61,0.10)] group-hover:bg-[rgba(184,135,61,0.16)]'
+        }`}>
+          <Icon className={`w-5 h-5 ${selected ? 'text-royalemerald' : 'text-[#B8873D]'}`} />
+        </div>
+      )}
+      <span className={`leading-tight line-clamp-2 text-charcoal ${isSm ? 'text-[10px] font-bold' : 'text-[11px] font-medium'}`}>
+        {label}
+      </span>
+    </button>
+  );
+};
+
 // Reusable Design System Status Badge
 interface BadgeProps {
   status: 'active' | 'pending' | 'inactive' | 'completed' | 'in_progress' | 'qc_pending' | 'paid' | 'unpaid' | 'quoted' | 'captured' | 'closed' | 'closed_won';

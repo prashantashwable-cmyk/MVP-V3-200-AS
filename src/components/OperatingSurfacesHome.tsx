@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Briefcase, Users, Settings2, Wallet, ShieldCheck, ArrowRight } from 'lucide-react';
-import { Card } from './Common';
+import { Briefcase, Users, Settings2, Wallet, ShieldCheck, Grid } from 'lucide-react';
+import { Card, IconTile } from './Common';
 import { groupTabsBySurface, SURFACE_ORDER, SURFACE_LABELS, type Surface, type NavTab } from '../navigation/surfaces';
 
 /**
@@ -78,16 +78,14 @@ export const OperatingSurfacesHome: React.FC<OperatingSurfacesHomeProps> = ({ ta
                 </div>
               </div>
 
-              <div className="space-y-1">
+              <div className="grid grid-cols-3 gap-2">
                 {surfaceTabs.map(tab => (
-                  <button
+                  <IconTile
                     key={tab.id}
+                    icon={tab.icon ?? Grid}
+                    label={tab.label}
                     onClick={() => onSelectTab(tab.id)}
-                    className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg text-sm text-charcoal hover:bg-[rgba(184,135,61,0.06)] cursor-pointer transition-colors group"
-                  >
-                    <span>{tab.label}</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-warmgray opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                  </button>
+                  />
                 ))}
               </div>
             </Card>

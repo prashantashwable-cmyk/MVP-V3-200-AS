@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, UserRole } from './types';
 import { DbManager } from './lib/db';
 import { getOrCreateFirestoreUser, updateFirestoreUser } from './lib/firestoreUsers';
-import { Button } from './components/Common';
+import { Button, IconTile } from './components/Common';
 import { RoleSelectionWizard } from './components/RoleSelectionWizard';
 import { SurveyorOnboarding } from './components/SurveyorOnboarding';
 import { TechnicianOnboarding } from './components/TechnicianOnboarding';
@@ -2430,26 +2430,20 @@ export default function App() {
                         <div className="flex-1 overflow-y-auto px-4 pb-8 grid grid-cols-3 gap-2">
                           {getTabsByRole(currentUser.role)
                             .filter(tab => getTabLabel(tab).toLowerCase().includes(mobileNavSearch.toLowerCase()))
-                            .map((tab) => {
-                              const Icon = tab.icon;
-                              const isSelected = activeTab === tab.id;
-                              return (
-                                <button
-                                  key={tab.id}
-                                  onClick={() => {
-                                    setActiveTab(tab.id);
-                                    setShowMobileMoreMenu(false);
-                                    setMobileNavSearch('');
-                                  }}
-                                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-center cursor-pointer transition-all ${
-                                    isSelected ? 'bg-[#0E4B3D]/10 text-royalemerald' : 'bg-[#F8F6F1] text-warmgray hover:bg-alabaster'
-                                  }`}
-                                >
-                                  <Icon className={`w-5 h-5 shrink-0 ${isSelected ? 'text-royalemerald' : 'text-warmgray'}`} />
-                                  <span className="text-[10px] font-bold leading-tight line-clamp-2">{getTabLabel(tab)}</span>
-                                </button>
-                              );
-                            })}
+                            .map((tab) => (
+                              <IconTile
+                                key={tab.id}
+                                icon={tab.icon}
+                                label={getTabLabel(tab)}
+                                selected={activeTab === tab.id}
+                                size="sm"
+                                onClick={() => {
+                                  setActiveTab(tab.id);
+                                  setShowMobileMoreMenu(false);
+                                  setMobileNavSearch('');
+                                }}
+                              />
+                            ))}
                         </div>
                       </motion.div>
                     </>

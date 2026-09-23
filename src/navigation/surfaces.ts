@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react';
+
 /**
  * Five Operating Surfaces — Phase 10.
  *
@@ -73,7 +75,7 @@ export function classifyTabSurface(id: string, label: string): Surface {
 export interface NavTab {
   id: string;
   label: string;
-  icon?: unknown;
+  icon?: ComponentType<{ className?: string }>;
 }
 
 export function groupTabsBySurface<T extends NavTab>(tabs: T[]): Record<Surface, T[]> {
