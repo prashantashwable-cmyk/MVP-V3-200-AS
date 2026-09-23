@@ -595,18 +595,30 @@ app.get('/api/db/status', async (req, res) => {
 });
 
 // Contracts endpoint with role filtering
+//
+// Phase 61 fix (real, verified HIGH finding from the final security
+// review): this route previously trusted a CLIENT-SUPPLIED `?role=`
+// query parameter to decide whether to return EVERY contract in the
+// database or just one customer's — `GET /api/db/contracts?role=admin`
+// let any unauthenticated caller read the entire table, since neither
+// this route nor any middleware in this file verifies who is actually
+// calling. No server-side identity verification exists anywhere in this
+// app (no `firebase-admin`, no session middleware — confirmed,
+// `docs/production/ENVIRONMENT-READINESS.md`), so the only safe fix
+// available without adding new auth infrastructure is to stop trusting
+// the client-asserted role for an authorization decision at all — this
+// route is now unconditionally scoped to the caller-supplied `userId`
+// only. This route is not called from any real screen in this app today
+// (grepped — zero references in src/components or src/App.tsx), so this
+// closes a real, live, unauthenticated data-exposure vector on a
+// currently-unused Cloud SQL integration path with zero functional
+// impact on anything the app actually uses.
 app.get('/api/db/contracts', async (req, res) => {
-  const userRole = (req.query.role as string) || 'customer';
   const userId = (req.query.userId as string) || 'cust_01';
 
   try {
-    if (userRole === 'admin') {
-      const allContracts = await db.select().from(schema.elevatorContracts).orderBy(desc(schema.elevatorContracts.createdAt));
-      return res.json(allContracts);
-    } else {
-      const customerContracts = await db.select().from(schema.elevatorContracts).where(eq(schema.elevatorContracts.customerId, userId));
-      return res.json(customerContracts);
-    }
+    const customerContracts = await db.select().from(schema.elevatorContracts).where(eq(schema.elevatorContracts.customerId, userId));
+    return res.json(customerContracts);
   } catch (error: any) {
     console.error('Error fetching contracts from Cloud SQL:', error);
     res.status(500).json({ error: 'Failed to retrieve contracts' });
@@ -614,18 +626,19 @@ app.get('/api/db/contracts', async (req, res) => {
 });
 
 // SOPs & Safety Inspections with technician filter
+//
+// Phase 61 fix — same real finding and same fix as /api/db/contracts
+// above: a client-supplied `?role=admin`/`?role=qc_inspector` query
+// parameter previously granted unauthenticated access to every SOP/
+// inspection record. Now unconditionally scoped to the caller-supplied
+// `userId`, for the same reason. Also unreachable from any real screen
+// today (grepped).
 app.get('/api/db/sops', async (req, res) => {
-  const userRole = (req.query.role as string) || 'technician';
   const userId = (req.query.userId as string) || 'tech_01';
 
   try {
-    if (userRole === 'admin' || userRole === 'qc_inspector') {
-      const allSops = await db.select().from(schema.siteSopsAndInspections).orderBy(desc(schema.siteSopsAndInspections.createdAt));
-      return res.json(allSops);
-    } else {
-      const techSops = await db.select().from(schema.siteSopsAndInspections).where(eq(schema.siteSopsAndInspections.assignedTechnicianId, userId));
-      return res.json(techSops);
-    }
+    const techSops = await db.select().from(schema.siteSopsAndInspections).where(eq(schema.siteSopsAndInspections.assignedTechnicianId, userId));
+    return res.json(techSops);
   } catch (error: any) {
     console.error('Error fetching SOPs from Cloud SQL:', error);
     res.status(500).json({ error: 'Failed to retrieve SOPs' });
