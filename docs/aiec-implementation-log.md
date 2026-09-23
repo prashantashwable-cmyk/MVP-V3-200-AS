@@ -2353,6 +2353,65 @@ Phase 29 — Full Company Simulation.
 
 ---
 
+## Phase 29 — Full Company Simulation
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Added `scripts/full-company-simulation.ts` (`npm run
+  simulation:full-company`, wired into `npm run checks`): runs one
+  project through the pack's full 28-step scenario, through the REAL
+  legacy-screen bridges (Phases 15-18) wherever one exists — the exact
+  code path a real screen click runs today, not a second idealized
+  story like Phase 13's `final-e2e-acceptance.ts`.
+- New ground covered for the first time in this pack's acceptance
+  suite: the full QC failure → snag → rework → reinspection → pass
+  loop (Phase 18 only exercised the clean pass path, by design); two
+  real unauthorized-role denials (technician blocked from a customer
+  payment, customer blocked from self-issuing a handover certificate);
+  both Phase 09 hard gates proven BLOCKING before being satisfied, not
+  just working once satisfied; every Phase 19/21/22/26 surface
+  (customer/technician portal summaries, project operating view, work
+  queue, data quality) confirmed to reflect this SAME project's real
+  final state.
+- Two gaps honestly documented in the script's own console output, not
+  silently skipped: negotiation (no legacy screen bridge exists yet)
+  and post-handover service issues (no canonical `ServiceCase` entity
+  was ever built).
+- Found and fixed a real bug while writing it: an assertion wrongly
+  expected the canonical Project's owner to be the admin actor rather
+  than the lead's real surveyor — the code was correct, the test
+  assertion was wrong, fixed accordingly.
+- Added `docs/architecture/29-full-company-simulation.md`.
+
+### Files/subsystems touched
+
+- `scripts/full-company-simulation.ts` (new)
+- `docs/architecture/29-full-company-simulation.md` (new)
+- `package.json` (added `simulation:full-company`, extended `checks`)
+- No existing screen, router, service, or bridge code was modified.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run simulation:full-company` — pass, 48/48 assertions
+- `npm run checks` (all 33 scripts) — pass in full, zero regressions in
+  the prior 569 assertions (617 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- Negotiation and post-handover service issues are documented, real
+  gaps (no bridge / no canonical entity), not exercised.
+
+### Next phase
+
+Phase 30 — Final Acceptance.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
