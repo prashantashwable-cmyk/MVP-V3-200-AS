@@ -3186,3 +3186,48 @@ Phase 37 — Transactional Idempotency.
 
 Phase 38 — Live End-to-End Production-Like Test (expected BLOCKED — same
 missing-credential reason as Phases 33/34).
+
+## Phase 38 — Live End-to-End Production-Like Test
+
+**Date:** 2026-09-23
+**Status:** Complete — BLOCKED — MISSING CREDENTIAL (the correct, honest
+result for this sandbox).
+
+### What changed
+
+- New `scripts/live-e2e-production-test.ts` and
+  `docs/production/LIVE-E2E-TEST.md` (the exact filename this phase's
+  brief requires). Maps the full named lifecycle (Lead → ... →
+  Warranty/AMC, 13 stages) to its live-credential status — all 13
+  honestly BLOCKED — MISSING CREDENTIAL, none fabricated as PASS.
+- Cross-references `scripts/full-company-simulation.ts` (Phase 29, 48
+  real assertions) as the real, structural (not live) proof the workflow
+  LOGIC is correct — clearly distinguished from live-backend proof, per
+  this phase's own rule #11 ("do not treat a successful emulator/local
+  test as proof of production correctness").
+- Named the 2 stages (Negotiation, post-handover service issue) that are
+  honestly weaker than the rest even structurally — no bridge/entity
+  exists to exercise them at all yet, a pre-existing, previously-
+  documented gap not introduced or hidden by this phase.
+- Explicitly documented what unblocking this needs: a real staging/test
+  Firebase project or tenant, real per-role test identities, and — per
+  this phase's own caution — no real financial transactions unless
+  explicitly authorized and safely configured.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run live-e2e:check` — 13/13 honestly reported BLOCKED, 0 fabricated PASS.
+- `npm run checks` (43 scripts) — pass, 1039 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `scripts/live-e2e-production-test.ts` (new)
+- `docs/production/LIVE-E2E-TEST.md` (new)
+- `package.json` (new check script, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Next phase
+
+Phase 39 — Dual-Write Consistency and Cutover Readiness.
