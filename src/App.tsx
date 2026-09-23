@@ -2292,6 +2292,19 @@ export default function App() {
                   </div>
                 </aside>
 
+                {/* Content column — everything except the sidebar must stay
+                    vertically stacked regardless of the outer container's
+                    `md:flex-row` switch at desktop width. Without this
+                    wrapper, EnvironmentBadge (and every other item here)
+                    becomes a row-flex sibling of `aside` on desktop:
+                    align-items:stretch stretches its height to match
+                    `<main>`, and `w-full` fights for the full row width,
+                    turning a slim banner into a giant block covering the
+                    page. Pre-existing bug since Phase 12 — every UAT pass
+                    in this session used mobile-viewport emulation only, so
+                    desktop width was never actually checked until now. */}
+                <div className="flex flex-col flex-1 min-w-0">
+
                 {/* 2. MOBILE HEADER & NAVIGATION SHELL */}
                 <header className="md:hidden bg-white border-b border-[rgba(184,135,61,0.1)] p-4 flex items-center justify-between sticky top-0 z-40 shadow-xs">
                   <div className="flex items-center gap-2">
@@ -2449,6 +2462,8 @@ export default function App() {
                     </>
                   )}
                 </AnimatePresence>
+
+                </div>
 
               </div>
             )}
