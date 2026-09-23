@@ -5,6 +5,16 @@ import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  // Phase 32 — a real BUILD-TIME (not runtime) flag: true unless this is
+  // an explicit `VITE_APP_ENV=production` build. Injected via `define`,
+  // which is a literal esbuild text substitution applied to every module
+  // BEFORE minification — so `if (!__DEMO_AUTH_ENABLED__) { ... }` in
+  // src/lib/demoCredentials.ts becomes a compile-time-constant branch the
+  // minifier's dead-code elimination removes entirely (unlike the Phase 23
+  // runtime `isProductionDeploy()` check, which the minifier cannot see
+  // through). See docs/production/ENVIRONMENT-READINESS.md and
+  // src/lib/demoCredentials.ts's header for the full rationale.
+  const isProductionDeployBuild = process.env.VITE_APP_ENV === 'production';
   return {
     plugins: [
       react(),
@@ -42,7 +52,11 @@ export default defineConfig(() => {
       }),
     ],
     define: {
-      'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || '')
+      'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || ''),
+      // Raw boolean literal (not JSON.stringify'd to a string) so
+      // `!__DEMO_AUTH_ENABLED__` folds to a real `true`/`false` constant
+      // expression esbuild's minifier can dead-code-eliminate.
+      __DEMO_AUTH_ENABLED__: isProductionDeployBuild ? 'false' : 'true',
     },
     resolve: {
       alias: {

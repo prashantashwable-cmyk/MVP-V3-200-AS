@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge, AscensionLine } from './Common';
 import { useLanguage } from '../lib/language';
+import { isDemoEsignOtpAccepted, isDemoAuthBuild } from '../lib/demoCredentials';
 
 // Localizations for E-Signature Capture Screen
 const localizations = {
@@ -37,7 +38,7 @@ const localizations = {
     dealClosedWonDesc: "Both parties have completed authentication. The agreement is now fully locked and immutable. Proceeding to Deal Closure Confirmation.",
     toastOtpSent: "E-sign verification OTP sent to +91 98455 12092.",
     toastOtpSuccess: "Identity confirmed successfully.",
-    toastOtpFail: "Incorrect OTP code. Please enter '4321' for demo bypass.",
+    toastOtpFail: "Incorrect OTP code. Please re-check and try again.",
     toastCustomerSigned: "Customer signature captured and locked in immutable metadata block.",
     toastCountersigned: "AIEC Authorized Countersignature sealed! Contract is now binding.",
     toastConsentWarning: "You must check the legal consent checkbox to execute the signature.",
@@ -72,7 +73,7 @@ const localizations = {
     dealClosedWonDesc: "दोनों पक्षों ने प्रमाणीकरण पूरा कर लिया है। समझौता अब पूरी तरह से लॉक है। डील क्लोजर पुष्टिकरण पर आगे बढ़ें।",
     toastOtpSent: "ई-साइन सत्यापन ओटीपी +91 98455 12092 पर भेजा गया।",
     toastOtpSuccess: "पहचान की सफलतापूर्वक पुष्टि की गई।",
-    toastOtpFail: "गलत ओटीपी कोड। डेमो बाईपास के लिए '4321' दर्ज करें।",
+    toastOtpFail: "गलत ओटीपी कोड। कृपया पुनः जांचें और पुनः प्रयास करें।",
     toastCustomerSigned: "ग्राहक के हस्ताक्षर सुरक्षित रूप से कैप्चर किए गए।",
     toastCountersigned: "AIEC कॉर्पोरेट काउंटर-हस्ताक्षर सील हो गया है!",
     toastConsentWarning: "हस्ताक्षर निष्पादित करने के लिए आपको कानूनी सहमति बॉक्स को चेक करना होगा।",
@@ -107,7 +108,7 @@ const localizations = {
     dealClosedWonDesc: "दोन्ही बाजूंची स्वाक्षरी प्रक्रिया पूर्ण झाली आहे. करार आता पूर्णपणे लॉक आणि अंतिम झाला आहे.",
     toastOtpSent: "ई-स्वाक्षरी ओटीपी +९१ ९८४५५ १२०९२ वर पाठवला गेला.",
     toastOtpSuccess: "पडताळणी यशस्वी झाली.",
-    toastOtpFail: "चुकीचा ओटीपी. डेमोसाठी '4321' प्रविष्ट करा.",
+    toastOtpFail: "चुकीचा ओटीपी. कृपया पुन्हा तपासा आणि पुन्हा प्रयत्न करा.",
     toastCustomerSigned: "ग्राहकाची डिजिटल स्वाक्षरी सुरक्षितपणे साठवली गेली आहे.",
     toastCountersigned: "AIEC कॉर्पोरेट प्रति-स्वाक्षरी पूर्ण झाली! सौदा अंतिम झाला आहे.",
     toastConsentWarning: "स्वाक्षरी मंजूर करण्यासाठी तुम्हाला कायदेशीर संमती चौकटीवर टिक करावे लागेल.",
@@ -232,11 +233,16 @@ export const ESignatureCapture: React.FC<{ user: any; onGoToNext?: () => void }>
     setHasDrawn(false);
   };
 
-  // Verification OTP handler
+  // Verification OTP handler — Phase 32: routed through
+  // src/lib/demoCredentials.ts. No real SMS/OTP backend exists behind
+  // this flow in any environment (the same long-documented gap as the
+  // main login OTP, Phase 05); the demo-only acceptance behavior is
+  // preserved for sandbox/demo builds, but a real production build now
+  // honestly always rejects rather than silently accepting any 4-digit
+  // input (the prior, ungated behavior regardless of environment).
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
-    // Default bypass code '4321'
-    if (otpValue === '4321' || otpValue === '1234' || otpValue.length === 4) {
+    if (isDemoEsignOtpAccepted(otpValue)) {
       setOtpVerified(true);
       triggerToast(t.toastOtpSuccess);
       setCurrentStep(2);
@@ -443,13 +449,15 @@ export const ESignatureCapture: React.FC<{ user: any; onGoToNext?: () => void }>
                         maxLength={4}
                         value={otpValue}
                         onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
-                        placeholder="e.g. 4321"
+                        placeholder="4-digit code"
                         className="w-full p-3 bg-alabaster border border-[#e5dfd4] rounded-xl text-center font-mono font-extrabold text-lg text-charcoal focus:outline-none focus:border-antiquegold"
                         required
                       />
-                      <span className="text-[9px] text-warmgray block">
-                        *Enter any 4 digits (e.g. 4321) to instantly bypass verification for developer testing.
-                      </span>
+                      {isDemoAuthBuild() && (
+                        <span className="text-[9px] text-warmgray block">
+                          *Demo/sandbox build: any 4 digits verify instantly for developer testing.
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex gap-2">

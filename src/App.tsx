@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, UserRole, UserStatus } from './types';
+import { User, UserRole } from './types';
 import { DbManager } from './lib/db';
 import { getOrCreateFirestoreUser, updateFirestoreUser } from './lib/firestoreUsers';
 import { Button } from './components/Common';
@@ -17,6 +17,7 @@ import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
 import { ProjectOperatingView } from './components/ProjectOperatingView';
 import { WorkQueueScreen } from './components/WorkQueueScreen';
 import { resolveEnvironment, isProductionDeploy } from './lib/environment';
+import { getDemoOtpBypassCodes, getDemoEmailIdentities, checkDemoPassword, isDemoAuthBuild, getDemoPasswordHint } from './lib/demoCredentials';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
 import { installGlobalErrorCapture } from './lib/observability';
 import {
@@ -479,25 +480,18 @@ export default function App() {
   const triggerInstantVerification = (code: string) => {
     if (cooldownTime > 0 || isExpired) return;
 
-    // Phase 23: the '1234'/'123456'/'888888' demo bypass codes must not
-    // WORK in a production build. `isProductionDeploy()` reads Vite's
-    // build-time `VITE_APP_ENV` flag, so with `VITE_APP_ENV=production`
-    // this is a real, verified runtime gate (checked by actually
-    // building with that flag set and confirming the bypass condition
-    // evaluates false). Empirically checked and NOT claimed further than
-    // verified: this repo's esbuild-based minifier does not eliminate
-    // the now-dead literal strings from the built bundle text (Vite's
-    // default minifier does not inline cross-module function calls the
-    // way Terser can) — so the codes remain grep-able in the bundle even
-    // though non-functional. See docs/security/LEGACY_AUTHORIZATION_GAPS.md
-    // §1 for the full honest accounting and what a stricter follow-up
-    // (a build-time source transform, or moving these literals behind a
-    // dynamic import gated the same way) would need to do to remove the
-    // text itself, not just its effect.
-    const demoOtpBypassAllowed = !isProductionDeploy();
+    // Phase 32: the demo OTP bypass codes live in src/lib/demoCredentials.ts,
+    // resolved to an EMPTY array by a real build-time constant
+    // (`__DEMO_AUTH_ENABLED__`, injected in vite.config.ts from
+    // `VITE_APP_ENV`) in a production build — not just gated at runtime
+    // as Phase 23 left it. See that module's header for the full
+    // rationale, and scripts/production-bundle-bypass-check.ts for the
+    // real build+grep verification that the literals themselves are gone
+    // from production bundle output (docs/production/ENVIRONMENT-READINESS.md).
+    const demoOtpBypassCodes = getDemoOtpBypassCodes();
 
-    // Format validation: 6-digits, or the '1234' demo bypass code
-    const isBypass = demoOtpBypassAllowed && (code === '1234' || code === '123456');
+    // Format validation: 6-digits, or a demo bypass code (none in production)
+    const isBypass = demoOtpBypassCodes.includes(code);
     const isSixDigit = /^\d{6}$/.test(code);
     if (!isBypass && !isSixDigit) {
       return;
@@ -508,7 +502,7 @@ export default function App() {
 
     // Simulated secure handshaking with server-side proxy
     setTimeout(() => {
-      if (demoOtpBypassAllowed && (code === '123456' || code === '1234' || code === '888888')) {
+      if (demoOtpBypassCodes.includes(code)) {
         setVerificationStatus('success');
         setErrorMsg('');
         setOtpAttempts(0);
@@ -573,24 +567,16 @@ export default function App() {
     
     const emailLower = loginEmail.toLowerCase().trim();
     const list = DbManager.getUsers();
-    
-    // Seeded email definitions
-    const emailToRoleMap: Record<string, { role: UserRole; name: string; phone: string; status: UserStatus }> = {
-      'admin@aiec.com': { role: 'admin', name: 'Mr. Prashant Vasant Wable', phone: '+91 98765 43210', status: 'active' },
-      'surveyor@aiec.com': { role: 'surveyor', name: 'Amit Sharma', phone: '+91 98765 43211', status: 'active' },
-      'technician@aiec.com': { role: 'technician', name: 'Rajesh Patel', phone: '+91 98765 43212', status: 'active' },
-      'supplier@aiec.com': { role: 'supplier', name: 'Sun Elevators Manufacturing', phone: '+91 98765 43213', status: 'active' },
-      'customer@aiec.com': { role: 'customer', name: 'Rohan Deshmukh', phone: '+91 98765 43214', status: 'active' },
-      'pending@aiec.com': { role: 'surveyor', name: 'Rahul Joshi (Pending)', phone: '+91 98765 43299', status: 'pending' },
-    };
 
-    // Phase 23: same production gate as the OTP bypass above — the
-    // hardcoded 'password123' demo credential must not function in a
-    // real production build (verified real behavior, not just hidden UI
-    // — see the OTP gate's comment above for the honest limit of what
-    // this build toolchain does and does not remove from the bundle
-    // text itself).
-    if (!isProductionDeploy() && emailToRoleMap[emailLower] && loginPassword === 'password123') {
+    // Phase 32: the seeded demo email->role map and the demo password
+    // check both live in src/lib/demoCredentials.ts, resolved to
+    // null/false by a real BUILD-TIME constant in a production build —
+    // the map object (including the admin identity) and the password
+    // literal do not exist in production bundle output. See that
+    // module's header and scripts/production-bundle-bypass-check.ts.
+    const emailToRoleMap = getDemoEmailIdentities();
+
+    if (emailToRoleMap && emailToRoleMap[emailLower] && checkDemoPassword(loginPassword)) {
       const mapped = emailToRoleMap[emailLower];
       let found = list.find(u => u.phone === mapped.phone);
       if (!found) {
@@ -616,7 +602,7 @@ export default function App() {
       logLaunchAnalytics(found.role);
       setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
     } else {
-      setErrorMsg(isProductionDeploy() ? 'Invalid email or password.' : 'Invalid email or password. Use email fallback (e.g. admin@aiec.com / password123)');
+      setErrorMsg(isDemoAuthBuild() ? 'Invalid email or password. Use a demo fallback identity (see login hint below).' : 'Invalid email or password.');
     }
   };
 
@@ -1651,19 +1637,21 @@ export default function App() {
                           {loginMethod === 'phone' ? (
                             /* PHONE OTP FLOW */
                             <div>
-                              {/* Simulated Incoming SMS Push Alert — Phase 23:
-                                  demo-only affordance (taps a bypass code that
-                                  no longer works in production), hidden there
-                                  rather than shown-but-nonfunctional. */}
+                              {/* Simulated Incoming SMS Push Alert — Phase 32:
+                                  demo-only affordance, gated by the same
+                                  build-time constant that removes the bypass
+                                  codes from production bundle output (not
+                                  just hidden UI over non-functional logic). */}
                               <AnimatePresence>
-                                {simulateSmsToast && !isProductionDeploy() && (
+                                {simulateSmsToast && isDemoAuthBuild() && getDemoOtpBypassCodes()[1] && (
                                   <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     onClick={() => {
-                                      setOtp6Digits(['1', '2', '3', '4', '5', '6']);
-                                      triggerInstantVerification('123456');
+                                      const code = getDemoOtpBypassCodes()[1];
+                                      setOtp6Digits(code.split(''));
+                                      triggerInstantVerification(code);
                                     }}
                                     className="mb-4 p-3 bg-[#0E4B3D]/95 text-white rounded-2xl border border-[#B8873D]/30 shadow-lg cursor-pointer hover:bg-[#0E4B3D] transition-all flex items-start gap-3 text-left"
                                   >
@@ -1676,7 +1664,7 @@ export default function App() {
                                         <span className="text-[9px] text-white/50 font-mono">Just Now</span>
                                       </div>
                                       <p className="text-[11px] leading-tight text-white/90">
-                                        Your AIEC mobile access OTP code is <strong className="text-antiquegold font-mono font-extrabold tracking-wider bg-white/10 px-1.5 py-0.5 rounded text-xs">123456</strong>. Valid for 2 mins.
+                                        Your AIEC mobile access OTP code is <strong className="text-antiquegold font-mono font-extrabold tracking-wider bg-white/10 px-1.5 py-0.5 rounded text-xs">{getDemoOtpBypassCodes()[1]}</strong>. Valid for 2 mins.
                                       </p>
                                       <span className="text-[9px] text-[#B8873D] font-bold block animate-pulse">⚡ Tap to Auto-Read & Verify Instantly</span>
                                     </div>
@@ -1818,10 +1806,10 @@ export default function App() {
                                       </p>
                                     </div>
                                   ) : (
-                                    !isProductionDeploy() && (
+                                    isDemoAuthBuild() && getDemoOtpBypassCodes().length > 0 && (
                                       <div className="text-center">
                                         <p className="text-[10px] text-warmgray">
-                                          Use secure bypass PIN <strong>123456</strong> or <strong>1234</strong>
+                                          Use secure bypass PIN <strong>{getDemoOtpBypassCodes()[1]}</strong> or <strong>{getDemoOtpBypassCodes()[0]}</strong>
                                         </p>
                                       </div>
                                     )
@@ -1941,7 +1929,7 @@ export default function App() {
                                     required
                                     value={loginEmail}
                                     onChange={(e) => setLoginEmail(e.target.value)}
-                                    placeholder="admin@aiec.com"
+                                    placeholder="name@company.com"
                                     className="w-full pl-10 pr-4 py-2 bg-alabaster border border-[rgba(184,135,61,0.15)] rounded-xl text-sm focus:outline-none text-charcoal font-semibold"
                                   />
                                 </div>
@@ -1963,8 +1951,8 @@ export default function App() {
                                   />
                                 </div>
                                 <div className="flex justify-between items-center text-[10px] text-warmgray">
-                                  {!isProductionDeploy() && (
-                                    <span>{appTranslations[appLanguage].defaultFallback} <strong>password123</strong></span>
+                                  {getDemoPasswordHint() && (
+                                    <span>{appTranslations[appLanguage].defaultFallback} <strong>{getDemoPasswordHint()}</strong></span>
                                   )}
                                   <button
                                     type="button"

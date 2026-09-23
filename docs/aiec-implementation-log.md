@@ -2733,3 +2733,90 @@ credential.
   documentation only, per its own brief. The two real findings above
   were fixed in Phase 32, not silently fixed here under a different
   phase's name.
+
+## Phase 32 — Remove Demo Bypass From Production Builds
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- **Root cause of the Phase 23 residual gap, actually fixed this time**:
+  Phase 23 gated demo bypasses with a RUNTIME check
+  (`isProductionDeploy()`), which Vite's default esbuild minifier cannot
+  fold across a function-call boundary — so the literal bypass strings
+  stayed in production bundle TEXT even though non-functional. Phase 32
+  replaces this with a real BUILD-TIME constant.
+- New `src/lib/demoCredentials.ts`: every demo bypass literal (OTP codes
+  `1234`/`123456`/`888888`, `password123`, the seeded demo email->role
+  map including the admin identity, plus the two new findings' literals
+  `4321`/`5541`) now lives here, each behind `if
+  (!__DEMO_AUTH_ENABLED__) return <safe-default>;` — a real
+  compile-time-constant branch.
+- `vite.config.ts`: added `__DEMO_AUTH_ENABLED__` to `define`, computed
+  from `process.env.VITE_APP_ENV` at config time (`true` unless
+  `VITE_APP_ENV=production`) — a literal esbuild text substitution
+  applied to every module BEFORE minification, so the dead branch
+  (including its string literals) is genuinely eliminated.
+- `src/App.tsx`, `src/components/ForgotPasswordReset.tsx`,
+  `src/components/ESignatureCapture.tsx`,
+  `src/components/OfferOnboardingAgreementScreen.tsx`: rewired to call
+  the new module's functions instead of holding literals directly.
+  `ForgotPasswordReset.tsx`'s universal bypass code and admin quick-fill
+  panel (Phase 31's finding) are now gated the same way; its stray
+  `'password123'` default-hash fallback (unrelated to any real check)
+  was removed outright rather than gated, since it had no real purpose.
+- **New, empirical verification** — `scripts/production-bundle-bypass-check.ts`:
+  runs a REAL `VITE_APP_ENV=production` `vite build` and a real default
+  (demo) build, then greps the actual `.js` output files for every known
+  bypass literal. Asserts zero present in production output, and — a
+  positive control — asserts all present in the demo build's output
+  (proves the check can actually detect them, and that demo behavior
+  genuinely remains available in an explicit demo build). This is the
+  strongest form of proof this phase's own rules allow ("never claim
+  production readiness without... verification" — extended here to "never
+  claim a bundle is clean without actually grepping the real bundle").
+- Rewrote `scripts/production-demo-gate-check.ts` (Phase 23's original)
+  to match the new structure: asserts every known literal is textually
+  ABSENT from the 4 screen files (moved out) and present ONLY in
+  `demoCredentials.ts` (gated), plus that `vite.config.ts` wires
+  `__DEMO_AUTH_ENABLED__` correctly, plus a real production build still
+  compiles.
+- Both new checks wired into `npm run checks`
+  (`production-demo-gate:check`, `production-bundle-bypass:check`).
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run production-demo-gate:check` — pass (34 structural assertions).
+- `npm run production-bundle-bypass:check` — pass (14 assertions: 7
+  literals × absent-in-production + present-in-demo, each independently
+  verified against a real build's real output).
+- `npm run checks` (all 35 scripts) — pass, 994 assertions, zero
+  regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `src/lib/demoCredentials.ts` (new)
+- `scripts/production-bundle-bypass-check.ts` (new)
+- `scripts/production-demo-gate-check.ts` (rewritten for the new structure)
+- `vite.config.ts` (added `__DEMO_AUTH_ENABLED__` define)
+- `src/App.tsx`, `src/components/ForgotPasswordReset.tsx`,
+  `src/components/ESignatureCapture.tsx`,
+  `src/components/OfferOnboardingAgreementScreen.tsx` (rewired to the new module)
+- `package.json` (two new check scripts, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Known, honest remaining scope
+
+- Server-side request authentication (`server.ts` has no middleware
+  verifying callers) is unrelated to this phase's demo-bypass scope and
+  remains open — needs `firebase-admin` + a real credential (Phase 33/34
+  territory).
+- The "Try as Role" onboarding carousel (`handleDemoBypass`,
+  `isDemo: true`) is deliberately left untouched — a legitimate,
+  honestly-labeled, always-available demo sandbox mode that never
+  touches Firestore, categorically different from impersonating a real
+  authenticated login. Removing it from production would remove a real,
+  intended product feature, not close a security gap.

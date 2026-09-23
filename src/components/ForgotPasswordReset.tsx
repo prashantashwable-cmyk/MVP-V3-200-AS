@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../types';
 import { DbManager } from '../lib/db';
+import { getDemoOtpBypassCodes, getDemoQuickFillOptions } from '../lib/demoCredentials';
 import { Card, Button } from './Common';
 import { 
   Shield, KeyRound, Smartphone, Mail, Lock, Check, CheckCircle2, 
@@ -199,7 +200,14 @@ export const ForgotPasswordReset: React.FC<ForgotPasswordResetProps> = ({ onBack
       return;
     }
 
-    if (resetCode.trim() !== lastIssuedCode && resetCode.trim() !== '123456') {
+    // Phase 31/32 finding: a universal six-digit bypass code previously
+    // worked for ANY account's password reset, completely UNGATED by
+    // environment (a real account-takeover-shaped gap Phase 23 did not
+    // cover — that phase only touched src/App.tsx's own login form).
+    // Now routed through src/lib/demoCredentials.ts's shared bypass-code
+    // pool, which resolves to an empty array (never matches) in a real
+    // `VITE_APP_ENV=production` build.
+    if (resetCode.trim() !== lastIssuedCode && !getDemoOtpBypassCodes().includes(resetCode.trim())) {
       setCodeError('Invalid verification token. Double-check your WhatsApp, SMS, or Email inbox.');
       return;
     }
@@ -231,9 +239,13 @@ export const ForgotPasswordReset: React.FC<ForgotPasswordResetProps> = ({ onBack
 
     if (!matchedUser) return;
 
-    // Check "New password matches the old one"
-    const currentHash = matchedUser.passwordHash || 'password123';
-    if (newPassword === currentHash) {
+    // Check "New password matches the old one". Phase 32: no longer
+    // assumes an unset passwordHash implicitly means the demo
+    // hardcoded demo seed password value (a stray literal with no real bearing on
+    // this check's own purpose) — an unset hash simply has nothing to
+    // compare against.
+    const currentHash = matchedUser.passwordHash;
+    if (currentHash && newPassword === currentHash) {
       setPasswordError('Security Guard: Your new password cannot match your current or previous password. Please choose a new vault token.');
       return;
     }
@@ -397,34 +409,28 @@ export const ForgotPasswordReset: React.FC<ForgotPasswordResetProps> = ({ onBack
                   <p className="text-xs text-warmgray mt-0.5">Enter your verified email address or mobile number to dispatch a single-use verification token.</p>
                 </div>
 
-                {/* Developer Pre-fills sandbox */}
-                <div className="p-3 bg-alabaster rounded-xl border border-[rgba(184,135,61,0.12)] space-y-2">
-                  <span className="text-[9px] font-mono font-bold text-[#B8873D] uppercase tracking-wider block">🧪 Developer Rapid Testing Sandbox</span>
-                  <p className="text-[10px] text-warmgray leading-relaxed">Select pre-seeded roles or triggers to inspect validation flows instantly:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateCredentials('admin@aiec.com', 'email')}
-                      className="px-2 py-1 bg-white hover:bg-[#edeae2] border border-[#e6dfd4] text-[9px] font-bold rounded-lg text-charcoal cursor-pointer"
-                    >
-                      👑 Admin Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateCredentials('+91 98765 43214', 'whatsapp')}
-                      className="px-2 py-1 bg-white hover:bg-[#edeae2] border border-[#e6dfd4] text-[9px] font-bold rounded-lg text-charcoal cursor-pointer"
-                    >
-                      👤 Client Phone (WhatsApp)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateCredentials('legacy', 'sms')}
-                      className="px-2 py-1 bg-white hover:bg-[#edeae2] border border-[#e6dfd4] text-[9px] font-bold rounded-lg text-charcoal cursor-pointer"
-                    >
-                      ⚠️ Legacy Stub (Admin-assisted Recovery)
-                    </button>
+                {/* Developer Pre-fills sandbox — Phase 32: routed through
+                    demoCredentials.ts so this panel (and the privileged
+                    admin identity it reveals) does not exist in a
+                    production build's bundle output at all. */}
+                {getDemoQuickFillOptions() && (
+                  <div className="p-3 bg-alabaster rounded-xl border border-[rgba(184,135,61,0.12)] space-y-2">
+                    <span className="text-[9px] font-mono font-bold text-[#B8873D] uppercase tracking-wider block">🧪 Developer Rapid Testing Sandbox</span>
+                    <p className="text-[10px] text-warmgray leading-relaxed">Select pre-seeded roles or triggers to inspect validation flows instantly:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {getDemoQuickFillOptions()!.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleSimulateCredentials(opt.value, opt.method)}
+                          className="px-2 py-1 bg-white hover:bg-[#edeae2] border border-[#e6dfd4] text-[9px] font-bold rounded-lg text-charcoal cursor-pointer"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <form onSubmit={handleRequestReset} className="space-y-5">
                   <div className="space-y-1.5">
@@ -560,7 +566,7 @@ export const ForgotPasswordReset: React.FC<ForgotPasswordResetProps> = ({ onBack
                         type="text"
                         required
                         maxLength={6}
-                        placeholder="e.g. 888888"
+                        placeholder="6-digit code"
                         value={resetCode}
                         onChange={(e) => {
                           setResetCode(e.target.value.replace(/\D/g, ''));

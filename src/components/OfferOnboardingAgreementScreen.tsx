@@ -7,6 +7,7 @@ import {
 } from '../types';
 import { DbManager } from '../lib/db';
 import { Card, Button } from './Common';
+import { isDemoAgreementOtpAccepted, getDemoAgreementOtp, isDemoAuthBuild } from '../lib/demoCredentials';
 import {
   FileText,
   ShieldCheck,
@@ -166,14 +167,22 @@ export const OfferOnboardingAgreementScreen: React.FC<OfferOnboardingAgreementSc
 
   const handleSendOtp = () => {
     setOtpSent(true);
-    // Auto-fill demo OTP for smooth testing experience
-    setEnteredOtp('5541');
+    // Auto-fill demo OTP for smooth testing experience — Phase 32:
+    // routed through src/lib/demoCredentials.ts, null in production.
+    const demoOtp = getDemoAgreementOtp();
+    if (demoOtp) setEnteredOtp(demoOtp);
   };
 
+  // Phase 32: no real SMS/OTP backend exists behind this e-sign flow in
+  // any environment (same documented gap as the main login OTP, Phase
+  // 05). The demo-only acceptance behavior (any 4+ digit code) is
+  // preserved for sandbox/demo builds via isDemoAgreementOtpAccepted;
+  // a real production build honestly always rejects rather than
+  // silently accepting any code (the prior, ungated behavior).
   const handleVerifyOtpAndSign = () => {
     if (!agreement || !applicant) return;
-    if (enteredOtp !== '5541' && enteredOtp.length < 4) {
-      alert('Please enter a valid 4-digit OTP (demo OTP is 5541)');
+    if (!isDemoAgreementOtpAccepted(enteredOtp)) {
+      alert('Please enter a valid verification code.');
       return;
     }
 

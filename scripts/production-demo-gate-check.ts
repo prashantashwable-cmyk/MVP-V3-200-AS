@@ -1,28 +1,27 @@
 /**
- * Phase 23 acceptance check: proves the demo login bypasses ('1234'/
- * '123456'/'888888' OTP codes, 'password123' email fallback) are really
- * gated behind `isProductionDeploy()`, and that a real
- * `VITE_APP_ENV=production` build still compiles cleanly with that gate
- * in place.
+ * Phase 23 acceptance check, REWRITTEN for Phase 32's real fix.
  *
- * Two parts, because of a real, verified toolchain limitation (see
- * `docs/security/LEGACY_AUTHORIZATION_GAPS.md` §1): this repo's
- * esbuild-based Vite minifier does not eliminate the now-dead literal
- * strings from the built bundle text the way Terser's cross-module
- * inlining can — so a bundle-text absence check would give a false
- * negative. Instead:
+ * Phase 23 gated the demo login bypasses at RUNTIME
+ * (`isProductionDeploy()`), leaving the literal bypass strings in
+ * production bundle TEXT (a documented, honest residual gap). Phase 32
+ * closed that gap by moving every bypass literal into
+ * `src/lib/demoCredentials.ts`, resolved by a real BUILD-TIME constant
+ * (`__DEMO_AUTH_ENABLED__`, injected in `vite.config.ts`) instead of a
+ * runtime function call — see that module's header for the full
+ * rationale, and `scripts/production-bundle-bypass-check.ts` for the
+ * real build+grep verification that the literals are actually gone from
+ * built output (the stronger, empirical check; this script is the
+ * cheaper structural companion, run on every `npm run checks`).
  *
- *   1. STRUCTURAL: reads the real `src/App.tsx` source and asserts every
- *      known demo-bypass literal ('1234', '123456', '888888',
- *      'password123') that gates actual LOGIN LOGIC (not the two
- *      display-only UI hint occurrences left deliberately visible in
- *      demo/sandbox) is textually guarded by `isProductionDeploy()` or
- *      the `demoOtpBypassAllowed` flag derived from it.
- *   2. BUILD: actually runs `VITE_APP_ENV=production npx vite build`
- *      into a throwaway directory and asserts it succeeds — proving the
- *      gated code is not just present but compiles and builds cleanly
- *      in a real production configuration, not only in the default dev
- *      config `npm run checks`/`npm run build` already exercise.
+ * This script now asserts the STRUCTURAL shape of the Phase 32 fix:
+ *   1. None of the known bypass literals ('1234', '123456', '888888',
+ *      'password123', the demo email map, admin@aiec.com) appear
+ *      anywhere in src/App.tsx or src/components/ForgotPasswordReset.tsx
+ *      any more — they must live ONLY in src/lib/demoCredentials.ts,
+ *      gated by `__DEMO_AUTH_ENABLED__`.
+ *   2. src/lib/demoCredentials.ts itself gates every literal behind
+ *      `__DEMO_AUTH_ENABLED__`.
+ *   3. A real `VITE_APP_ENV=production` build still compiles cleanly.
  *
  * Run with: npx tsx scripts/production-demo-gate-check.ts
  */
@@ -43,38 +42,57 @@ function assert(cond: unknown, msg: string): asserts cond {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
-const APP_TSX = fs.readFileSync(path.join(REPO_ROOT, 'src/App.tsx'), 'utf8');
+const SCREEN_FILES = [
+  'src/App.tsx',
+  'src/components/ForgotPasswordReset.tsx',
+  'src/components/ESignatureCapture.tsx',
+  'src/components/OfferOnboardingAgreementScreen.tsx',
+];
+const DEMO_CREDENTIALS_TS = fs.readFileSync(path.join(REPO_ROOT, 'src/lib/demoCredentials.ts'), 'utf8');
+
+const KNOWN_BYPASS_LITERALS = ["'1234'", "'123456'", "'888888'", "'password123'", 'admin@aiec.com', "'4321'", "'5541'"];
 
 function main() {
-  // --- 1. Structural: every login-logic bypass site is gated -------------
+  // --- 1. Every screen that used to hold a bypass literal directly no longer does ---
+  for (const relPath of SCREEN_FILES) {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    for (const literal of KNOWN_BYPASS_LITERALS) {
+      assert(
+        !content.includes(literal),
+        `${relPath} no longer contains the literal ${literal} directly (moved to src/lib/demoCredentials.ts)`,
+      );
+    }
+  }
+
+  // --- 2. demoCredentials.ts gates every literal behind the build-time constant ---
   assert(
-    APP_TSX.includes("const demoOtpBypassAllowed = !isProductionDeploy();"),
-    'the OTP bypass flag is derived from isProductionDeploy(), not a hardcoded true',
+    DEMO_CREDENTIALS_TS.includes('declare const __DEMO_AUTH_ENABLED__: boolean;'),
+    'src/lib/demoCredentials.ts declares the build-time __DEMO_AUTH_ENABLED__ constant',
+  );
+  const literalGuardCount = (DEMO_CREDENTIALS_TS.match(/if \(!__DEMO_AUTH_ENABLED__\) return/g) || []).length;
+  assert(
+    literalGuardCount >= 5,
+    `expected at least 5 functions in demoCredentials.ts gated by "if (!__DEMO_AUTH_ENABLED__) return ..." — found ${literalGuardCount}`,
+  );
+  for (const literal of KNOWN_BYPASS_LITERALS) {
+    assert(
+      DEMO_CREDENTIALS_TS.includes(literal),
+      `src/lib/demoCredentials.ts is the sole real home of the literal ${literal}`,
+    );
+  }
+
+  // --- 3. vite.config.ts wires __DEMO_AUTH_ENABLED__ from VITE_APP_ENV ---
+  const VITE_CONFIG = fs.readFileSync(path.join(REPO_ROOT, 'vite.config.ts'), 'utf8');
+  assert(
+    VITE_CONFIG.includes('__DEMO_AUTH_ENABLED__'),
+    'vite.config.ts defines __DEMO_AUTH_ENABLED__ as a real esbuild `define` substitution',
   );
   assert(
-    /const isBypass = demoOtpBypassAllowed &&/.test(APP_TSX),
-    'the OTP format-validation bypass check is gated by demoOtpBypassAllowed',
-  );
-  assert(
-    /if \(demoOtpBypassAllowed && \(code === '123456' \|\| code === '1234' \|\| code === '888888'\)\)/.test(APP_TSX),
-    'the OTP success branch (the actual login grant) is gated by demoOtpBypassAllowed',
-  );
-  assert(
-    /if \(!isProductionDeploy\(\) && emailToRoleMap\[emailLower\] && loginPassword === 'password123'\)/.test(APP_TSX),
-    'the email/password123 login branch (the actual login grant) is gated by isProductionDeploy()',
+    VITE_CONFIG.includes("process.env.VITE_APP_ENV === 'production'"),
+    'vite.config.ts derives the build-time flag from VITE_APP_ENV, the same variable isProductionDeploy() reads at runtime',
   );
 
-  // Every remaining occurrence of the literal bypass strings in App.tsx
-  // must be inside a block this file also gates with isProductionDeploy
-  // — checked by counting: each literal appears in exactly the gated
-  // contexts already asserted above, plus the display-only UI hints
-  // (also gated, per Phase 23's UI changes) — none unguarded.
-  const otpLiteralOccurrences = (APP_TSX.match(/'123456'|"123456"/g) || []).length;
-  assert(otpLiteralOccurrences >= 3, `expected at least 3 occurrences of the '123456' literal (format check, success branch, SMS-toast handler) — found ${otpLiteralOccurrences}`);
-  const passwordLiteralOccurrences = (APP_TSX.match(/'password123'/g) || []).length;
-  assert(passwordLiteralOccurrences >= 2, `expected at least 2 occurrences of 'password123' (the login check, the hint text) — found ${passwordLiteralOccurrences}`);
-
-  // --- 2. Build: a real VITE_APP_ENV=production build succeeds -----------
+  // --- 4. Build: a real VITE_APP_ENV=production build succeeds ---
   const outDir = 'dist-production-gate-check-tmp';
   const outPath = path.join(REPO_ROOT, outDir);
   try {
@@ -84,16 +102,14 @@ function main() {
       stdio: 'pipe',
     });
     assert(fs.existsSync(path.join(outPath, 'index.html')), 'a VITE_APP_ENV=production build produces real output');
-    console.log('OK: `VITE_APP_ENV=production npx vite build` succeeds with the demo-credential gates in place');
   } finally {
     fs.rmSync(outPath, { recursive: true, force: true });
   }
 
-  console.log('\nPASS: the OTP and email/password demo login bypasses are structurally gated behind');
-  console.log('isProductionDeploy() at every real login-logic site (not just display text), and a real');
-  console.log('VITE_APP_ENV=production build compiles cleanly with those gates in place. See');
-  console.log('docs/security/LEGACY_AUTHORIZATION_GAPS.md §1 for the honest limit of what this build');
-  console.log('toolchain does and does not remove from the bundle TEXT (the gate is functionally real either way).');
+  console.log('\nPASS: every known demo login bypass literal lives ONLY in src/lib/demoCredentials.ts, gated by a real');
+  console.log('build-time constant (not just a runtime check), and a VITE_APP_ENV=production build compiles cleanly.');
+  console.log('See scripts/production-bundle-bypass-check.ts for the empirical build+grep proof the literals are');
+  console.log('actually absent from production bundle OUTPUT, not just moved.');
 }
 
 main();
