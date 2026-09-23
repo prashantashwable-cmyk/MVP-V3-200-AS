@@ -2820,3 +2820,77 @@ credential.
   touches Firestore, categorically different from impersonating a real
   authenticated login. Removing it from production would remove a real,
   intended product feature, not close a security gap.
+
+## Phase 33 — Live Firebase Authentication
+
+**Date:** 2026-09-23
+**Status:** Complete — BLOCKED — MISSING CREDENTIAL (the correct, honest
+result for this sandbox, per this pack's own explicit rule that this is a
+valid outcome, not a failure to fix).
+
+### What changed
+
+- New `scripts/live-firebase-auth-test.ts`: a real, runnable test harness
+  for the 9 named scenarios (login, logout, expired session, invalid
+  session, role assignment, unauthorized user, revoked user, disabled
+  user, session refresh). Checks for `FIREBASE_TEST_EMAIL`/
+  `FIREBASE_TEST_PASSWORD`/`FIREBASE_ADMIN_SA_JSON`; none present in this
+  sandbox (verified directly, `docs/production/ENVIRONMENT-READINESS.md`).
+  Every scenario reports exactly BLOCKED — MISSING CREDENTIAL, listing the
+  specific missing env var — never a fabricated PASS.
+- What it COULD verify for real without a live credential, and did:
+  Firebase client SDK (`firebase/app`) initializes cleanly against the
+  real `dogwood-torus-v71nt` project config, and `auth`/`db` are real,
+  non-null exports.
+- `src/lib/firebase.ts`: exported `app`/`firebaseConfig` (previously
+  module-private) so the harness — and any future observability/admin
+  tooling — can verify the real project identity without duplicating the
+  config.
+- **Real architectural finding, not previously documented**: `src/App.tsx`
+  has no `onAuthStateChanged` listener anywhere. The one real
+  Firebase-Auth-backed login path (`handleGoogleSignIn`) manages session
+  state entirely via its own `localStorage` token + a local `DbManager`
+  lookup, never re-verifying the live Firebase Auth session on restore or
+  refresh. Concrete consequence: a disabled/revoked real account would
+  still appear "logged in" client-side until a Firestore write is denied —
+  an indirect, delayed enforcement, not the direct client/backend
+  agreement this phase's brief asks to verify. Documented with a concrete
+  recommended fix (a real `onAuthStateChanged` listener) — not
+  implemented this phase, since it is a real behavior change that needs
+  to be built AND verified against a live project, not guessed at blind.
+- **Also documented, not a finding to fix**: `firestoreUsers.ts`'s
+  owner-bootstrap admin grant (one specific real email auto-promoted to
+  `admin` on first real sign-in) — a legitimate, common pattern for
+  bootstrapping a fresh project's first administrator via a real,
+  Google-verified identity, categorically different from the Phase 32
+  demo bypasses.
+- New `docs/production/LIVE-AUTHENTICATION-STATUS.md` — the full,
+  generated status report.
+- Wired `live-firebase-auth:check` into `npm run checks` — it never fails
+  when blocked (BLOCKED is a valid, expected, non-failing outcome per this
+  pack's own rules), only if a real structural problem is found (e.g. the
+  SDK failing to initialize).
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run live-firebase-auth:check` — 2 real PASS (structural), 9
+  honest BLOCKED, 0 FAIL.
+- `npm run checks` (36 scripts) — pass, 994 assertions (the harness's own
+  BLOCKED lines are not counted as `OK:` assertions, by design — they are
+  not claims of anything having passed).
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `scripts/live-firebase-auth-test.ts` (new)
+- `docs/production/LIVE-AUTHENTICATION-STATUS.md` (new)
+- `src/lib/firebase.ts` (exported `app`/`firebaseConfig`)
+- `package.json` (new check script, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Next phase
+
+Phase 34 — Live Firestore Security Testing (also expected to be BLOCKED —
+same missing-credential reason — the security-boundary test harness and
+honest documentation are this sandbox's real, buildable deliverable).

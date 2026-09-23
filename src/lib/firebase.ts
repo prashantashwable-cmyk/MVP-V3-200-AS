@@ -37,4 +37,8 @@ if (firebaseConfig) {
   }
 }
 
-export { db, auth };
+// Phase 33: `app`/`firebaseConfig` exported too (previously private to this
+// module) so the live-auth test harness and observability code can verify
+// the real project identity is wired correctly, without duplicating this
+// config in a second place.
+export { db, auth, app, firebaseConfig };
