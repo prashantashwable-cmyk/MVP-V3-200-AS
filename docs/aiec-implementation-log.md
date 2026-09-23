@@ -2101,6 +2101,69 @@ Phase 25 — Global Search + Control Tower Completion.
 
 ---
 
+## Phase 25 — Global Search + Control Tower Completion
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Expanded `src/navigation/entitySearchProvider.ts`'s
+  `refreshEntitySearchCache()` from Project/Customer only to also query
+  Quote/Contract/Payment/PurchaseOrder/Shipment/InstallationJob/
+  QCInspection/Handover — closing the exact blocker Phase 12 named
+  ("no dedicated detail screen a result could land on"), now real thanks
+  to Phase 21's `ProjectOperatingView`. Every non-Project/Customer result
+  deep-links via the real `aiec_open_project` event (Phase 22's
+  mechanism, reused) to that record's own project, landing on a real
+  screen, never a dead end.
+- Confirmed Control Tower (Phase 12) still accurate and unchanged —
+  `control-tower-check.ts` passes identically; no further work needed
+  there beyond Phase 24's already-added real integration health.
+- Documented, not silently promised: Site/Lead/Invoice/Document/Message
+  search remain out of scope, each with a real, specific reason (no
+  standalone identity, a real/demo data-split shape mismatch, or no
+  canonical entity/detail screen yet).
+- Added `scripts/global-search-check.ts` (`npm run global-search:check`,
+  wired into `npm run checks`): 11 assertions — runs a real project
+  through several real bridge chains, proves search finds a real record
+  for each of the 6 newly-added entity types, and that selecting a
+  result deep-links to the correct real project via the real event.
+- Added `docs/architecture/25-global-search-control-tower.md`.
+
+### Files/subsystems touched
+
+- `src/navigation/entitySearchProvider.ts` (expanded: 8 more real
+  repository queries, deep-link-via-project navigation)
+- `scripts/global-search-check.ts` (new)
+- `docs/architecture/25-global-search-control-tower.md` (new)
+- `package.json` (added `global-search:check`, extended `checks`)
+- No changes to `App.tsx`'s wiring of this provider — same function
+  names, same call sites.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run global-search:check` — pass, 11/11 assertions
+- `npm run checks` (all 29 scripts) — pass in full, zero regressions in
+  the prior 509 assertions (520 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- Site/Lead/Invoice/Document/Message search remains unbuilt, each for a
+  real, specific reason documented in the phase doc.
+- Search results are labeled `"<Entity> · <project title>"` (no
+  human-readable identifier of the entity itself, e.g. a quote number) —
+  adequate to find and open the right project, not a full per-record
+  identifier search.
+
+### Next phase
+
+Phase 26 — Data Quality and Single Source of Truth.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
