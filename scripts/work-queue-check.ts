@@ -8,8 +8,8 @@
  */
 import './polyfillBrowserGlobals';
 import { DbManager } from '../src/lib/db';
-import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder } from '../src/types';
-import { ensureCanonicalProject, bridgeLeadStageTransition, bridgeProcurementPoCreated } from '../src/services/legacyCommercialBridge';
+import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder, Payment as LegacyPayment } from '../src/types';
+import { ensureCanonicalProject, bridgeLeadStageTransition, bridgeProcurementPoCreated, bridgeLegacyPaymentConfirmed } from '../src/services/legacyCommercialBridge';
 import { getWorkQueueItems } from '../src/services/workQueue';
 import { projectRepository } from '../src/repository/entities';
 import type { RepositoryContext } from '../src/repository/types';
@@ -58,6 +58,12 @@ async function main() {
     supplierId: 'sun_elevators', supplierName: 'Sun Elevators Manufacturing', lineItems: [], subtotalAmount: 400000, gstRate: 18,
     gstAmount: 72000, totalAmount: 472000, expectedDeliveryDate: '2026-08-20', status: 'Draft', createdFromDealClosureAt: new Date().toISOString(),
   };
+  // Phase 52 hard gate: procurement requires a real payment first.
+  const legacyPaymentB: LegacyPayment = {
+    id: 'pay-wq-b', dealId: dealB.id, stage: 'Advance (30%)', amount: 180000, paidAmount: 180000,
+    status: 'paid', dueDate: new Date().toISOString(), paidAt: new Date().toISOString(), paymentMethod: 'UPI', referenceNo: 'TXN-WQ-B',
+  };
+  await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPaymentB);
   await bridgeProcurementPoCreated(actorAdmin, legacyPoB);
 
   // --- Project C: a closed_lost project should NOT generate a work item --

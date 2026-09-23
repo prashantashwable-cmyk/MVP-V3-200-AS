@@ -119,6 +119,19 @@ async function blockedProjectScenario() {
   DbManager.addDeal(deal);
 
   const { projectId } = await ensureCanonicalProject(ctx, lead, deal);
+  // Phase 52 hard gate: procurement requires a real payment to already
+  // exist for the project. This scenario's `advancePaid: false` on the
+  // LEGACY deal fixture only ever meant "not yet reflected in the old
+  // display flag" — it never gated anything before; a real canonical
+  // Payment is bridged here so the PO itself can legitimately exist,
+  // isolating this test to its actual point (a PO stuck in
+  // "pending_approval" is a real blocker), not conflating it with the
+  // separate payment gate.
+  const legacyPaymentForBlocked: LegacyPayment = {
+    id: 'pay-pov-2', dealId: deal.id, stage: 'Advance (30%)', amount: 120000, paidAmount: 120000,
+    status: 'paid', dueDate: '2026-07-11T09:00:00Z', paidAt: '2026-07-11T09:00:00Z', paymentMethod: 'UPI', referenceNo: 'TXN-POV-2',
+  };
+  await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPaymentForBlocked);
   await bridgeProcurementPoCreated(actorAdmin, legacyPo); // left in "pending_approval" — never sent/approved
 
   const view = await getProjectOperatingView(ctx, projectId);

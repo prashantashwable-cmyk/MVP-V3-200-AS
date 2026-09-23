@@ -11,10 +11,11 @@
  */
 import './polyfillBrowserGlobals';
 import { DbManager } from '../src/lib/db';
-import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder, Job as LegacyJob } from '../src/types';
+import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder, Job as LegacyJob, Payment as LegacyPayment } from '../src/types';
 import {
   ensureCanonicalProject, bridgeLeadStageTransition, bridgeProcurementPoCreated,
   bridgeDeliveryScheduled, bridgeShipmentArrived, bridgeInstallationProgress, bridgeQcPassed,
+  bridgeLegacyPaymentConfirmed,
 } from '../src/services/legacyCommercialBridge';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from '../src/navigation/entitySearchProvider';
 import type { RepositoryContext } from '../src/repository/types';
@@ -54,6 +55,12 @@ async function main() {
     supplierId: 'sun_elevators', supplierName: 'Sun Elevators Manufacturing', lineItems: [], subtotalAmount: 600000, gstRate: 18,
     gstAmount: 108000, totalAmount: 708000, expectedDeliveryDate: '2026-09-30', status: 'Draft', createdFromDealClosureAt: new Date().toISOString(),
   };
+  // Phase 52 hard gate: procurement requires a real payment first.
+  const legacyPayment: LegacyPayment = {
+    id: 'pay-search-1', dealId: deal.id, stage: 'Advance (30%)', amount: 240000, paidAmount: 240000,
+    status: 'paid', dueDate: new Date().toISOString(), paidAt: new Date().toISOString(), paymentMethod: 'UPI', referenceNo: 'TXN-SEARCH-1',
+  };
+  await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPayment);
   await bridgeProcurementPoCreated(actorAdmin, legacyPo);
   await bridgeDeliveryScheduled(actorAdmin, legacyPo.id, technicianId);
   await bridgeShipmentArrived(actorAdmin, legacyPo.id);

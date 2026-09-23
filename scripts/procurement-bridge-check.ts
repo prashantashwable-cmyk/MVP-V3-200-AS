@@ -12,9 +12,10 @@
  */
 import './polyfillBrowserGlobals';
 import { DbManager } from '../src/lib/db';
-import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder } from '../src/types';
+import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder, Payment as LegacyPayment } from '../src/types';
 import {
   ensureCanonicalProject, bridgeProcurementPoCreated, bridgeProcurementPoStatusChanged,
+  bridgeLegacyPaymentConfirmed,
 } from '../src/services/legacyCommercialBridge';
 import { purchaseOrderRepository, projectRepository } from '../src/repository/entities';
 import type { RepositoryContext } from '../src/repository/types';
@@ -75,6 +76,20 @@ async function main() {
   const ctx: RepositoryContext = { environment: 'demo', actorUserId: actorAdmin.id };
   const { projectId } = await ensureCanonicalProject(ctx, lead, deal);
 
+  // Phase 52 hard gate: procurement cannot begin before a real payment
+  // has been recorded for the project (src/services/commercialWorkflow.ts's
+  // createProcurementPO). This fixture's deal already flags
+  // `advancePaid: true` — bridging that as a real canonical Payment
+  // first (rather than weakening the new gate) is the correct, realistic
+  // setup, matching the actual intended lifecycle order this pack's own
+  // full-company-simulation already proves (payment precedes PO).
+  const legacyPayment: LegacyPayment = {
+    id: 'pay-po-bridge-1', dealId: deal.id, stage: 'Advance (30%)', amount: 540000, paidAmount: 540000,
+    status: 'paid', dueDate: '2026-03-02T09:00:00Z', paidAt: '2026-03-02T09:00:00Z', paymentMethod: 'UPI', referenceNo: 'TXN-PO-BRIDGE-1',
+  };
+  const rPay = await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPayment);
+  assert(rPay.bridged, 'a real advance payment is bridged first, satisfying the Phase 52 payment-before-procurement hard gate');
+
   // --- 1. PO draft bridges to a real, idempotent canonical PurchaseOrder
   const r1 = await bridgeProcurementPoCreated(actorAdmin, legacyPo);
   assert(r1.bridged, 'a drafted legacy PO bridges to a real canonical PurchaseOrder');
@@ -133,6 +148,13 @@ async function main() {
   const unauthorizedDeal: Deal = { ...deal, id: 'deal-po-bridge-2', leadId: unauthorizedLead.id };
   DbManager.addLead(unauthorizedLead);
   DbManager.addDeal(unauthorizedDeal);
+  // Record a real payment for this second project too, so the denial
+  // below is isolated to the AUTHORIZATION check (the actual thing this
+  // assertion tests), not conflated with the separate Phase 52 payment
+  // hard gate.
+  const unauthorizedLegacyPayment: LegacyPayment = { ...legacyPayment, id: 'pay-po-bridge-2', dealId: unauthorizedDeal.id };
+  const rPay2 = await bridgeLegacyPaymentConfirmed(actorAdmin, unauthorizedLegacyPayment);
+  assert(rPay2.bridged, 'setup: a real advance payment is bridged for the second (unauthorized-attempt) project too, isolating the authorization check below');
   const unauthorizedPo: LegacyPurchaseOrder = { ...legacyPo, id: 'PO-2026-BRIDGE-UNAUTH', linkedDealId: unauthorizedDeal.id };
   const r8 = await bridgeProcurementPoCreated(actorSupplier, unauthorizedPo);
   assert(!r8.bridged, 'a supplier (no supplier.manage permission) cannot bridge a PO draft — denied, not silently allowed');

@@ -32,7 +32,7 @@ import { recordAuditEvent, newCorrelationId } from '../lib/audit';
 import type { RepositoryContext } from '../repository/types';
 import {
   quoteRepository, quoteVersionRepository, contractRepository,
-  paymentScheduleRepository, purchaseOrderRepository,
+  paymentScheduleRepository, purchaseOrderRepository, paymentRepository,
   projectRepository, createPaymentIdempotent, createPurchaseOrderIdempotent,
 } from '../repository/entities';
 import { asId } from '../domain/ids';
@@ -255,6 +255,18 @@ export async function collectInstallment(
 // Delivery onward is Phase 09).
 // ---------------------------------------------------------------------------
 
+/** Hard gate (Phase 52 — a real gap found by direct attack testing and
+ * closed here): procurement must not begin before the customer has
+ * actually paid anything. `collectInstallment()`'s own comment already
+ * documents "payment -> procurement" as this pack's canonical lifecycle
+ * ordering, but until this fix nothing actually enforced it here — an
+ * admin-permission actor could create a real PurchaseOrder for a
+ * project with zero payments ever recorded. Checked against real
+ * payment records (not merely `project.stage`, which a later PO for the
+ * same already-procuring project should not be blocked by) — safe,
+ * verified not to regress `scripts/full-company-simulation.ts` (which
+ * already records a real payment before creating its PO, matching this
+ * gate exactly). */
 export async function createProcurementPO(
   ctx: RepositoryContext,
   actor: Actor,
@@ -264,6 +276,10 @@ export async function createProcurementPO(
   idempotencyKey: string,
 ): Promise<{ po: PurchaseOrder; wasDuplicate: boolean }> {
   assertPermission(actorAsUser(actor), 'supplier.manage');
+  const priorPayments = await paymentRepository(ctx).query({ projectId: projectId as ProjectId });
+  if (priorPayments.length === 0) {
+    throw new Error('Cannot create a purchase order: no payment has been recorded for this project yet. This is a hard gate (Phase 52) — procurement cannot begin before the customer has paid.');
+  }
   const { purchaseOrder, wasDuplicate } = await createPurchaseOrderIdempotent(ctx, {
     id: asId<PurchaseOrderId>(`po_${idempotencyKey}`),
     projectId: projectId as ProjectId,

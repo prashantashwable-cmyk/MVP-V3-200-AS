@@ -14,11 +14,11 @@
  */
 import './polyfillBrowserGlobals';
 import { DbManager } from '../src/lib/db';
-import type { Lead, Deal, Job as LegacyJob } from '../src/types';
+import type { Lead, Deal, Job as LegacyJob, Payment as LegacyPayment } from '../src/types';
 import {
   ensureCanonicalProject, bridgeInstallationProgress, bridgeQcPassed,
   bridgeFinalChecklistCompleted, bridgeCustomerAcceptanceRecorded, bridgeHandoverCertificateIssued,
-  bridgeProcurementPoCreated, bridgeDeliveryScheduled,
+  bridgeProcurementPoCreated, bridgeDeliveryScheduled, bridgeLegacyPaymentConfirmed,
 } from '../src/services/legacyCommercialBridge';
 import type { PurchaseOrder as LegacyPurchaseOrder } from '../src/types';
 import { installationJobRepository, qcInspectionRepository, handoverRepository } from '../src/repository/entities';
@@ -76,6 +76,17 @@ async function main() {
   // also creating the canonical InstallationJob per Phase 18) BEFORE the
   // technician can ever check in — a technician has no permission to
   // self-assign a job that does not exist yet, which is correct, not a bug.
+  // Phase 52 hard gate: procurement (PO creation) requires a real
+  // payment to already exist for the project — bridge one first, the
+  // correct/realistic fix, matching this pack's actual intended
+  // lifecycle order (payment precedes PO), rather than weakening the gate.
+  const legacyPayment: LegacyPayment = {
+    id: 'pay-install-bridge-1', dealId: deal.id, stage: 'Advance (30%)', amount: 216000, paidAmount: 216000,
+    status: 'paid', dueDate: '2026-05-02T09:00:00Z', paidAt: '2026-05-02T09:00:00Z', paymentMethod: 'UPI', referenceNo: 'TXN-INSTALL-BRIDGE-1',
+  };
+  const rPay = await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPayment);
+  assert(rPay.bridged, 'a real advance payment is bridged first, satisfying the Phase 52 payment-before-procurement hard gate');
+
   await bridgeProcurementPoCreated(actorAdmin, legacyPo);
   const preAssign = await bridgeDeliveryScheduled(actorAdmin, legacyPo.id, actorTechnician.id);
   assert(preAssign.bridged, 'delivery scheduling (Phase 17) also assigns the canonical InstallationJob to the technician');

@@ -12,10 +12,11 @@
  */
 import './polyfillBrowserGlobals';
 import { DbManager } from '../src/lib/db';
-import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder } from '../src/types';
+import type { Lead, Deal, PurchaseOrder as LegacyPurchaseOrder, Payment as LegacyPayment } from '../src/types';
 import {
   ensureCanonicalProject, bridgeProcurementPoCreated,
   bridgeDeliveryScheduled, bridgeShipmentArrived, bridgeMaterialReceiptRecorded,
+  bridgeLegacyPaymentConfirmed,
 } from '../src/services/legacyCommercialBridge';
 import { shipmentRepository, deliveryReceiptRepository, purchaseOrderRepository } from '../src/repository/entities';
 import type { RepositoryContext } from '../src/repository/types';
@@ -60,6 +61,17 @@ async function main() {
   // --- 0. A delivery cannot be bridged for a PO that was never bridged at creation
   const r0 = await bridgeDeliveryScheduled(actorAdmin, 'PO-NEVER-CREATED');
   assert(!r0.bridged && !!r0.reason, 'scheduling a delivery for an unbridged PO reports a reason instead of throwing');
+
+  // Phase 52 hard gate: procurement (PO creation) requires a real
+  // payment to already exist for the project — bridge one first, the
+  // correct/realistic fix, matching this pack's actual intended
+  // lifecycle order (payment precedes PO), rather than weakening the gate.
+  const legacyPayment: LegacyPayment = {
+    id: 'pay-delivery-bridge-1', dealId: deal.id, stage: 'Advance (30%)', amount: 195000, paidAmount: 195000,
+    status: 'paid', dueDate: '2026-04-02T09:00:00Z', paidAt: '2026-04-02T09:00:00Z', paymentMethod: 'UPI', referenceNo: 'TXN-DEL-BRIDGE-1',
+  };
+  const rPay = await bridgeLegacyPaymentConfirmed(actorAdmin, legacyPayment);
+  assert(rPay.bridged, 'a real advance payment is bridged first, satisfying the Phase 52 payment-before-procurement hard gate');
 
   // --- 1. PO must exist in the canonical model first (Phase 16)
   await bridgeProcurementPoCreated(actorAdmin, legacyPoOk);
