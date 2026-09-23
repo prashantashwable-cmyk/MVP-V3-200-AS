@@ -2292,6 +2292,67 @@ Phase 28 — Full Navigation Cutover.
 
 ---
 
+## Phase 28 — Full Navigation Cutover
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- `src/App.tsx`: the default `activeTab` state is now
+  `'OperatingSurfaces'` (was `'Home'`) — covers both a fresh login and a
+  restored session on page reload (the more common real-world case,
+  which never explicitly calls `setActiveTab`).
+- All 5 real login-success paths (OTP, email/password, Google Sign-In,
+  demo-role bypass, header demo-partner shortcut) now explicitly land on
+  `'OperatingSurfaces'` too. The logout/reset handler was deliberately
+  left resetting to `'Home'` — a different kind of moment, not touched.
+- `OperatingSurfaces` now appears FIRST in every role's
+  `getTabsByRole()` list — visually primary in the sidebar, mobile
+  bottom nav, and command palette, not just reachable in a long list.
+- Every old per-role dashboard tab remains fully present and reachable —
+  nothing deleted, no router or screen touched, per this phase's own
+  explicit rule.
+- Added `scripts/navigation-cutover-check.ts` (`npm run
+  navigation-cutover:check`, wired into `npm run checks`): 23 assertions
+  proving the default state, the 5 updated login paths, the deliberately
+  untouched logout handler, every old tab's continued presence, the new
+  first-position ordering for all 5 roles, and the command palette's
+  continued availability.
+- Added `docs/architecture/28-navigation-cutover.md`, explicit that this
+  is a navigation-orientation change, not a claim that the ~145 `LEGACY`
+  screens (Phase 27) are now migrated.
+
+### Files/subsystems touched
+
+- `src/App.tsx` (1 initial-state change, 5 login-success call sites
+  updated, 5 role tab-list reorderings — all additive/reordering, no
+  screen, router, or `renderTabContent()` branch touched)
+- `scripts/navigation-cutover-check.ts` (new)
+- `docs/architecture/28-navigation-cutover.md` (new)
+- `package.json` (added `navigation-cutover:check`, extended `checks`)
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run navigation-cutover:check` — pass, 23/23 assertions
+- `npm run checks` (all 32 scripts) — pass in full, zero regressions in
+  the prior 546 assertions (569 total)
+- `npm run build` — pass; server smoke test — `GET /` → 200
+
+### Known limitations
+
+- No in-browser click-through verification.
+- The underlying application is not fully migrated — this phase changes
+  navigation orientation, not migration completeness; both are true
+  simultaneously and neither is hidden by the other.
+
+### Next phase
+
+Phase 29 — Full Company Simulation.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for

@@ -110,7 +110,18 @@ export default function App() {
   const [loginPhone, setLoginPhone] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [activeTab, setActiveTab] = useState('Home');
+  // Phase 28: full navigation cutover — a signed-in session (fresh
+  // login OR a restored session on page reload, which is the more
+  // common real-world path and relies on this initial value since it
+  // never calls setActiveTab itself) now lands on the five operating
+  // surfaces by default, not the old per-role dashboard. The old
+  // dashboard tab ('Home') is NOT deleted or hidden — every role's tab
+  // list still includes it (see getTabsByRole), fully reachable with one
+  // click, satisfying "legacy route compatibility may remain
+  // temporarily." A new employee's first real screen is now organized
+  // by what they need to accomplish, not by which of the 189 screens
+  // they should already know to look for.
+  const [activeTab, setActiveTab] = useState('OperatingSurfaces');
   const [selectedTechJobId, setSelectedTechJobId] = useState<string>('job_2026_101');
   const [selectedApplicantId, setSelectedApplicantId] = useState<string>('app_2026_01');
   const [selectedSopStepId, setSelectedSopStepId] = useState<string | undefined>(undefined);
@@ -530,7 +541,7 @@ export default function App() {
             localStorage.setItem('aiec_last_role_used', found.role);
           }
           logLaunchAnalytics(found.role);
-          setActiveTab('Home');
+          setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
           setVerificationStatus('idle');
           setOtpSent(false);
           setSimulateSmsToast(false);
@@ -603,7 +614,7 @@ export default function App() {
         localStorage.setItem('aiec_last_role_used', found.role);
       }
       logLaunchAnalytics(found.role);
-      setActiveTab('Home');
+      setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
     } else {
       setErrorMsg(isProductionDeploy() ? 'Invalid email or password.' : 'Invalid email or password. Use email fallback (e.g. admin@aiec.com / password123)');
     }
@@ -647,7 +658,7 @@ export default function App() {
         localStorage.setItem('aiec_last_role_used', found.role);
       }
       logLaunchAnalytics(found.role);
-      setActiveTab('Home');
+      setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
     } catch (error: any) {
       console.error('Google Sign-In Error:', error);
       if (error.code === 'auth/popup-blocked') {
@@ -680,7 +691,7 @@ export default function App() {
     // Demo mode bypass has no persistent session token saved
     localStorage.setItem('aiec_last_role_used', role);
     logLaunchAnalytics(`${role}_demo`);
-    setActiveTab('Home');
+    setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
   };
 
   const handleLogout = () => {
@@ -801,9 +812,12 @@ export default function App() {
     switch (role) {
       case 'admin':
         return [
-          { id: 'Home', label: 'Overview', icon: LayoutDashboard },
-          { id: 'WorkQueue', label: 'My Work Queue ✅', icon: Layers },
+          // Phase 28: Operating Surfaces first — the primary landing
+          // experience — with the old per-role dashboard ('Home') kept
+          // immediately after it, fully reachable, not deleted.
           { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
+          { id: 'WorkQueue', label: 'My Work Queue ✅', icon: Layers },
+          { id: 'Home', label: 'Overview', icon: LayoutDashboard },
           { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'CustomerHomeDashboard', label: 'Customer Portal 🏠', icon: Building },
           { id: 'ProjectStatusTracker', label: 'Project Status Tracker ⏱️', icon: Clock },
@@ -935,9 +949,9 @@ export default function App() {
         ];
       case 'surveyor':
         return [
-          { id: 'Home', label: 'Capture Portal', icon: Building },
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid }, // Phase 28: primary
           { id: 'WorkQueue', label: 'My Work Queue ✅', icon: Layers },
-          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
+          { id: 'Home', label: 'Capture Portal', icon: Building },
           { id: 'ProjectOperatingView', label: 'Project View 🎯', icon: Compass },
           { id: 'LeadFollowUp', label: 'Follow-Ups 📅', icon: Calendar },
           { id: 'Incentives', label: 'History', icon: Users },
@@ -945,8 +959,8 @@ export default function App() {
         ];
       case 'technician':
         return [
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid }, // Phase 28: primary
           { id: 'TechnicianHomeMyJobs', label: 'My Assigned Jobs 🧰', icon: Wrench },
-          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'JobDetailSiteInfo', label: 'Site Specs & Materials 🔍', icon: Eye },
           { id: 'InstallationSopChecklist', label: 'Installation SOP Checklist 🔨', icon: Hammer },
           { id: 'PhotoVideoEvidenceCapture', label: 'Media Evidence Gallery 📸', icon: Camera },
@@ -962,8 +976,8 @@ export default function App() {
         ];
       case 'customer':
         return [
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid }, // Phase 28: primary
           { id: 'CustomerHomeDashboard', label: 'Customer Home 🏠', icon: Building },
-          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'ProjectStatusTracker', label: 'Installation Tracker ⏱️', icon: Clock },
           { id: 'CustomerDocumentVault', label: 'Document Vault 📁', icon: FileText },
           { id: 'CustomerPaymentInstallments', label: 'Payments & Installments 💳', icon: CreditCard },
@@ -984,8 +998,8 @@ export default function App() {
 
       case 'supplier':
         return [
+          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid }, // Phase 28: primary
           { id: 'Home', label: 'Catalog Engine', icon: Truck },
-          { id: 'OperatingSurfaces', label: 'Operating Surfaces 🧭', icon: Grid },
           { id: 'SupplierDirectory', label: 'Supplier Directory 🏢', icon: Building },
           { id: 'SupplierCatalogPricing', label: 'Catalog & Pricing 🏷️', icon: Tag },
           { id: 'PurchaseOrderGenerator', label: 'Purchase Orders 📦', icon: FileText },
@@ -1474,7 +1488,7 @@ export default function App() {
                                 DbManager.addUser(newDemoPartner);
                                 setCurrentUser(newDemoPartner);
                                 localStorage.setItem('aiec_session_token', `session_${newDemoPartner.id}`);
-                                setActiveTab('Home');
+                                setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
                               }}
                               className="w-full p-3 bg-antiquegold/10 hover:bg-antiquegold/20 border border-antiquegold/25 rounded-xl flex items-center justify-between text-left transition-all hover:translate-x-1 cursor-pointer"
                             >
