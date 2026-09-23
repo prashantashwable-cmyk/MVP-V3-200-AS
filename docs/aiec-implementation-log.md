@@ -2671,3 +2671,65 @@ rule for the implementation log.
    remaining unknown before a genuine production launch.
 
 ---
+
+# AIEC Phases 31-40 — Production Trust, Security Lockdown, and Cutover
+
+Phases 1-30 (above) built and proved the non-destructive strangler-fig
+migration. This second pack's mission is different in kind: not more
+features or more migrated screens, but making the existing system
+trustworthy enough to cross from simulated/structurally-verified
+operation into authenticated production operation — explicitly NOT
+claiming production readiness anywhere it has not been empirically
+earned. Per this pack's own non-negotiable rules: no architecture
+rewrite, no re-started screen migration, no fabricated credentials, no
+weakened security rules, no live-credential claims without a live
+credential.
+
+## Phase 31 — Live Environment Readiness Audit
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Full manual inspection of every environment-sensitive configuration
+  item in the repository: Firebase/Firestore config, Auth config,
+  storage config, API URLs, demo flags, bypass credentials,
+  development-only users, hardcoded tokens, test keys, mock providers.
+  Verified directly (not assumed) that this sandbox holds zero live
+  credentials: `env | grep -i FIREBASE/GEMINI/API_KEY` empty, no
+  `.env`/`.env.local`, no service-account JSON anywhere in the repo.
+- New: `docs/production/ENVIRONMENT-READINESS.md` — the explicit
+  environment matrix this phase's brief requires, classifying every
+  config item DEVELOPMENT/DEMO/TEST/STAGING/PRODUCTION, with the real
+  file/line it is defined at and whether it is a genuine secret.
+- **Two real, previously-undocumented findings surfaced by this audit**,
+  beyond what Phase 23 already covered for `src/App.tsx`'s own login
+  form:
+  1. `src/components/ForgotPasswordReset.tsx` had its OWN, completely
+     UNGATED universal password-reset bypass code (`'123456'`, accepted
+     for ANY account's reset in ANY environment, including a
+     hypothetical production build) plus a "Developer Rapid Testing
+     Sandbox" panel revealing the admin identity as a one-tap quick-fill
+     — neither touched by Phase 23.
+  2. `src/components/ESignatureCapture.tsx` and
+     `src/components/OfferOnboardingAgreementScreen.tsx` each had a
+     simulated-OTP e-sign step accepting ANY sufficiently-long input
+     (not a real differential secret, but still misleadingly presented
+     with "demo OTP is X" hint text).
+  Both fixed in Phase 32 (found here, fixed there — this phase's own
+  brief is audit-and-classify; Phase 32's is fix-and-verify).
+- Confirmed the real, already-existing production configuration
+  boundary (`src/lib/environment.ts`'s `resolveEnvironment()`/
+  `isProductionDeploy()`, unchanged) is the correct mechanism a real
+  deploy would use; no new boundary needed to be built, only the demo
+  bypass gate strengthened (Phase 32) and the gaps this phase found
+  fixed.
+
+### Files/subsystems touched
+
+- `docs/production/ENVIRONMENT-READINESS.md` (new)
+- No application source code changed — Phase 31 is audit and
+  documentation only, per its own brief. The two real findings above
+  were fixed in Phase 32, not silently fixed here under a different
+  phase's name.
