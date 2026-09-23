@@ -3286,3 +3286,78 @@ Phase 39 — Dual-Write Consistency and Cutover Readiness.
 ### Next phase
 
 Phase 40 — Final Production Cutover Gate.
+
+## Phase 40 — Final Production Cutover Gate
+
+**Date:** 2026-09-23
+**Status:** Complete.
+**Final production-readiness verdict: PRODUCTION READINESS BLOCKED —
+REASON: LIVE AUTHENTICATED ENVIRONMENT NOT AVAILABLE.** The correct,
+honest, expected result for this sandbox, per this pack's own explicit
+rule that this is a valid outcome — not faked as ready.
+
+### What changed
+
+- New `docs/production/PRODUCTION-CUTOVER-CHECKLIST.md` (exact filename
+  and section structure this phase's brief requires: Infrastructure,
+  Security, Data, Workflow, Reliability, UX, Performance). 34 checklist
+  items, each classified exactly one of VERIFIED / PARTIALLY VERIFIED /
+  BLOCKED — MISSING CREDENTIAL / BLOCKED — EXTERNAL SERVICE / FAILED —
+  REQUIRES FIX: **11 VERIFIED, 20 PARTIALLY VERIFIED, 2 BLOCKED —
+  MISSING CREDENTIAL, 1 BLOCKED — EXTERNAL SERVICE, 0 FAILED**.
+- New `docs/production/PRODUCTION-READINESS-REPORT.md` — the final,
+  consolidated report this pack's own brief requires, covering every
+  named section (Current HEAD, build status, test count, acceptance
+  assertions, live backend status, auth status, authorization coverage,
+  demo bypass status, idempotency status, destructive action status,
+  dual-write consistency, remaining legacy domains, remaining
+  client-only authorization, bundle size, production integrations,
+  data-quality status, offline status, final blockers) with real,
+  freshly-measured numbers (40 check scripts, 1,045 real assertions, 0
+  failures, 2,792 KB main bundle, 209 route chunks) — not carried over
+  stale from an earlier phase.
+- A fresh, final `npm run checks` run confirms 0 regressions across the
+  entire Phase 1-40 history before this report was written.
+
+### Non-negotiable stop-condition rule honored explicitly
+
+Per this pack's own "FINAL STOP CONDITION": PRODUCTION READY is NOT
+declared, because (1) authenticated backend access was never tested,
+(2) security rules were never tested against a live backend, (3)
+several destructive/financial actions still lack server-side
+authorization beyond the 2 domains fixed in Phase 35, (6) the
+end-to-end lifecycle has never passed in a live authenticated
+environment. Conditions (4) production bundle contains no bypass
+credentials, (5) transactional idempotency is proven for the
+concurrency scenarios this sandbox CAN test, and (7) dual-write
+consistency has been demonstrated (for the scenario tested) ARE met.
+(8) all remaining blockers are explicitly documented — in both new
+documents above. The correct final status per this pack's own rule is
+therefore exactly what is declared: **PRODUCTION READINESS BLOCKED —
+REASON: LIVE AUTHENTICATED ENVIRONMENT NOT AVAILABLE.**
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run checks` (40 scripts) — pass, 1,045 real assertions
+  (1,039 `OK:` + 6 `MATCH:`), 0 failures, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `docs/production/PRODUCTION-CUTOVER-CHECKLIST.md` (new)
+- `docs/production/PRODUCTION-READINESS-REPORT.md` (new)
+- `docs/aiec-implementation-log.md` (this entry — the final one for
+  Phases 31-40)
+
+### Next phase
+
+None — Phases 31-40 are complete. A genuine production launch needs, in
+order: (1) a real Firebase project's live credentials supplied to this
+codebase (unblocking Phases 33/34/38's live scenarios directly with no
+further code changes needed to attempt them), (2) the remaining
+`firestore.rules`/screen-authorization gaps closed at the pace
+`docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md` prioritizes, (3) a
+real payment/ERP/logistics/storage/messaging provider decision and
+credential, and (4) a real browser-based visual/performance
+verification pass this sandbox could never provide.
