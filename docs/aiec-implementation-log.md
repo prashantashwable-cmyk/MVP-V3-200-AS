@@ -3361,3 +3361,161 @@ further code changes needed to attempt them), (2) the remaining
 real payment/ERP/logistics/storage/messaging provider decision and
 credential, and (4) a real browser-based visual/performance
 verification pass this sandbox could never provide.
+
+## Phases 41-53 — Live Deployment Audit through Dual-Write Cutover Report
+
+**Date:** 2026-09-23
+**Status:** Complete through Phase 53. Consolidated log entry (individual
+phase detail lives in its own doc under `docs/production/` /
+`docs/security/`, listed below) — this catches the implementation log up
+after a run of phases that used per-phase documents as their primary
+record rather than long-form log entries here.
+
+### What changed, by phase
+
+- **Phase 41** — `docs/production/LIVE-DEPLOYMENT-AUDIT.md`. Confirmed
+  deployed commit matches `origin/main` HEAD (`51a5529`), documented zero
+  configured Vercel env vars (cited from the orchestrator's direct
+  pre-verification, independently re-confirmed by this session's own
+  `curl` against `vercel.app`, which failed with a CONNECT-tunnel denial
+  — the org network block is real, confirmed twice now), and every
+  env-var-dependent code path's actual fallback behavior.
+- **Phase 42** — `docs/production/PRODUCTION-BUNDLE-VERIFICATION.md`.
+  Fresh `VITE_APP_ENV=production` build + grep, this session, re-confirms
+  Phase 32's zero-demo-bypass finding and extends it (Firebase Admin/
+  service-account material, fake payment keys, `GEMINI_API_KEY` leakage,
+  debug bypass flags — all absent). New finding: since Phase 41 found
+  zero Vercel env vars configured, the LIVE deployment was almost
+  certainly built WITHOUT `VITE_APP_ENV=production` — meaning the live
+  bundle likely still ships demo bypass functionality. Carried into
+  Phase 62.
+- **Phase 43** — `docs/production/LIVE-FIREBASE-AUTHENTICATION-VERIFICATION.md`.
+  Re-ran and extended Phase 33's harness to a full per-role scenario
+  matrix; corrected the master spec's generic 8-role list against the
+  real 5-role `CanonicalUserRole` model. All live-credential scenarios
+  remain BLOCKED — MISSING CREDENTIAL.
+- **Phase 44** — extended `docs/security/LIVE-AUTHORIZATION-TEST-RESULTS.md`
+  with a new Part 3: static analysis of update/delete escalation, role
+  escalation, and payment fabrication across all 30 `firestore.rules`
+  collections. Two new real findings: `workflow_instances.update` is
+  unscoped (Phase 34 only flagged its `create` half), and `payments.create`
+  still has no role gate/amount validation even after Phase 35's
+  impersonation fix. Both documented as real, open, not fixed (need live-
+  rules-emulator verification this sandbox cannot perform).
+- **Phase 45** — `scripts/live-concurrency-idempotency-verification.ts`
+  (new, wired into `npm run checks`). Closed a real gap: Phase 37 tested
+  the `runIdempotent` primitive with synthetic ops; Phase 06 tested the
+  real `createPaymentIdempotent`/`createPurchaseOrderIdempotent`
+  functions only sequentially. This script runs them under genuine
+  `Promise.all` concurrency, verifying both the guard's self-report and
+  the actual persisted repository state. 10/10 new assertions pass.
+- **Phase 46** — `docs/production/LIVE-UAT-REPORT.md` +
+  `docs/production/screenshots/phase46/`. Real Playwright mobile-
+  viewport/touch-emulation UAT (`devices['iPhone 13']`) against a
+  locally-served instance of this exact commit's production build (the
+  documented, honest substitute for the unreachable live URL/physical
+  device). 28 real checks: onboarding, dialog dismissal, demo login,
+  command palette via BOTH entry points (FAB tap + Ctrl+K), CDP slow-
+  network throttling, offline navigation, scroll/sticky-nav, real
+  logout with `localStorage` verification, form typing. **One real bug
+  found and fixed**: the header's icon-only Sign-Out button had no
+  `aria-label` — fixed in `src/App.tsx`, re-verified live after rebuild.
+- **Phase 47** — `docs/production/FIVE-SURFACES-UAT.md`. Real UAT of all
+  5 roles' home surfaces: distinct, role-scoped content confirmed by DOM
+  size/text (not just labels), no admin-only controls leak into non-
+  admin roles, command palette present for every role. 20/20 checks pass.
+- **Phase 48-49** — `docs/production/PROJECT-OPERATING-VIEW-AND-WORK-QUEUE-UAT.md`.
+  Honest in-line correction: an initial automated keyword check falsely
+  matched empty-state EXPLANATORY text as if it were real data.
+  Screenshots showed both screens genuinely, correctly empty in a fresh
+  demo session — a real, positive empty-state finding, with verification
+  of populated behavior explicitly deferred to Phase 50.
+- **Phase 50** — `docs/production/FULL-LIVE-PROJECT-LIFECYCLE-UAT.md`.
+  Real UI-driven proof: tapped a real seeded lead's "Mark Deal Won"
+  button, and in the SAME live session watched the real dual-write
+  bridge fire — a genuine canonical Project + Contract appeared with a
+  real audit event, and the SAME owner/next-action data appeared
+  coherently in both the Project Operating View and Work Queue, closing
+  the Phase 48-49 loop with real evidence. Honestly scoped: the
+  remaining ~15 lifecycle stages were not individually re-driven through
+  their own UI screens this session; that evidence remains Phase 29's
+  real, still-passing service-layer simulation.
+- **Phase 51** — `docs/production/QC-FAILURE-LOOP-UAT.md`. Investigated
+  and corrected an initial worry that the QC/Handover screens might be
+  orphaned (unreferenced in `App.tsx`) — confirmed live, by real taps,
+  that they ARE reachable via progressive drill-down from a job card,
+  reaching a genuine 9-phase installation SOP checklist screen. Honest
+  boundary: completing a live QC FAIL verdict through the UI was not
+  finished this session and is additionally blocked by a real, pre-
+  existing, already-documented gap (QC FAIL was never bridged from any
+  screen as of Phase 18). Phase 29's service-layer proof remains the
+  authoritative evidence for the full loop.
+- **Phase 52** — `docs/production/HARD-GATE-ATTACK-TESTING.md` +
+  `scripts/hard-gate-attack-test.ts` (new, wired into `npm run checks`).
+  12 direct, UI-bypassing attacks against `operationsWorkflow.ts`/
+  `commercialWorkflow.ts`. All installation/handover/role-authority
+  gates held. **One real, previously-unenforced gap found and fixed**:
+  `createProcurementPO` had no precondition that any payment existed —
+  fixed with a scoped check against real payment records
+  (`src/services/commercialWorkflow.ts`). Regression sweep correctly
+  fixed 6 existing acceptance scripts whose fixtures created a PO
+  without a preceding payment, each by bridging a real payment first
+  (never by weakening the gate). A second suspected gap (installation
+  assignment without a receipt) was investigated and honestly
+  reclassified as intended behavior after cross-checking Phase 29's own
+  proven call order.
+- **Phase 53** — `docs/production/DUAL-WRITE-CUTOVER-REPORT.md` +
+  `scripts/dual-write-cutover-analysis.ts` (new, wired into `npm run
+  checks`). Extends Phase 39's reconciliation with a 4th domain it never
+  covered (Delivery — Shipment + DeliveryReceipt), timestamp/reference/
+  audit-history comparisons, and a 4-tier mismatch classification
+  (harmless_representation / expected_migration_difference /
+  repairable_discrepancy / critical_divergence). Two real bugs were
+  found and fixed IN THIS SCRIPT before trusting its output: two
+  `compare()` calls were missing an argument (misaligning every
+  parameter after it), and the audit-history lookup used a wrong,
+  invented canonical Payment id instead of the real
+  `pay_legacy:<legacyId>` scheme `collectInstallment` actually uses.
+  After both fixes: 8/8 real comparisons match, 0 critical divergences.
+
+### Acceptance (as of Phase 53)
+
+- `npx tsc --noEmit` — pass.
+- `npm run build` — pass.
+- `npm run checks` (43 scripts) — pass, 0 failures, 0 regressions,
+  including the new `live-concurrency-idempotency`, `hard-gate-attack`,
+  and `dual-write-cutover` scripts and the full, unbroken
+  `full-company-simulation` (48 assertions).
+
+### Files/subsystems touched across Phases 41-53
+
+- `docs/production/LIVE-DEPLOYMENT-AUDIT.md`,
+  `PRODUCTION-BUNDLE-VERIFICATION.md`,
+  `LIVE-FIREBASE-AUTHENTICATION-VERIFICATION.md`,
+  `LIVE-CONCURRENCY-IDEMPOTENCY-VERIFICATION.md`, `LIVE-UAT-REPORT.md`,
+  `FIVE-SURFACES-UAT.md`,
+  `PROJECT-OPERATING-VIEW-AND-WORK-QUEUE-UAT.md`,
+  `FULL-LIVE-PROJECT-LIFECYCLE-UAT.md`, `QC-FAILURE-LOOP-UAT.md`,
+  `HARD-GATE-ATTACK-TESTING.md`, `DUAL-WRITE-CUTOVER-REPORT.md` (all new)
+  and `docs/production/screenshots/phase46/` through `phase51/` (new,
+  real screenshots).
+- `docs/security/LIVE-AUTHORIZATION-TEST-RESULTS.md` (extended, Part 3).
+- `src/App.tsx` (real a11y fix — Sign-Out button `aria-label`).
+- `src/services/commercialWorkflow.ts` (real hard-gate fix —
+  payment-before-procurement).
+- `scripts/live-concurrency-idempotency-verification.ts`,
+  `scripts/hard-gate-attack-test.ts`,
+  `scripts/dual-write-cutover-analysis.ts` (new acceptance scripts).
+- `scripts/procurement-bridge-check.ts`,
+  `scripts/delivery-bridge-check.ts`,
+  `scripts/installation-qc-handover-bridge-check.ts`,
+  `scripts/project-operating-view-check.ts`, `scripts/work-queue-check.ts`,
+  `scripts/global-search-check.ts` (fixed to bridge a real payment before
+  PO creation, matching the new Phase 52 hard gate).
+- `package.json` (3 new `npm run checks` steps).
+- `.gitignore` (`.uat-scratch/`, this session's local Playwright/server
+  scratch directory).
+
+### Next phase
+
+Phase 54 — Legacy Read Migration.
