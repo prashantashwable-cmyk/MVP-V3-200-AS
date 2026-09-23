@@ -2222,6 +2222,76 @@ Phase 27 — Legacy DbManager Elimination (measurement).
 
 ---
 
+## Phase 27 — Legacy DbManager Elimination (Measurement)
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Added `scripts/generate-legacy-dbmanager-remaining.ts`
+  (`npm run migration:dbmanager-remaining`), generating
+  `docs/migration/LEGACY_DBMANAGER_REMAINING.md` from the same live scan
+  (Phase 14) and migration registry every other report reuses. 150 files
+  (698 call sites) categorized: 145 MIGRATE (16 already dual-write
+  bridged, 129 untouched), 0 DEMO-ONLY, 5 INTENTIONALLY RETAINED
+  (`language.ts`/`theme.ts` preference sync, `AdminRouter`'s
+  `resetToSeeds()`, `SurveyorRouter`'s lightweight lead count, `App.tsx`
+  session bootstrap), 0 REMOVE.
+- **Real correction to a stale Phase 01 finding**: live-checked across
+  all of `src/` (not just router files, Phase 01's original scope) and
+  found `CameraCapture` and `LeadDetail` — both previously flagged
+  "unreferenced" — are actually imported by other components
+  (`Dashboards.tsx`/onboarding screens; `LeadKanban.tsx`/`LeadInbox.tsx`).
+  Only `CustomReportBuilder`/`GeminiTools`/`MapFiltersLayersControlPanel`
+  remain genuinely unreferenced, and none use `DbManager` at all —
+  correctly excluded from this DbManager-scoped report, not silently
+  dropped.
+- Honest negative finding explained in the report itself: `DbManager`
+  predates the Phase 04 environment model and is used identically
+  regardless of demo/sandbox/production — there is no code path
+  exclusively reached in demo mode, so DEMO-ONLY is genuinely zero, not
+  an unexplained empty bucket.
+- Added `scripts/dbmanager-remaining-check.ts` (`npm run
+  dbmanager-remaining:check`, wired into `npm run checks`): 7 assertions
+  — report counts match the live scan exactly, categories sum to the
+  total with no file double-counted or dropped, both non-MIGRATE
+  explanations are present with real reasons.
+- Added `docs/architecture/27-dbmanager-elimination.md`.
+
+### Files/subsystems touched
+
+- `scripts/generate-legacy-dbmanager-remaining.ts`,
+  `dbmanager-remaining-check.ts` (new)
+- `docs/migration/LEGACY_DBMANAGER_REMAINING.md` (new, generated)
+- `docs/architecture/27-dbmanager-elimination.md` (new)
+- `package.json` (added `migration:dbmanager-remaining`,
+  `dbmanager-remaining:check`, extended `checks`)
+- No existing screen, router, or `DbManager` code was modified — purely
+  measurement/reporting infrastructure.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass
+- `npm run dbmanager-remaining:check` — pass, 7/7 assertions
+- `npm run checks` (all 31 scripts) — pass in full, zero regressions in
+  the prior 539 assertions (546 total)
+- `npm run build` — pass
+
+### Known limitations
+
+- The ZERO-legacy-persistence target is not reached — 145 MIGRATE files
+  remain, honestly reported as real future work, not claimed complete.
+- REMOVE-candidate scope is limited to DbManager usage specifically;
+  the 3 genuinely-unreferenced-anywhere components that don't use
+  DbManager at all are noted but out of this report's stated scope.
+
+### Next phase
+
+Phase 28 — Full Navigation Cutover.
+
+---
+
 ## Remaining production risks (named, not hidden)
 
 1. **The ~189 original screens are not yet enforced server-side** for
