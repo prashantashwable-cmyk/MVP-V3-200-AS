@@ -27,6 +27,7 @@
     "migration:check": "tsx scripts/migration-factory-check.ts",
     "security:authz-gaps": "tsx scripts/generate-legacy-authorization-gaps.ts",
     "migration:dbmanager-remaining": "tsx scripts/generate-legacy-dbmanager-remaining.ts",
+    "migration:final-summary": "tsx scripts/generate-final-migration-summary.ts",
     "bridge:check": "tsx scripts/commercial-core-bridge-check.ts",
     "procurement-bridge:check": "tsx scripts/procurement-bridge-check.ts",
     "delivery-bridge:check": "tsx scripts/delivery-bridge-check.ts",

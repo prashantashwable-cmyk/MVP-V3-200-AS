@@ -2438,3 +2438,236 @@ Phase 30 — Final Acceptance.
    this pack's explicit scope).
 
 ---
+
+## Phase 30 — Final Acceptance
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- Regenerated all three living migration/security reports fresh against
+  the final Phase 1-29 state:
+  `docs/migration/screen-migration-matrix.md` (191 screens: 17
+  PARTIALLY_MIGRATED / 139 LEGACY / 33 CONTEXTUAL / 1 COMMAND_ONLY / 1
+  CONTROL_ONLY / 0 MIGRATED — 0 screens fully replace their legacy path,
+  by design, since every migration in this pack is dual-write, not
+  cutover), `docs/security/LEGACY_AUTHORIZATION_GAPS.md` (101 client-only
+  auth screens, 88 server-enforced), `docs/migration/LEGACY_DBMANAGER_REMAINING.md`
+  (150 `DbManager`-referencing files: 145 `MIGRATE`, 5
+  `INTENTIONALLY_RETAINED`, 0 `REMOVE`).
+- Added `scripts/generate-final-migration-summary.ts` and its output
+  `docs/migration/final-migration-summary.json` — the "machine-readable
+  migration summary" named in the original brief's optional deliverables,
+  computed live from the same real sources (`buildRows()`,
+  `scanAllSrcForDbManager()`, `migrationSummary()`) every other report in
+  this pack reuses, never hand-typed.
+- Rewrote `docs/architecture/FINAL-OPERATING-MODEL.md` end to end, from
+  its Phase-13 scope ("Final Operating Model (Phase 13)") to the full
+  Phase 1-29 scope ("Final Operating Model (Phases 01-29)"): updated the
+  original §1-9 foundation sections inline with Phase 14-29 corrections
+  (five operating surfaces now PRIMARY per Phase 28, updated integrations
+  table, updated idempotency section noting Phase 23's transactional
+  upgrade), and added a new §10 "Legacy-to-platform migration (Phases
+  14-29)" with 7 subsections plus a consolidated §11 known-limitations
+  list (9 items) and §12 "what done means."
+- Rewrote `docs/qa/END-TO-END-ACCEPTANCE.md` end to end: kept the
+  original Phase 13 Scenario A-H table (still passing, unchanged), added
+  a new section for Phase 29's 48-assertion real-bridge run of the same
+  stories, and added the 6 named Phase 30 acceptance tests (Employee,
+  Department handoff, Management, Audit, Security, Reliability), each
+  mapped to real, already-built evidence rather than new work — this
+  phase deliberately built no new mechanism, only verified and documented
+  the ones Phases 14-29 already built.
+- Ran a fresh, complete verification pass rather than trusting prior
+  phase-by-phase numbers: `npx tsc --noEmit` (0 errors), `npm run checks`
+  (all 33 scripts, 996 individual assertions counted directly from a
+  fresh run's output, 0 failures), `npm run build` (full Vite build +
+  esbuild server bundle + PWA precache, passes in 12.28s).
+
+### Files/subsystems touched
+
+- `docs/architecture/FINAL-OPERATING-MODEL.md` (rewritten)
+- `docs/qa/END-TO-END-ACCEPTANCE.md` (rewritten)
+- `docs/migration/final-migration-summary.json` (new, generated)
+- `scripts/generate-final-migration-summary.ts` (new)
+- `docs/migration/screen-migration-matrix.md`,
+  `docs/security/LEGACY_AUTHORIZATION_GAPS.md`,
+  `docs/migration/LEGACY_DBMANAGER_REMAINING.md` (regenerated; content
+  unchanged from Phase 29 since no screen classification changed)
+- `package.json` (added `migration:final-summary`; not wired into
+  `checks`, consistent with `migration:matrix` also being a report
+  generator, not a pass/fail check)
+- `docs/aiec-implementation-log.md` (this entry)
+- No application source code was changed in this phase — Phase 30 is
+  verification and documentation only, per its own brief.
+
+### Tests run
+
+- `npx tsc --noEmit` — pass, 0 errors.
+- `npm run checks` (all 33 scripts) — pass, 996 assertions, 0 failures,
+  0 regressions.
+- `npm run build` — pass.
+
+### Known limitations
+
+Unchanged from Phase 29 — Phase 30 fixed no code, only verified and
+documented. See the consolidated list in `FINAL-OPERATING-MODEL.md` §11
+and the "Known limitations carried into Phase 30" section of
+`docs/qa/END-TO-END-ACCEPTANCE.md`, restated in the Final Summary below.
+
+### Next phase
+
+None — this was the final phase in the Phase 14-30 sequence.
+
+---
+
+# Final Summary (Phases 1-30)
+
+**Repository state at completion**: branch `main`, Phases 1-30 all
+committed. `npx tsc --noEmit` passes with 0 errors. `npm run build`
+(full build including the server bundle) passes. `npm run checks` (33
+acceptance scripts) passes with 996 assertions and 0 failures. No
+existing screen, router, or `DbManager` behavior was deleted or broken
+by any phase — every migration in Phases 14-29 is additive (dual-write
+"strangler fig"), never a replace-in-place.
+
+This section supersedes nothing in "Final Summary (all 13 phases)"
+above — it is appended, not edited, per this pack's own append-only
+rule for the implementation log.
+
+## Implemented (fully, with passing acceptance evidence)
+
+- **Phase 14** — Migration factory: status vocabulary
+  (MIGRATED/PARTIALLY_MIGRATED/LEGACY/CONTEXTUAL/COMMAND_ONLY/
+  CONTROL_ONLY/RETIRED), a live `DbManager`-usage scanner, and a
+  generated screen-migration-matrix — the load-bearing infrastructure
+  every later migration phase measures itself against (390 assertions
+  across 191 screens).
+- **Phase 15** — Commercial Core dual-write bridge: `LeadKanban`/
+  `LeadDetail`-equivalent actions now also drive a real canonical
+  Project/Quote/Contract/Payment while keeping the legacy `DbManager`
+  write authoritative for rendering (14 assertions).
+- **Phase 16** — Procurement bridge: PO creation/approval/supplier-
+  acceptance/production/dispatch now also drive real canonical
+  `PurchaseOrder` state (17 assertions).
+- **Phase 17** — Delivery bridge: schedule/arrival/material-receipt
+  (including damaged/missing paths) now also drive a real canonical
+  `Shipment` (15 assertions).
+- **Phase 18** — Installation + QC (pass path) + Handover bridge: the
+  full clean-path chain from technician assignment through certificate
+  issuance now also drives real canonical `InstallationJob`/
+  `QCInspection`/`Handover` records; QC FAIL documented as a real,
+  unbridged gap rather than silently worked around (24 assertions).
+- **Phase 19** — Portal work summaries: real, canonical-data-backed
+  summary services for Customer/Supplier/Technician portals (15
+  assertions).
+- **Phase 20** — Five Operating Surfaces home screen, reusing Phase 10's
+  real surface classification (19 assertions).
+- **Phase 21** — Project Operating View: the first screen in this pack
+  reading the repository directly via a domain service (no `DbManager`
+  read at all), with real blocker computation and next-action guidance
+  (14 assertions).
+- **Phase 22** — Work Queue: cross-project prioritized task list reusing
+  Phase 12's Control Tower category vocabulary and Phase 21's blocker
+  logic (11 assertions).
+- **Phase 23** — Security/reliability/performance lockdown: demo-bypass
+  credentials gated behind `isProductionDeploy()` (8 assertions),
+  idempotency upgraded to a real Firestore transactional two-phase claim
+  for sandbox/production (13 assertions, audit:check), 177 screen
+  imports converted to `React.lazy()` code-splitting (7 assertions), a
+  quantified destructive-actions inventory with real `confirm()` guards
+  added to the highest-confidence gaps (11 assertions). Also the phase
+  where an inaccurate code comment (claiming the production minifier
+  strips demo-bypass strings from the bundle) was caught and corrected
+  to state only the empirically-verified truth.
+- **Phase 24** — Integration boundaries: honest `IntegrationProvider`
+  pattern for payment gateway/accounting ERP/logistics — every
+  unconfigured provider throws a real typed error and fails closed on
+  webhook verification, wired into observability (16 assertions).
+- **Phase 25** — Global entity search expanded from Project/Customer to
+  8 entity types, wired to real navigation events (11 assertions).
+- **Phase 26** — Data quality checks: 8 new pure-repository queries
+  returning concrete orphaned/inconsistent record IDs, never fabricated
+  counts (19 assertions).
+- **Phase 27** — DbManager-remaining report: every one of 150 files
+  referencing `DbManager` classified with a real, specific reason (7
+  assertions; fixed a real false-positive bug in the classifier along
+  the way).
+- **Phase 28** — Navigation cutover: the five Operating Surfaces made
+  the default landing experience and listed first in every role's
+  navigation, on every real login path including a restored session —
+  while every old dashboard tab remains fully present and reachable (25
+  assertions).
+- **Phase 29** — Full Company Simulation: one project run end to end
+  through the REAL legacy-screen bridges (not the orchestration layer in
+  isolation), including — for the first time in this pack — the full QC
+  fail/snag/rework/reinspection/pass loop, two live unauthorized-role
+  denials, both Phase 09 hard gates proven blocking before being
+  satisfied, and every Phase 19/21/22/26 surface checked against the
+  same project's real final state (48 assertions).
+- **Phase 30** — Final Acceptance: fresh, complete re-verification of
+  the entire Phase 1-29 system (996 assertions, 0 failures), the 6 named
+  acceptance tests (Employee/Department-handoff/Management/Audit/
+  Security/Reliability) each mapped to real, already-built evidence, and
+  every deliverable from the original brief produced or regenerated
+  fresh.
+
+## Partial / by design (not a failure — a stated scope boundary)
+
+- The migration-status counts show **0 screens as `MIGRATED`** (fully
+  cut over) — by design: every migration in Phases 15-18 is a dual-write
+  bridge (legacy `DbManager` write stays authoritative for rendering; the
+  canonical repository is written alongside it), never a replace-in-
+  place, per this pack's own non-negotiable "do not remove a legacy
+  component until fully migrated" rule. 17 screens are
+  `PARTIALLY_MIGRATED` (real bridge exists), 33 `CONTEXTUAL` (read-only
+  views of canonical data), 139 remain `LEGACY` (untouched `DbManager`
+  screens outside this pack's migrated business workflows — Sales
+  qualification sub-stages, marketing/analytics dashboards, HR/settings
+  screens, etc.), 1 `COMMAND_ONLY`, 1 `CONTROL_ONLY`.
+- QC FAIL/Snag/Rework, the negotiation stage, and post-handover service
+  issues have no legacy-screen bridge/canonical entity — exercised
+  directly via the canonical service layer (QC fail loop) or left
+  explicitly undone (negotiation, service issues) and documented at each
+  phase they were found, not worked around silently.
+- 101 of 191 screens remain client-only for authorization (88 are
+  server-enforced via Firestore rules) — unchanged in count from Phase
+  12's original finding; this pack's security work (Phase 23) focused on
+  destructive-action confirmation and demo-credential gating rather than
+  expanding server-side rule coverage, since doing so for 101 screens
+  each tied to a distinct legacy collection was outside this pack's
+  scope.
+
+## Blocked (environment, not code)
+
+- No live Firestore/Firebase Auth credentials were available in this
+  sandbox at any point across Phases 1-30. Every repository-layer,
+  security-rule, and Phase 23 transactional-idempotency claim is real
+  code, structurally verified and exercised against the demo store, but
+  the live authenticated network round-trip itself was never actually
+  executed here.
+
+## Remaining risks at Phase 30 completion (superseding items 5-6 of the Phase 13 list above, which Phases 23/23 addressed; items 1-4 of that list are otherwise still accurate)
+
+1. Demo bypass credentials remain present as literal strings in the
+   production JS bundle text (runtime-gated, not bundle-stripped —
+   esbuild does not perform the cross-module dead-code elimination that
+   would remove them; empirically verified, not assumed).
+2. The idempotency guard is now transaction-backed for sandbox/
+   production (Phase 23) but the demo-environment path is unchanged
+   (simple get-then-create), which is adequate only for this app's
+   single-process demo concurrency profile.
+3. Code-splitting (Phase 23, 177 screens converted to `React.lazy()`)
+   reduced per-screen chunk sizes materially but did not eliminate a
+   large ~2.8MB shared vendor/index chunk — a real, unresolved
+   performance risk for the offline-first field use case.
+4. 101 screens remain client-only for authorization; QC-fail/negotiation/
+   service-issue workflows remain unbridged; ~96% of destructive-looking
+   actions still lack a detectable confirmation step beyond the
+   highest-confidence ones fixed in Phase 23.
+5. No live-credentialed verification of anything built on Firestore
+   across all 30 phases (see Blocked, above) — the single largest
+   remaining unknown before a genuine production launch.
+
+---

@@ -1,0 +1,219 @@
+{
+  "generatedAt": "2026-09-23T02:45:12.467Z",
+  "generator": "scripts/generate-final-migration-summary.ts",
+  "screens": {
+    "total": 191,
+    "byStatus": {
+      "MIGRATED": 0,
+      "PARTIALLY_MIGRATED": 17,
+      "LEGACY": 139,
+      "CONTEXTUAL": 33,
+      "COMMAND_ONLY": 1,
+      "CONTROL_ONLY": 1,
+      "RETIRED": 0
+    }
+  },
+  "dbManagerUsage": {
+    "filesReferencing": 150,
+    "totalCallSites": 698
+  },
+  "authorization": {
+    "serverEnforcedScreens": 88,
+    "clientOnlyScreens": 101
+  },
+  "byEntity": {
+    "Payment": {
+      "total": 21,
+      "migrated": 0,
+      "partiallyMigrated": 3,
+      "legacy": 18,
+      "contextual": 0
+    },
+    "Notification": {
+      "total": 4,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 3,
+      "contextual": 1
+    },
+    "N/A / cross-cutting": {
+      "total": 90,
+      "migrated": 0,
+      "partiallyMigrated": 4,
+      "legacy": 66,
+      "contextual": 20
+    },
+    "AuditEvent": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 0
+    },
+    "Quote (negotiation)": {
+      "total": 2,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 0,
+      "contextual": 2
+    },
+    "Lead": {
+      "total": 13,
+      "migrated": 0,
+      "partiallyMigrated": 2,
+      "legacy": 10,
+      "contextual": 1
+    },
+    "N/A / infrastructure": {
+      "total": 2,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 0,
+      "contextual": 0
+    },
+    "ApprovalRequest": {
+      "total": 2,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 0,
+      "contextual": 2
+    },
+    "Customer": {
+      "total": 13,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 10,
+      "contextual": 2
+    },
+    "QCInspection": {
+      "total": 3,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 3,
+      "contextual": 0
+    },
+    "DeliveryReceipt": {
+      "total": 7,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 5,
+      "contextual": 1
+    },
+    "Contract": {
+      "total": 3,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 2
+    },
+    "Handover": {
+      "total": 2,
+      "migrated": 0,
+      "partiallyMigrated": 2,
+      "legacy": 0,
+      "contextual": 0
+    },
+    "InstallationJob": {
+      "total": 5,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 4,
+      "contextual": 1
+    },
+    "Site": {
+      "total": 3,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 2,
+      "contextual": 0
+    },
+    "Shipment": {
+      "total": 3,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 2,
+      "contextual": 0
+    },
+    "ProductionOrder": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 0
+    },
+    "User": {
+      "total": 4,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 4,
+      "contextual": 0
+    },
+    "Project": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 0
+    },
+    "PurchaseOrder": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 0,
+      "contextual": 0
+    },
+    "Quote": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 0
+    },
+    "Supplier": {
+      "total": 8,
+      "migrated": 0,
+      "partiallyMigrated": 1,
+      "legacy": 6,
+      "contextual": 1
+    },
+    "Warranty": {
+      "total": 1,
+      "migrated": 0,
+      "partiallyMigrated": 0,
+      "legacy": 1,
+      "contextual": 0
+    }
+  },
+  "phasesCompleted": [
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ],
+  "domainsFullyMigrated": [],
+  "domainsPartiallyMigrated": [
+    "Commercial Core (Lead→Quote→Contract→Payment) — Phase 15",
+    "Procurement (PO→Approval→Supplier Acceptance→Production→Dispatch) — Phase 16",
+    "Delivery (Schedule→Arrival→Receipt, incl. damaged/missing) — Phase 17",
+    "Installation + QC (pass path) + Handover — Phase 18"
+  ],
+  "knownGaps": [
+    "QC FAIL/Snag/Rework loop has no legacy-screen bridge (Phase 18 §3) — exercised directly via the canonical service layer in Phase 29's simulation",
+    "Negotiation stage has no legacy-screen bridge (Phase 29 §3)",
+    "No canonical ServiceCase entity exists (Phase 29 §3)",
+    "Server-side request authentication (server.ts) has no middleware — needs firebase-admin + real credentials",
+    "No live Firestore credentials in this sandbox — repository layer verified structurally/via demo mode only"
+  ]
+}
