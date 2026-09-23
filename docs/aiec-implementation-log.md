@@ -3231,3 +3231,58 @@ result for this sandbox).
 ### Next phase
 
 Phase 39 — Dual-Write Consistency and Cutover Readiness.
+
+## Phase 39 — Dual-Write Consistency and Cutover Readiness
+
+**Date:** 2026-09-23
+**Status:** Complete
+
+### What changed
+
+- New `scripts/dual-write-reconciliation.ts` — a REAL reconciliation
+  tool, not a described one. Runs a fresh, self-contained scenario (own
+  IDs, independent of `scripts/full-company-simulation.ts`) through the
+  4 real Phase 15-18 dual-write bridges in demo mode, then reads BOTH
+  the legacy `DbManager` store and the canonical repository for the SAME
+  entities and compares them field by field. This works without a live
+  Firestore credential because the dual-write bridge writes to BOTH
+  stores in demo mode too — both are real, in-process stores.
+- 6 real comparisons across the 3 domains this scenario exercises
+  (Commercial Core/Payment, Procurement/PurchaseOrder, Installation/
+  InstallationJob): amount, project linkage, status (with the bridge's
+  own documented vocabulary translation applied — e.g. legacy `"Sent"`
+  maps to canonical `"sent_to_supplier"`, not a mismatch), and owner.
+  **All 6 matched** — no missing writes, no amount mismatches, no owner
+  mismatches found in this scenario.
+- New `docs/migration/DUAL-WRITE-CONSISTENCY-REPORT.md` (generated),
+  including the phase's own explicit ask: READ SOURCE / WRITE SOURCE /
+  FALLBACK SOURCE / CUTOVER CONDITION for each of the 4 migrated
+  domains. Honest finding: **every domain is still at Stage 1** ("legacy
+  write + canonical write") — none has progressed to Stage 2 ("canonical
+  read + legacy write") because no bridged LEGACY screen has been
+  repointed to read from the canonical repository yet; that is real,
+  separate, screen-by-screen UI work Phases 15-18 left for later, not
+  fabricated as done here. The canonical-native screens from Phases
+  19-22 (`ProjectOperatingView`, `WorkQueueScreen`, etc.) are a real,
+  working preview of what Stage 2+ looks like for the SAME underlying
+  data, named as such.
+- Legacy writes: not touched, not deleted, per this phase's own explicit
+  rule — this phase is read-only measurement.
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass.
+- `npm run dual-write-reconciliation:check` — pass, 6/6 real comparisons match.
+- `npm run checks` (44 scripts) — pass, 1045 assertions, 0 regressions.
+- `npm run build` — pass.
+
+### Files/subsystems touched
+
+- `scripts/dual-write-reconciliation.ts` (new)
+- `docs/migration/DUAL-WRITE-CONSISTENCY-REPORT.md` (new, generated)
+- `package.json` (new check script, wired into `checks`)
+- `docs/aiec-implementation-log.md` (this entry)
+
+### Next phase
+
+Phase 40 — Final Production Cutover Gate.
