@@ -1,6 +1,11 @@
-# Production Readiness Report — AIEC Phases 31-40
+# Production Readiness Report — AIEC Phases 31-63
 
 **Date:** 2026-09-23
+**Updated through Phase 64.** The original Phase 31-40 report below is
+preserved unmodified as the historical record of that pack. See
+**"Update — Phases 41-63"** at the end of this document for the current,
+full picture — this header change is the only edit to the section
+below.
 
 ## Final status
 
@@ -203,3 +208,76 @@ to upload to yet.
 None of these are hidden. Each is named, with its own reasoning, in the
 phase that found or confirmed it, and in
 `docs/production/PRODUCTION-CUTOVER-CHECKLIST.md`'s per-item status.
+
+---
+
+## Update — Phases 41-63 (this report's current, authoritative status)
+
+**Date:** 2026-09-23
+**Current HEAD:** `b6b4f0e` (Phase 63; this Phase 64 update lands after)
+
+### Final status, unchanged in category, now far better evidenced
+
+**PRODUCTION READINESS BLOCKED — REASON: LIVE AUTHENTICATED ENVIRONMENT
+NOT AVAILABLE.** Full reasoning: `docs/production/FINAL-CUTOVER-DECISION.md`
+(Phase 62).
+
+### What changed since Phase 40
+
+Phases 41-63 moved this project from "structurally verified, never
+visually confirmed" (Phase 40's own honest limitation — "no browser in
+this sandbox") to **genuinely UI-verified**: this pack gained real
+Playwright + Chromium mobile-emulation capability and used it
+extensively — dozens of real taps, real screenshots, real network-
+condition tests, real Lighthouse runs — against a locally-served
+instance of the exact committed production build (the documented,
+honest substitute for the unreachable live `vercel.app` URL, confirmed
+unreachable independently three times across this pack).
+
+### Real defects found AND fixed this pack (Phases 41-63), with verification
+
+| # | Defect | Phase | Fix | Verification |
+|---|---|---|---|---|
+| 1 | Header Sign-Out icon button had no `aria-label` (mobile a11y gap) | 46 | `aria-label`/`title` added, `src/App.tsx` | Live Playwright re-check confirms the attribute is present |
+| 2 | `createProcurementPO` had no payment-before-procurement precondition | 52 | Real payment-record check added, `src/services/commercialWorkflow.ts` | 12/12 attack-script assertions pass; full `npm run checks` clean after fixing 6 dependent test fixtures |
+| 3 | No response-compression middleware — 20.2s mobile FCP | 57 | `compression` middleware added, `src/serverApp.ts` | Real before/after Lighthouse: FCP 20.2s→7.7s, transfer 2.93MB→0.72MB |
+| 4 | `/api/db/contracts`/`/api/db/sops` trusted a client-supplied `?role=` for authorization | 61 | Role-trust removed, routes now scope to `userId` only | `npm run checks` clean; route unreachable from any real screen (zero functional impact) |
+
+### Real defects found and honestly NOT fixed this pack, with the reason
+
+| # | Finding | Phase | Why not fixed |
+|---|---|---|---|
+| 1 | `payments.create` still has no role gate/amount validation past Phase 35's impersonation fix | 44 | Needs live-rules-emulator verification this sandbox cannot perform before a security-rules change is safe to deploy |
+| 2 | `workflow_instances.update` unscoped | 44 | Same reason |
+| 3 | Canonical bridge write failures are invisible to the user, audit trail, and crash reporting (all 16 bridged screens, fire-and-forget pattern) | 55, 59, 60 | A real, consistent fix across all 16 screens is separate, larger, coordinated work — a piecemeal fix was explicitly rejected as inconsistent (Phase 59) |
+| 4 | Financially-blocked (signed-but-unpaid) projects not flagged at-risk by the Work Queue, stale next-action text | 63 | Needs its own careful verification against the existing passing Work Queue test suite |
+| 5 | Live deployment's build-flag state unknown; likely NOT built with `VITE_APP_ENV=production` (zero Vercel env vars configured) | 41, 42 | Cannot configure or trigger a redeploy from this sandbox |
+| 6 | Offline outbox/media-upload subsystem never wired into any real screen | 58 | Wiring it in is real, separate feature work, not a bug fix |
+| 7 | `getObservabilitySummary()` never read by any screen — captured crashes are invisible | 60 | Real, scoped, low-risk follow-up, not attempted blind |
+
+### Acceptance
+
+- `npx tsc --noEmit` — pass, after every one of Phases 41-63.
+- `npm run build` — pass, after every one of Phases 41-63.
+- `npm run checks` — **47 scripts**, pass, **0 failures**, 0 regressions
+  across all 23 additional phases, including 6 new acceptance scripts
+  this pack added (`live-concurrency-idempotency`, `hard-gate-attack`,
+  `dual-write-cutover`, `legacy-read-migration`,
+  `legacy-write-reduction`, `legacy-database-elimination`,
+  `final-company-simulation-multi`).
+
+### Files/subsystems touched across Phases 41-63
+
+See `docs/aiec-implementation-log.md`'s "Phases 41-53" consolidated
+entry for the first half's detail; Phases 54-63 are each documented in
+their own `docs/production/*.md` or `docs/architecture/*.md` file,
+listed in `docs/production/FINAL-CUTOVER-DECISION.md` and
+`docs/production/PRODUCTION-CUTOVER-CHECKLIST.md`.
+
+### Next phase
+
+Phase 64 — Final Evidence Package (this update, plus
+`docs/production/PRODUCTION-CUTOVER-CHECKLIST.md`,
+`docs/production/LIVE-SECURITY-VERIFICATION.md`, and confirming
+`docs/production/FINAL-CUTOVER-DECISION.md`/`DUAL-WRITE-CUTOVER-REPORT.md`
+are current).
