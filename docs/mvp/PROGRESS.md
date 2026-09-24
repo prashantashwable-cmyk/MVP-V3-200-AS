@@ -4,10 +4,53 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 07 Site-ready, Supplier and Delivery
-- **Next step:** 08 Technician, Installation and Blockers
-- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
-- **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
+- **Last completed step:** 08 Technician, Installation and Blockers (draft PR #12)
+- **Next step:** 09 QC, Handover and AMC. Branch `claude/mvp-step-09-qc-handover-amc` from `claude/mvp-step-08-technician-installation`; PR base = that branch.
+- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover.
+- **Owner standing instructions (2026-09-24):**
+  - Every step must include screenshots, sent to the Owner in chat.
+  - Every step must include a verified `npm run build`.
+  - See CLAUDE.md step protocol items 4 and 8.
+- **Blocked on Owner:** still needed before go-live:
+  - the emergency phone number (audit §8 Q7)
+  - `VITE_APP_ENV=production` set in Vercel
+  - Firebase Storage and backups enabled (Q3)
+  - the GST rate (⚖ VERIFY with the CA)
+
+## Handoff notes (for any model or session picking this up)
+- **Stacked draft PRs, none merged:**
+
+  | PR | Step |
+  |---|---|
+  | #3 | 01 |
+  | #4 | 02 |
+  | #5 | 03a |
+  | #6 | 03b |
+  | #7 | 04a |
+  | #8 | 04b |
+  | #9 | 05 |
+  | #10 | 06 |
+  | #11 | 07 |
+  | #12 | 08 |
+
+  Each PR's base is the previous step's branch. Start a new step's branch from the latest step branch, not from `main`.
+- **Where things are:**
+  - Services: `src/mvp/services/*`
+  - Screens: `src/mvp/screens/*`. Add stage panels to `OrderExtras.tsx`, and new tabs to `mvpMode.ts` and `MvpRouter.tsx`.
+  - Scenario driver: `scripts/mvp/scenario.ts` `runS1(ctx, clock, step)`. Step 13a = 13.5, 13b = 13.9. Extend it for steps 14+.
+  - Fixtures: `scripts/mvp/fixtures.ts`.
+  - Each step adds `scripts/mvp-<name>-check.ts` and wires it into `mvp:checks` in package.json.
+  - Rules tests: `scripts/mvp-rules-emulator-check.ts`, run with `npm run mvp:rules`.
+- **Screenshots:**
+  1. Start the dev server in the background with `npm run dev`.
+  2. Run `node scripts/mvp/screenshot.mjs "http://localhost:3000/?demoRole=<role>" docs/mvp/screenshots/step-NN/<name>.png 390 <height> ["button text to click" ...]`.
+  3. Stop the server with `ps -eo pid,args | grep "[t]sx server" | awk '{print $1}' | xargs -r kill`. Don't use `pkill -f`, which kills its own shell.
+  4. Send the PNGs to the Owner.
+- **Step 09 must add:**
+  - a QC stage move to `stageMoveOk` in firestore.rules (qc → handover), with emulator tests
+  - QC writes the REWORK remarks into the task `notes`, which the technician UI shows
+  - snags assigned to the technician
+- **Step 11 must add:** `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone`.
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
