@@ -51,6 +51,7 @@ check(h({ now: new Date(now.getTime() + 15 * 86_400_000) }) === 'OVERDUE', 'heal
 check(h({ tasks: [] }) === 'OVERDUE', 'health rule 3: NO NEXT ACTION → OVERDUE');
 check(h({ tasks: [t('SITE_READINESS', 'SITE_READY', 0.5, 'TODO', true)] }) === 'AT_RISK', 'health rule 4: due within 24h and TODO → AT_RISK');
 check(h({ tasks: [t('SITE_READINESS', 'SITE_READY', 0.5, 'IN_PROGRESS', true)] }) === 'ON_TRACK', 'due within 24h but IN_PROGRESS → ON_TRACK');
+check(h({ tasks: [t('ASSIGN_SURVEYOR', 'SITE_READY', 1, 'TODO', true)] }) === 'ON_TRACK', 'a TODO task due in exactly 24h is not yet at risk (strict window)');
 check(h({ milestones: [{ status: 'PENDING', dueDate: inDays(-1) }] }) === 'AT_RISK', 'health rule 4: payment past due → AT_RISK (S5)');
 check(h({ milestones: [{ status: 'PAID', dueDate: inDays(-1) }] }) === 'ON_TRACK', 'paid milestone is never at risk');
 

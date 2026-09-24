@@ -18,8 +18,19 @@ export async function getOrCreateFirestoreUser(firebaseUser: FirebaseUser): Prom
   const ref = doc(db, 'users', firebaseUser.uid);
   const snap = await getDoc(ref);
 
+  // MVP (D-13 as changed in Step 02): the Admin's invite decides the role. A self-created
+  // profile is only ever the pending placeholder, the invited role, or the owner's admin
+  // profile — firestore.rules enforce the same thing server-side.
+  const invite = await readInvite(email, firebaseUser.emailVerified);
+
   if (snap.exists()) {
-    return snap.data() as User;
+    const existing = snap.data() as User;
+    if (existing.role === ('pending_selection' as any) && invite) {
+      const upgraded: User = stripUndefined({ ...existing, role: invite.role, status: 'active', customerId: invite.customerId, name: existing.name || invite.name });
+      await setDoc(ref, upgraded, { merge: true });
+      return upgraded;
+    }
+    return existing;
   }
 
   // Owner/Founder email auto-maps to the admin role on first real sign-in.
@@ -27,16 +38,31 @@ export async function getOrCreateFirestoreUser(firebaseUser: FirebaseUser): Prom
 
   const newUser: User = stripUndefined({
     id: firebaseUser.uid,
-    role: isOwner ? 'admin' : ('pending_selection' as any),
-    name: firebaseUser.displayName || 'Google User',
+    role: isOwner ? 'admin' : invite ? invite.role : ('pending_selection' as any),
+    name: firebaseUser.displayName || invite?.name || 'Google User',
     phone: firebaseUser.phoneNumber || '',
     email,
-    status: isOwner ? 'active' : 'pending',
+    status: isOwner || invite ? 'active' : 'pending',
+    customerId: isOwner ? undefined : invite?.customerId,
     avatarUrl: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
   });
 
   await setDoc(ref, newUser);
   return newUser;
+}
+
+/** The Admin's invite for this email (MVP). Admin invites are applied by an Admin, never self-claimed. */
+async function readInvite(email: string, emailVerified: boolean): Promise<{ role: User['role']; name: string; customerId?: string } | null> {
+  if (!email || !emailVerified) return null;
+  try {
+    const inv = await getDoc(doc(db, 'invites', email));
+    if (!inv.exists()) return null;
+    const data = inv.data() as { role: User['role']; name: string; customerId?: string };
+    return data.role === 'admin' ? null : data;
+  } catch (err) {
+    console.error('Invite lookup failed:', err);
+    return null;
+  }
 }
 
 export async function updateFirestoreUser(user: User): Promise<void> {

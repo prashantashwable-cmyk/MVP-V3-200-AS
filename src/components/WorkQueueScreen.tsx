@@ -4,7 +4,11 @@ import { Card } from './Common';
 import type { User } from '../types';
 import { resolveEnvironment } from '../lib/environment';
 import type { RepositoryContext } from '../repository/types';
-import { getWorkQueueItems, type WorkQueueItem } from '../services/workQueue';
+import { getWorkQueueItems, getMvpTaskQueue, type WorkQueueItem } from '../services/workQueue';
+import { isMvpMode } from '../mvp/mvpMode';
+import { toMvpActor } from '../mvp/screens/ui';
+import { formatDateTime } from '../mvp/format';
+import type { Task } from '../domain/entities';
 import type { ControlTowerCategory } from '../services/controlTower';
 
 /**
@@ -30,7 +34,7 @@ const PRIORITY_STYLE: Record<ControlTowerCategory, { icon: React.ComponentType<{
   on_track: { icon: CheckCircle2, classes: 'text-royalemerald bg-royalemerald/10', label: 'On Track' },
 };
 
-export const WorkQueueScreen: React.FC<WorkQueueScreenProps> = ({ user }) => {
+const LegacyWorkQueueScreen: React.FC<WorkQueueScreenProps> = ({ user }) => {
   const ctx: RepositoryContext = useMemo(() => ({ environment: resolveEnvironment(user), actorUserId: user.id }), [user]);
   const [items, setItems] = useState<WorkQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,3 +104,47 @@ export const WorkQueueScreen: React.FC<WorkQueueScreenProps> = ({ user }) => {
     </div>
   );
 };
+
+/**
+ * MVP (D-06): "My tasks" — the viewer's open persisted tasks, soonest due first.
+ * Tapping a task opens its order in the Universal Order View.
+ */
+const MvpTaskQueue: React.FC<{ user: User; onOpenOrder?: (orderId: string) => void }> = ({ user, onOpenOrder }) => {
+  const ctx: RepositoryContext = useMemo(() => ({ environment: resolveEnvironment(user), actorUserId: user.id }), [user]);
+  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getMvpTaskQueue(ctx, toMvpActor(user))
+      .then(t => { if (!cancelled) setTasks(t); })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, [ctx, user]);
+  if (error) return <Card className="p-4 text-xs text-error">Could not load your tasks: {error}</Card>;
+  if (!tasks) return <div className="p-6 text-sm text-warmgray">Loading your tasks…</div>;
+  const now = Date.now();
+  return (
+    <div className="space-y-2 max-w-3xl mx-auto pb-24">
+      <h2 className="text-lg font-bold text-charcoal">My tasks</h2>
+      {tasks.length === 0 && <Card className="p-6 text-sm text-warmgray">You have no open tasks.</Card>}
+      {tasks.map(t => {
+        const overdue = new Date(t.dueDate).getTime() < now;
+        return (
+          <button key={t.id} disabled={!t.orderId} onClick={() => t.orderId && onOpenOrder?.(t.orderId)} className="w-full text-left cursor-pointer">
+            <Card className={`p-4 ${overdue ? 'border-error/40' : ''}`} hoverEffect>
+              <div className="flex justify-between gap-2">
+                <span className="font-bold text-sm">{t.title}</span>
+                <span className={`text-[11px] font-bold ${t.status === 'BLOCKED' || overdue ? 'text-error' : 'text-warmgray'}`}>{t.status === 'BLOCKED' ? 'BLOCKED' : overdue ? 'OVERDUE' : t.status.replace('_', ' ')}</span>
+              </div>
+              <div className="text-xs text-warmgray mt-1 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Due {formatDateTime(t.dueDate)}{t.leadId ? ' · lead' : ''}</div>
+            </Card>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+export const WorkQueueScreen: React.FC<WorkQueueScreenProps & { onOpenOrder?: (orderId: string) => void }> = ({ user, onOpenOrder }) =>
+  isMvpMode() ? <MvpTaskQueue user={user} onOpenOrder={onOpenOrder} /> : <LegacyWorkQueueScreen user={user} />;
+

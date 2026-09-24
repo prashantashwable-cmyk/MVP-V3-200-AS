@@ -52,6 +52,7 @@ async function main() {
   check(!forTech.payments && !forTech.audit, 'technician sees neither money nor history');
   check(!!forCust.payments && !forCust.audit, 'customer sees payments but not the audit log');
   check(forTech.currentOwner === 'You', 'the assignee sees "You" as the owner');
+  check(forTech.order.sellingPrice === undefined, 'roles without money access never receive the selling price');
   check(!('estimatedCost' in (forAdmin as any)) && !JSON.stringify(forCust).includes('estimatedCost'), 'I-5: no cost fields in any Order View model');
 
   // Lists: customer sees only their own order; technician sees orders they have a task on.

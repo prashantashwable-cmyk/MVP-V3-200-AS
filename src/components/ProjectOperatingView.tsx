@@ -7,6 +7,8 @@ import type { RepositoryContext } from '../repository/types';
 import { projectRepository } from '../repository/entities';
 import { getProjectOperatingView, type ProjectOperatingView as ProjectOperatingViewData } from '../services/projectOperatingView';
 import type { Project } from '../domain/entities';
+import { isMvpMode } from '../mvp/mvpMode';
+import { MvpOrderView } from '../mvp/screens/MvpOrderView';
 
 /**
  * Project-centric operating view — Phase 21.
@@ -37,7 +39,7 @@ const STAGE_LABELS: Record<string, string> = {
   warranty_amc: 'Warranty/AMC', service: 'Service', closed_lost: 'Closed (Lost)',
 };
 
-export const ProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user }) => {
+const LegacyProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user }) => {
   const ctx: RepositoryContext = useMemo(
     () => ({ environment: resolveEnvironment(user), actorUserId: user.id }),
     [user],
@@ -193,3 +195,21 @@ export const ProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user
     </div>
   );
 };
+
+/**
+ * MVP Step 04: this component is the Universal Order View (spec §8). In MVP_MODE (or when a
+ * specific order is passed) it renders the MVP model — current task, owner, due date, health,
+ * progress, payments, evidence, history — role-filtered; otherwise the Phase 21 view above,
+ * unchanged.
+ */
+export const ProjectOperatingView: React.FC<ProjectOperatingViewProps & {
+  orderId?: string;
+  onBack?: () => void;
+  renderExtra?: React.ComponentProps<typeof MvpOrderView>['renderExtra'];
+}> = ({ user, orderId, onBack, renderExtra }) => {
+  if (orderId !== undefined || isMvpMode()) {
+    return <MvpOrderView user={user} orderId={orderId ?? ''} onBack={onBack} renderExtra={renderExtra} />;
+  }
+  return <LegacyProjectOperatingView user={user} />;
+};
+
