@@ -15,6 +15,8 @@ import { planBackfill } from '../src/mvp/backfill';
 import { projectRepository, taskRepository } from '../src/repository/entities';
 import { createAdminTask } from '../src/mvp/services/orderService';
 import type { Project, Task } from '../src/domain/entities';
+import { getRepository } from '../src/repository';
+import { recordAuditEvent, newCorrelationId, listAuditEventsForEntity } from '../src/lib/audit';
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has('--apply');
@@ -31,17 +33,33 @@ async function runDemo() {
     const tasks = await taskRepository(ctx).list();
     const byProject: Record<string, Task[]> = {};
     for (const t of tasks) if (t.orderId) (byProject[t.orderId] ??= []).push(t);
-    return planBackfill(projects, byProject, 0);
+    // Codes continue from the live AE-#### counter so they never clash with qualifyLead.
+    const counter = await getRepository<{ id: string; value: number }>('counters', ctx).get('orders');
+    return planBackfill(projects, byProject, counter?.value ?? 0);
   };
   const first = await plan();
   console.log(`${apply ? 'APPLY' : 'DRY-RUN'}: ${first.changes.length} project(s) need backfill`);
   for (const c of first.changes) console.log(`  ${c.projectId}: set ${JSON.stringify(c.set)}${c.createReviewTask ? ' + REVIEW_ORDER task' : ''}`);
   if (!apply) return;
+  const counters = getRepository<{ id: string; value: number }>('counters', ctx);
   for (const c of first.changes) {
     const p = await projectRepository(ctx).get(c.projectId);
-    if (Object.keys(c.set).length) await projectRepository(ctx).update(c.projectId, c.set as any, (p as any)?.version);
+    if (Object.keys(c.set).length) {
+      await projectRepository(ctx).update(c.projectId, c.set as any, (p as any)?.version);
+      await recordAuditEvent(ctx, {
+        actorId: 'backfill', actorRole: 'system', action: 'ORDER_BACKFILLED', entityType: 'Project', entityId: c.projectId,
+        projectId: c.projectId, before: { status: p?.status, displayCode: p?.displayCode }, after: c.set, source: 'automation',
+        correlationId: newCorrelationId(),
+      });
+    }
     if (c.createReviewTask) await createAdminTask({ ...ctx }, { userId: 'backfill', role: 'admin' }, c.projectId, {});
   }
+  if ((await counters.get('orders'))) await counters.update('orders', { value: first.counterValue });
+  else await counters.create({ id: 'orders', value: first.counterValue });
+  const audited = (await Promise.all(first.changes.map(c => listAuditEventsForEntity(ctx, 'Project', c.projectId))))
+    .every(events => events.some(e => e.action === 'ORDER_BACKFILLED'));
+  console.log(`Counter advanced to ${first.counterValue}; every change audited: ${audited}`);
+  if (!audited) process.exitCode = 1;
   const second = await plan();
   console.log(`Re-plan after apply: ${second.changes.length} change(s) (must be 0 — idempotent)`);
   if (second.changes.length !== 0) process.exitCode = 1;

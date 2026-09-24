@@ -277,12 +277,39 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Non-admin order writes, per role (plan §3.2). Each role may make only the stage
+    // move its own D-08 event causes, and only touch the fields that event needs.
+    // Money, completion and cancellation stay Admin-only.
+    function normRole() {
+      return getUserRole() == 'qc_inspector' ? 'qc' : getUserRole();
+    }
+
+    function stageMoveOk(role) {
+      return request.resource.data.stage == resource.data.stage ||
+        (role == 'sales' && resource.data.stage == 'lead' && request.resource.data.stage == 'customer_site_confirmed') ||
+        (role == 'surveyor' && resource.data.stage == 'survey' && request.resource.data.stage == 'quoting') ||
+        (role == 'customer' && resource.data.stage in ['quoting', 'negotiation'] && request.resource.data.stage == 'contract') ||
+        (role == 'technician' && resource.data.stage == 'installation' && request.resource.data.stage == 'qc');
+    }
+
+    function statusMoveOk(role) {
+      // Only QC may put an order on hold (the QC FAIL path, D-08); nothing else changes status.
+      return request.resource.data.get('status', 'ACTIVE') == resource.data.get('status', 'ACTIVE') ||
+        (role == 'qc' && resource.data.get('status', 'ACTIVE') == 'ACTIVE' && request.resource.data.status == 'ON_HOLD');
+    }
+
     function participantOrderUpdateOk() {
-      return onlyKeys(['stage', 'status', 'statusReason', 'participantIds', 'updatedAt', 'updatedBy', 'version',
-                       'checklistDone', 'qcPassedAt', 'sellingPrice']) &&
-        (request.resource.data.get('status', 'ACTIVE') == resource.data.get('status', 'ACTIVE') ||
-         request.resource.data.get('status', 'ACTIVE') == 'ON_HOLD') &&
-        stageRank(request.resource.data.stage) >= stageRank(resource.data.stage);
+      let role = normRole();
+      let base = ['stage', 'updatedAt', 'updatedBy', 'version'];
+      // Staff may refresh participantIds (task assignees). Accepted residual risk (PROGRESS
+      // open issue 14): a staff participant could add another uid; invited users only, audited.
+      let staffKeys = base.concat(['participantIds']);
+      let keys = role == 'technician' ? staffKeys.concat(['checklistDone'])
+        : role == 'qc' ? staffKeys.concat(['qcPassedAt', 'status'])
+        : role in ['sales', 'surveyor'] ? staffKeys
+        : base; // customer: never participantIds, money or QC fields
+      return role in ['sales', 'surveyor', 'technician', 'qc', 'customer'] &&
+        onlyKeys(keys) && stageMoveOk(role) && statusMoveOk(role);
     }
 
     match /projects/{projectId} {
@@ -321,16 +348,28 @@ service cloud.firestore {
         (t.get('leadId', null) != null && isLeadOwner(t.leadId));
     }
 
+    function isStaffRole() {
+      return normRole() in ['sales', 'surveyor', 'technician', 'qc'];
+    }
+
     match /tasks/{taskId} {
       allow get: if isAuthenticated() && (resource == null || canReadTask(resource.data));
       allow list: if isAuthenticated() && canReadTask(resource.data);
+      // Staff participants create the next tasks their event causes (e.g. QC → REWORK for the
+      // technician). A customer's events only create Admin tasks, or the on-call EMERGENCY task.
       allow create: if isAdmin() || (
-        request.resource.data.status == 'TODO' && canWriteTaskScope(request.resource.data));
+        request.resource.data.status == 'TODO' && canWriteTaskScope(request.resource.data) &&
+        (isStaffRole() || request.resource.data.assigneeId == 'role:admin' ||
+         request.resource.data.type == 'EMERGENCY_RESPONSE'));
+      // Non-admins update only their OWN tasks; the one exception is returning a BLOCKED task
+      // on their order to its previous status when its blocker is resolved (D-07).
       allow update: if isAdmin() || (
-        (resource.data.assigneeId == request.auth.uid || resource.data.assigneeId == myCustomerToken() ||
-         canWriteTaskScope(resource.data)) &&
+        (resource.data.assigneeId == request.auth.uid || resource.data.assigneeId == myCustomerToken()) &&
         onlyKeys(['status', 'updatedAt', 'completedAt', 'notes', 'evidenceIds', 'previousStatus', 'version']) &&
-        request.resource.data.status in ['TODO', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED']);
+        request.resource.data.status in ['TODO', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED']) || (
+        canWriteTaskScope(resource.data) && resource.data.status == 'BLOCKED' &&
+        request.resource.data.status == resource.data.get('previousStatus', 'TODO') &&
+        onlyKeys(['status', 'updatedAt', 'version']));
       allow delete: if false;
     }
 
@@ -359,7 +398,7 @@ service cloud.firestore {
     match /surveys/{surveyId} {
       allow get: if isAuthenticated() && (resource == null || canReadOrderScoped(resource.data.orderId));
       allow list: if isAuthenticated() && canReadOrderScoped(resource.data.orderId);
-      allow create: if isAdmin() || (isParticipantOf(request.resource.data.orderId) &&
+      allow create: if isAdmin() || (normRole() == 'surveyor' && isParticipantOf(request.resource.data.orderId) &&
         request.resource.data.surveyorId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if false;

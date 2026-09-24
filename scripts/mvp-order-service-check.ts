@@ -102,7 +102,10 @@ async function main() {
 
   // Blocker (D-07): task → BLOCKED, health BLOCKED; resolve → previous status.
   const cust = customerActor(order.customerId);
-  const blocker = await raiseBlocker(ctx, cust, { orderId, taskId: prep.id, reason: 'PAYMENT_PENDING', description: 'Waiting for funds' });
+  const custBlocker = await raiseBlocker(ctx, cust, { orderId, taskId: prep.id, reason: 'OTHER', description: 'Question about the quote' });
+  check((await taskRepository(ctx).get(prep.id))!.status === 'TODO', "a customer's blocker does not change someone else's task");
+  await resolveBlocker(ctx, USERS.admin, custBlocker.id, 'Answered');
+  const blocker = await raiseBlocker(ctx, USERS.admin, { orderId, taskId: prep.id, reason: 'PAYMENT_PENDING', description: 'Waiting for funds' });
   check(blocker.ownerUserId === `customer:${order.customerId}`, 'PAYMENT_PENDING blocker is owned by the customer');
   check((await taskRepository(ctx).get(prep.id))!.status === 'BLOCKED', 'task becomes BLOCKED');
   s = await state(ctx, orderId);
@@ -158,7 +161,10 @@ async function main() {
   check(s.stage === 'SURVEY' && s.cur?.type === 'SITE_CORRECTION' && s.cur.assigneeId === `customer:${o2.customerId}`, 'REQUIRES_CORRECTION → SITE_CORRECTION → customer');
   await completeTask(ctx, customerActor(o2.customerId), s.cur!.id, 'Pit cleaned');
   s = await state(ctx, o2.id);
-  check(s.cur?.type === 'SURVEY' && s.cur.assigneeId === USERS.surveyor.userId, 'correction done → SURVEY again');
+  check(s.cur?.type === 'ASSIGN_SURVEYOR' && s.cur.assigneeId === 'role:admin', 'correction done → Admin re-assigns the survey');
+  await assignSurveyor(ctx, USERS.admin, o2.id, USERS.surveyor.userId);
+  s = await state(ctx, o2.id);
+  check(s.cur?.type === 'SURVEY' && s.cur.assigneeId === USERS.surveyor.userId, 'survey re-assigned → SURVEY again');
   await submitSurvey(ctx, USERS.surveyor, o2.id, { ...FIXTURE_SURVEY, result: 'NOT_FEASIBLE' });
   s = await state(ctx, o2.id);
   check(s.stage === 'SURVEY' && s.cur?.type === 'REVIEW_NOT_FEASIBLE' && s.cur.assigneeId === 'role:admin', 'NOT_FEASIBLE → REVIEW_NOT_FEASIBLE → admin');

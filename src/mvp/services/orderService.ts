@@ -245,7 +245,13 @@ export async function applyEvent(
     patch.stage = TO_PROJECT_STAGE[outcome.nextStage];
   }
   if (outcome.nextStatus && outcome.nextStatus !== before.status) patch.status = outcome.nextStatus;
-  patch.participantIds = computeParticipants(order, await listOrderTasks(ctx, orderId));
+  // Customers may not change participantIds (firestore.rules); staff/Admin refresh them.
+  // The only customer event that assigns a uid is EMERGENCY_RAISED, whose technician works
+  // from the task and the service case (both readable by the assignee) instead.
+  const participants = computeParticipants(order, await listOrderTasks(ctx, orderId));
+  if (actor.role !== 'customer' && JSON.stringify(participants) !== JSON.stringify(order.participantIds ?? [])) {
+    patch.participantIds = participants;
+  }
 
   const updated = await updateOrder(ctx, actor, orderId, patch);
 
@@ -498,10 +504,7 @@ export async function getLatestSurvey(ctx: MvpCtx, orderId: string): Promise<Sit
 
 /** Task types whose completion is itself a D-08 event. Others just complete. */
 const COMPLETION_EVENTS: Partial<Record<TaskType, (order: OrderRecord, tasks: Task[]) => MvpEvent>> = {
-  SITE_CORRECTION: (_o, tasks) => ({
-    type: 'CORRECTION_COMPLETED',
-    surveyorId: [...tasks].reverse().find(t => t.type === 'SURVEY')?.assigneeId,
-  }),
+  SITE_CORRECTION: () => ({ type: 'CORRECTION_COMPLETED' }),
 };
 
 export async function completeTask(ctx: MvpCtx, actor: MvpActor, taskId: string, note?: string, evidenceIds: string[] = []): Promise<Task> {
@@ -661,7 +664,9 @@ export async function raiseBlocker(
   await blockerRepository(ctx).create(JSON.parse(JSON.stringify(blocker)));
   if (input.taskId) {
     const task = await taskRepository(ctx).get(input.taskId);
-    if (task && isOpenTask(task) && task.status !== 'BLOCKED') {
+    // Only the task's assignee (or the Admin) changes its status; anyone else's blocker still
+    // turns the order's health BLOCKED through the open blocker itself (D-11).
+    if (task && isOpenTask(task) && task.status !== 'BLOCKED' && (actor.role === 'admin' || isAssignee(task, actor))) {
       await setTaskStatus(ctx, task, 'BLOCKED', { previousStatus: task.status });
     }
   }

@@ -6,7 +6,7 @@
  */
 
 import type { CanonicalUserRole, MilestoneKind, MvpStage, OrderStatus, SurveyResult, TaskType } from '../domain/entities';
-import { AMC_REMINDER_DAYS, DUE_DAYS, EMERGENCY_RESPONSE_MINUTES } from './config';
+import { AMC_REMINDER_DAYS, DUE_DAYS, EMERGENCY_RESPONSE_MINUTES, QC_FAIL_REVIEW_DAYS, READINESS_RETURN_DAYS } from './config';
 import { addDays, addMinutes } from './format';
 
 export type QcDecision = 'PASS' | 'REWORK' | 'FAIL';
@@ -16,7 +16,7 @@ export type MvpEvent =
   | { type: 'LEAD_QUALIFIED'; surveyFeeInr: number }
   | { type: 'SURVEYOR_ASSIGNED'; surveyorId: string; date?: string }
   | { type: 'SURVEY_RESULT'; result: SurveyResult }
-  | { type: 'CORRECTION_COMPLETED'; surveyorId?: string }
+  | { type: 'CORRECTION_COMPLETED' }
   | { type: 'QUOTE_PREPARED'; belowMinimum: boolean }
   | { type: 'MARGIN_APPROVED' }
   | { type: 'QUOTE_SENT' }
@@ -142,10 +142,11 @@ export function outcomeFor(event: MvpEvent, order: OrderSnapshot, now: Date): Ru
       return { create: [spec('REVIEW_NOT_FEASIBLE', ADMIN, due(now, DUE_DAYS.REVIEW_NOT_FEASIBLE), 'SURVEY', true)], completeTypes: ['SURVEY'] };
 
     case 'CORRECTION_COMPLETED':
+      // D-08 says "create SURVEY again". The customer triggers this event, and a customer may
+      // not grant a surveyor access to the order (firestore.rules), so the Admin re-assigns
+      // the survey with one click (ASSIGN_SURVEYOR → SURVEY). Plan deviation, Step 03.
       return {
-        create: [event.surveyorId
-          ? spec('SURVEY', { id: event.surveyorId, role: 'surveyor' }, due(now, DUE_DAYS.SURVEY), 'SURVEY', true)
-          : spec('ASSIGN_SURVEYOR', ADMIN, due(now, DUE_DAYS.ASSIGN_SURVEYOR), 'SURVEY', true)],
+        create: [spec('ASSIGN_SURVEYOR', ADMIN, due(now, DUE_DAYS.ASSIGN_SURVEYOR), 'SURVEY', true, 'Re-assign the survey (customer finished the corrections)')],
         completeTypes: ['SITE_CORRECTION'],
       };
 
@@ -197,7 +198,7 @@ export function outcomeFor(event: MvpEvent, order: OrderSnapshot, now: Date): Ru
       return { create: [spec('VERIFY_SITE_READY', ADMIN, due(now, DUE_DAYS.VERIFY_SITE_READY), 'SITE_READY', true)], completeTypes: ['SITE_READINESS'] };
 
     case 'READINESS_RETURNED':
-      return { create: [spec('SITE_READINESS', customer, due(now, 7), 'SITE_READY', true)], completeTypes: ['VERIFY_SITE_READY'] };
+      return { create: [spec('SITE_READINESS', customer, due(now, READINESS_RETURN_DAYS), 'SITE_READY', true)], completeTypes: ['VERIFY_SITE_READY'] };
 
     case 'SITE_READY_CONFIRMED': {
       const deliveryDue = event.poExpectedDate ?? due(now, DUE_DAYS.TRACK_DELIVERY);
@@ -246,7 +247,7 @@ export function outcomeFor(event: MvpEvent, order: OrderSnapshot, now: Date): Ru
       }
       return {
         nextStatus: 'ON_HOLD',
-        create: [spec('REVIEW_HOLD', ADMIN, due(now, 1), 'QC_HANDOVER', true, 'Review the QC failure (order on hold)')],
+        create: [spec('REVIEW_HOLD', ADMIN, due(now, QC_FAIL_REVIEW_DAYS), 'QC_HANDOVER', true, 'Review the QC failure (order on hold)')],
         completeTypes: ['QC_INSPECTION'],
       };
 

@@ -165,6 +165,19 @@ async function main() {
   ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__1'), { assigneeId: uid.tech2 }))), 'only the Admin can reassign a task');
   ok(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__1'), { status: 'IN_PROGRESS', version: 1 })), 'the assignee can progress their task');
 
+  // Customer writes are limited to their own decisions (scope-guard fix, Step 03).
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { sellingPrice: 1 }))), 'a customer cannot set sellingPrice');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { qcPassedAt: '2026-10-01' }))), 'a customer cannot set qcPassedAt');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { stage: 'warranty_amc' }))), 'a customer cannot jump the stage');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { status: 'ON_HOLD' }))), 'a customer cannot put the order on hold');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { participantIds: [uid.sales, 'customer:C1', uid.tech1, uid.cust2] }))), 'a customer cannot add participants');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'tasks/ord1__INSTALLATION__1'), { status: 'COMPLETED' }))), "a customer cannot complete a technician's task");
+  ok(!(await allowed(setDoc(doc(db.cust, 'tasks/ord1__REWORK__9'), { id: 'ord1__REWORK__9', orderId: 'ord1', type: 'REWORK', assigneeId: uid.tech1, status: 'TODO' }))), 'a customer cannot create tasks for staff');
+  ok(await allowed(setDoc(doc(db.cust, 'tasks/ord1__VERIFY_SITE_READY__1'), { id: 'ord1__VERIFY_SITE_READY__1', orderId: 'ord1', type: 'VERIFY_SITE_READY', assigneeId: 'role:admin', status: 'TODO' })), 'a customer event can create an Admin task');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { status: 'ON_HOLD' }))), 'a technician cannot put the order on hold');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { qcPassedAt: '2026-10-01' }))), 'a technician cannot mark QC passed');
+  ok(!(await allowed(setDoc(doc(db.tech1, 'surveys/sv1'), { id: 'sv1', orderId: 'ord1', surveyorId: uid.tech1 }))), 'only a surveyor can create a survey');
+
   // S7: reassign removes tech1 from participants → tech1 loses access.
   await seed('projects/ord1', { id: 'ord1', customerId: 'C1', siteId: 'S1', stage: 'installation', status: 'ACTIVE', ownerUserId: uid.sales, title: 'ABC', participantIds: [uid.sales, 'customer:C1', uid.tech2].sort(), version: 5 });
   await seed('tasks/ord1__INSTALLATION__1', { id: 'ord1__INSTALLATION__1', orderId: 'ord1', type: 'INSTALLATION', stage: 'INSTALLATION', assigneeId: uid.tech2, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-19', version: 2 });
