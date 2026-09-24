@@ -579,8 +579,10 @@ service cloud.firestore {
 
     match /qc_inspections/{inspectionId} {
       allow read: if isAdminOrOwner() || isRecordOwner('inspectorId') || isParticipantOf(resource.data.projectId);
-      // Phase 35: customer/supplier sessions cannot create QC records.
-      allow create: if isTechnician();
+      // Step 11 (open issue #15): scoped to the order's own participants — a
+      // technician/qc/qc_inspector could otherwise inspect ANY order, not just
+      // their own (D-12 participant model).
+      allow create: if isAdmin() || (isTechnician() && isParticipantOf(request.resource.data.projectId));
       allow update: if isAdmin() || isRecordOwner('inspectorId');
       allow delete: if false;
     }

@@ -217,6 +217,7 @@ async function main() {
   await seed('projects/ord3', { id: 'ord3', customerId: 'C1', siteId: 'S3', stage: 'qc', status: 'ACTIVE', ownerUserId: uid.sales, title: 'DEF', participantIds: partsOrd3, version: 0 });
   await seed('tasks/ord3__QC_INSPECTION__1', { id: 'ord3__QC_INSPECTION__1', orderId: 'ord3', type: 'QC_INSPECTION', stage: 'QC_HANDOVER', assigneeId: uid.qc, assigneeRole: 'qc', status: 'TODO', dueDate: '2026-10-22', version: 0 });
   ok(await allowed(setDoc(doc(db.qc, 'qc_inspections/qci1'), { id: 'qci1', projectId: 'ord3', inspectorId: uid.qc, decision: 'PASS', result: 'pass' })), 'qc creates their own inspection record');
+  ok(!(await allowed(setDoc(doc(db.tech1, 'qc_inspections/qci_spoof'), { id: 'qci_spoof', projectId: 'ord3', inspectorId: uid.tech1, decision: 'PASS', result: 'pass' }))), 'Step 11 (issue #15 fix): a technician who is not a participant of the order cannot create an inspection for it');
   ok(await allowed(getDoc(doc(db.qc, 'qc_inspections/qci1'))), 'the inspector reads their own inspection');
   ok(!(await allowed(getDoc(doc(db.tech1, 'qc_inspections/qci1')))), 'a non-participant technician cannot read the inspection');
   ok(await allowed(updateDoc(doc(db.qc, 'qc_inspections/qci1'), { remarks: 'edited' })), 'the inspector updates their own inspection');

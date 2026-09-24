@@ -31,6 +31,7 @@ import { notify } from './notify';
 import {
   applyEvent, customerToken, isAssignee, listOrderTasks, MvpError, nowOf, type MvpActor, type MvpCtx,
 } from './orderService';
+import { requireText } from '../validate';
 
 async function audit(ctx: MvpCtx, actor: MvpActor, action: string, entityType: string, entityId: string, orderId: string | undefined, before: unknown, after: unknown, reason?: string) {
   await recordAuditEvent(ctx, {
@@ -41,12 +42,6 @@ async function audit(ctx: MvpCtx, actor: MvpActor, action: string, entityType: s
 
 function requireAdmin(actor: MvpActor, what: string) {
   if (actor.role !== 'admin') throw new MvpError('forbidden', `Only the Admin can ${what}.`);
-}
-
-function requireText(value: string | undefined, what: string): string {
-  const v = (value ?? '').trim();
-  if (!v) throw new MvpError('invalid', `${what} is required.`);
-  return v;
 }
 
 async function openTaskOf(ctx: MvpCtx, orderId: string, type: Task['type']): Promise<Task | undefined> {
