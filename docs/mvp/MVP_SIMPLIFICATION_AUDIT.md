@@ -1,6 +1,6 @@
 # MVP SIMPLIFICATION AUDIT (Step 01, Phase A)
 
-> **Status:** DRAFT, awaiting Owner approval.
+> **Status:** APPROVED by the Owner on 2026-09-24, with no changes. The §8 defaults stand; Q7 still needs the actual emergency phone number. The §6 proposals R-1 to R-8 go to Step 02, which freezes them in DECISIONS.md.
 > **Snapshot:** branch `claude/mvp-step-01-audit`, based on `main` at `74bb273` (Step 00), 2026-09-24.
 > **Method:** read-only inspection of the real code. Every claim below cites a file, and a grep or script produced the counts. No application code changed.
 > **Legend** (same as `REUSE_MAP.md`): ◆ canonical · ★ dual-write bridged · ○ legacy `DbManager`/localStorage · □ UI-only / mock state.

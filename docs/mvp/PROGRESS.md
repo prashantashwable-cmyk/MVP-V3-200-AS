@@ -4,16 +4,15 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 00 Bootstrap and baseline
-- **In review:** 01 AUDIT. `docs/mvp/MVP_SIMPLIFICATION_AUDIT.md` is written; waiting for the Owner's "APPROVED"
-- **Next step:** 02 PLAN (after Step 01 is approved and marked DONE)
-- **Blocked on Owner:** Step 01 approval + the 10 questions in audit §8 (logins, pilot deployment, Firebase access, existing data, payments, survey fee, emergency number, licence, GST, staging)
+- **Last completed step:** 01 Audit (Phase A), approved 2026-09-24
+- **Next step:** 02 PLAN (`docs/mvp/prompts/02_PLAN.md`)
+- **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
 |---|---|---|---|---|---|
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
-| 01 | Audit (Phase A) | IN REVIEW | MVP Step 01 draft PR | 2026-09-24 | Audit written; awaiting Owner approval |
+| 01 | Audit (Phase A) | DONE | #3 | 2026-09-24 | Owner approved with no changes; §8 defaults accepted |
 | 02 | Plan (Phase B) | TODO | | | Needs Owner approval |
 | 03 | Data foundation | TODO | | | |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
@@ -96,11 +95,15 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Added emulator-only config (D-19): `firebase.emulator.json` (Auth 9099, Firestore 8080, Storage 9199, UI off, uses the existing `firestore.rules`) and `emulator/storage.rules`. These always run under the `demo-aie-mvp` project ID, so they cannot reach a real project. There is no `firebase.json` or `.firebaserc`, and no production Firebase setting was changed.
 - No application code changed. No `live-*` script was run.
 
-### Step 01: Audit, Phase A (2026-09-24), IN REVIEW
+### Step 01: Audit, Phase A (2026-09-24), DONE
 - Read-only on application code. Created `docs/mvp/MVP_SIMPLIFICATION_AUDIT.md`. Corrected `docs/mvp/REUSE_MAP.md` in place, as the step prompt's item 8 asks ("Step 01:" notes; new mark ◐). REPO_FACTS differences are recorded in audit §10 and the file itself was left as the pre-inspection snapshot.
 - Key findings: only `leads` and `users` are really shared today. The 16 ★ bridges are soft-fail shadow writes. There is no Storage integration. The payment gateway is simulated. Customers have no rules access to canonical data. There is a self-role-claim hole in the `users` rules. "Try as Role" is not build-gated.
 - Classification of 194 screens: KEEP 8, SIMPLIFY 35, DISABLE 150, DELETE 1 (`CustomReportBuilder`, proven dead). Marks: ◆ 2, ★ 16, ○ 137, □ 39.
 - Live deployment: Vercel project `v3-200-ai-studio` confirmed to exist (read-only Vercel connector). Its deployments and env vars returned 403 (scope), so `VITE_APP_ENV` on the live build is unverified.
 - Proposed DECISIONS changes R-1 to R-8 (audit §6). **Not applied**; they wait for Owner approval.
 - Commands run (no code changed): `npm run lint` PASS; `npm run build` PASS; `project-operating-view:check`, `work-queue:check`, `production-demo-gate:check`, `authz:check`, `e2e:check`, `simulation:full-company` all PASS. No `live-*` script run. `git status` clean after the checks (no doc-date rewrites).
+- **Owner approval (2026-09-24):** "Approved", with no changes. So:
+  - The audit's §8 defaults stand: Google sign-in with an invite list only; Vercel pilot; treat Firestore `leads`/`users` as real; record payments manually; survey fee 0; Admin handles the licence with a 30-day task ⚖; GST unconfirmed until the CA confirms it; a staging project is recommended but not blocking.
+  - Q7 (the emergency number) is still open.
+  - DECISIONS.md is unchanged. The Owner changed no decision. Step 02 folds the audit's R-1 to R-8 into the plan and freezes them.
 
