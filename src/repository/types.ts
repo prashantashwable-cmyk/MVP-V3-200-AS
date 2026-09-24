@@ -58,6 +58,8 @@ export interface Repository<T extends { id: string }> {
   get(id: string): Promise<T | null>;
   list(): Promise<T[]>;
   query(predicate: Partial<T>): Promise<T[]>;
+  /** MVP: records whose array field `field` contains `value` (Firestore `array-contains`). */
+  queryContains(field: keyof T & string, value: string): Promise<T[]>;
   create(record: T): Promise<T>;
   /** Full replace of a record. If `expectedVersion` is passed and the
    * stored record's `version` differs, rejects with a `StaleWriteError`

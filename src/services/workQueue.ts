@@ -24,7 +24,10 @@ import type { RepositoryContext } from '../repository/types';
 import { projectRepository } from '../repository/entities';
 import { computeBlockers, NEXT_ACTION_BY_STAGE } from './projectOperatingView';
 import type { ControlTowerCategory } from './controlTower';
-import type { Project, ProjectStage } from '../domain/entities';
+import type { Project, ProjectStage, Task } from '../domain/entities';
+import { taskRepository } from '../repository/entities';
+import { isOpenTask } from '../mvp/health';
+import { actorTokens, type MvpActor } from '../mvp/services/orderService';
 
 /** Stages a project can sit in indefinitely without it meaning anything
  * is wrong — no work item is generated for these. */
@@ -92,3 +95,19 @@ export async function getWorkQueueItems(ctx: RepositoryContext): Promise<WorkQue
 
   return items.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || b.daysInStage - a.daysInStage);
 }
+
+/**
+ * MVP (D-06): the work queue reads persisted tasks. One query per assignee token the
+ * actor answers to (uid, customer token, role token), so firestore.rules can prove each
+ * query. Open tasks first, then by due date.
+ */
+export async function getMvpTaskQueue(ctx: RepositoryContext, actor: MvpActor): Promise<Task[]> {
+  const repo = taskRepository(ctx);
+  const results = await Promise.all(actorTokens(actor).map(t => repo.query({ assigneeId: t } as Partial<Task>)));
+  const byId = new Map<string, Task>();
+  for (const t of results.flat()) byId.set(t.id, t);
+  return [...byId.values()]
+    .filter(isOpenTask)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+

@@ -74,6 +74,11 @@ export function createFirestoreRepository<T extends { id: string; version?: numb
       return snap.docs.map(d => d.data() as T);
     },
 
+    async queryContains(field, value) {
+      const snap = await getDocs(query(collection(requireDb(), collectionName), where(field, 'array-contains', value)));
+      return snap.docs.map(d => d.data() as T);
+    },
+
     async create(record) {
       await setDoc(doc(requireDb(), collectionName, record.id), stripUndefined(record));
       return record;
