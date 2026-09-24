@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { api, apiRaw, useLive } from './api';
 import type { Me } from './api';
 import { queueEvidence, retryFailed, useOutbox, labelOf } from './offline';
-import { EvidenceImage, Notifications, Progress, SignaturePad, StatusPill, compressImage, demoPhotoDataUrl, inr, toast } from './ui';
+import { ask, EvidenceImage, Notifications, Progress, SignaturePad, StatusPill, compressImage, demoPhotoDataUrl, inr, toast } from './ui';
 
 export interface WorkView {
   id: string; version: number; type: string; label: string; status: string; nextAction: string;
@@ -114,7 +114,7 @@ export function WorkCard({ w, me, onChange, onDone }: { w: WorkView; me: Me; onC
       {w.status === 'ASSIGNED' && (
         <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', marginTop: 12 }}>
           <button className="btn primary big" disabled={busy} onClick={() => act(() => api(`/work/${w.id}/accept`, 'POST', { version: w.version }))}>ACCEPT</button>
-          <button className="btn" disabled={busy} onClick={() => { const reason = prompt('Why are you declining? The system will reassign immediately.'); if (reason !== null) act(() => api(`/work/${w.id}/decline`, 'POST', { reason })); }}>Decline</button>
+          <button className="btn" disabled={busy} onClick={async () => { const a = await ask('Decline this work?', [{ key: 'reason', label: 'Reason', value: '' }], { note: 'The system will reassign it immediately.', confirm: 'Decline' }); if (a) act(() => api(`/work/${w.id}/decline`, 'POST', { reason: a.reason })); }}>Decline</button>
         </div>
       )}
       {w.completion === 'decision' && w.status === 'OPEN' && <QuoteDecision w={w} busy={busy} act={act} onDone={onDone} />}
@@ -139,7 +139,7 @@ function QuoteDecision({ w, busy, act, onDone }: { w: WorkView; busy: boolean; a
       )}
       <div className="grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
         <button className="btn primary big" disabled={busy} onClick={() => act(async () => { await api(`/work/${w.id}/decide`, 'POST', { accept: true }); onDone('Quotation accepted'); })}>ACCEPT QUOTATION</button>
-        <button className="btn" disabled={busy} onClick={() => { const reason = prompt('Reason for declining?'); if (reason !== null) act(() => api(`/work/${w.id}/decide`, 'POST', { accept: false, reason })); }}>Decline</button>
+        <button className="btn" disabled={busy} onClick={async () => { const a = await ask('Decline the quotation?', [{ key: 'reason', label: 'Reason', value: '' }], { note: 'This closes the project.', confirm: 'Decline quotation' }); if (a) act(() => api(`/work/${w.id}/decide`, 'POST', { accept: false, reason: a.reason })); }}>Decline</button>
       </div>
     </div>
   );

@@ -20,8 +20,8 @@
  *
  * No LLM is involved anywhere in this file.
  */
-import type { DB } from '../db';
-import { getMeta, setMeta } from '../db';
+import type { DB } from '../db-core';
+import { getMeta, setMeta } from '../db-core';
 import { CATALOG, taskForState } from './catalog';
 import type { LadderStep, Role, TaskType, TaskTypeDef } from './catalog';
 import { HAPPY_PATH, STATE_LABEL, TRANSIENT_NEXT, isLegalTransition } from './lifecycle';

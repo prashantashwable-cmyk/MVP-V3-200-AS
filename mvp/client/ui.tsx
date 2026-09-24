@@ -124,3 +124,46 @@ export function SignaturePad({ onDone }: { onDone: (dataUrl: string) => void }) 
     </div>
   );
 }
+
+/**
+ * In-page replacement for window.prompt(): works everywhere, including
+ * embedded viewers that block native dialogs. Resolves null on Cancel.
+ */
+export interface AskField { key: string; label: string; value?: string; type?: 'text' | 'number' }
+type AskState = { title: string; note?: string; fields: AskField[]; confirm: string; resolve: (v: Record<string, string> | null) => void };
+let askSetter: ((s: AskState | null) => void) | null = null;
+
+export function ask(title: string, fields: AskField[], opts: { note?: string; confirm?: string } = {}): Promise<Record<string, string> | null> {
+  return new Promise(resolve => {
+    if (!askSetter) return resolve(null);
+    askSetter({ title, fields, note: opts.note, confirm: opts.confirm ?? 'OK', resolve });
+  });
+}
+
+export function AskHost() {
+  const [state, setState] = useState<AskState | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  askSetter = s => { setValues(Object.fromEntries((s?.fields ?? []).map(f => [f.key, f.value ?? '']))); setState(s); };
+  if (!state) return null;
+  const close = (v: Record<string, string> | null) => { state.resolve(v); setState(null); };
+  return (
+    <div className="modal center" onClick={() => close(null)}>
+      <form className="card dialog" role="dialog" aria-label={state.title} onClick={e => e.stopPropagation()}
+        onSubmit={e => { e.preventDefault(); close(values); }}>
+        <h2>{state.title}</h2>
+        {state.note && <p className="muted small">{state.note}</p>}
+        {state.fields.map((f, i) => (
+          <div key={f.key} style={{ marginTop: 8 }}>
+            <label className="small" htmlFor={`ask-${f.key}`}>{f.label}</label>
+            <input id={`ask-${f.key}`} type={f.type ?? 'text'} autoFocus={i === 0} value={values[f.key] ?? ''}
+              onChange={e => setValues({ ...values, [f.key]: e.target.value })} />
+          </div>
+        ))}
+        <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+          <button type="button" className="btn" onClick={() => close(null)}>Cancel</button>
+          <button type="submit" className="btn primary">{state.confirm}</button>
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -13,6 +13,14 @@ npm run mvp:dev      # → http://localhost:3100
 - The V3 app is unchanged: `npm run dev` still starts it on port 3000.
 - Node ≥ 22.5 is required (built-in `node:sqlite`). The "SQLite is an experimental feature" warning is expected.
 
+## Phone demo (no server)
+
+```bash
+npm run mvp:build-web   # → mvp/dist/aiec-work-manager.html (one self-contained file, ~1.2 MB)
+```
+
+The whole MVP runs inside that one page: the same engine, routes and authorization, scheduler and demo bot, with SQLite compiled to WebAssembly (`sql.js`). Data is saved in that browser's storage. Every user lives on that one device, so use **Switch user** to change roles. **Reset demo data** on the login screen starts fresh. For several phones sharing one live system, run the Node server instead.
+
 ## Demo users (PIN `1234` for everyone)
 
 | Role | User | Notes |

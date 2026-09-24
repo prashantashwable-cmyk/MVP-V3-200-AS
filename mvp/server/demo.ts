@@ -22,7 +22,7 @@ export function demoPhoto(label: string, color = '#1f6feb'): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="100%" height="100%" fill="${color}"/>` +
     `<text x="50%" y="45%" fill="#fff" font-family="sans-serif" font-size="18" text-anchor="middle">DEMO PHOTO</text>` +
     `<text x="50%" y="62%" fill="#fff" font-family="sans-serif" font-size="14" text-anchor="middle">${label.replace(/[<&>]/g, '')}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 export interface EvidenceVariant { offSite?: boolean; qcFail?: boolean; badMeasurement?: boolean; keyPrefix?: string }

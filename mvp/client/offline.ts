@@ -18,12 +18,20 @@ export interface EvidencePayload {
 }
 type Item = OutboxItem<EvidencePayload>;
 
-let store: DurableStore<Item>;
-try {
-  store = typeof indexedDB !== 'undefined' ? createIndexedDbStore<Item>('aiec-mvp-evidence') : createMemoryStore<Item>();
-} catch {
-  store = createMemoryStore<Item>();
+/** IndexedDB when the browser allows it; memory if storage is blocked (private mode, embedded viewers). */
+function resilientStore(): DurableStore<Item> {
+  const mem = createMemoryStore<Item>();
+  let idb: DurableStore<Item> | null = null;
+  try { if (typeof indexedDB !== 'undefined') idb = createIndexedDbStore<Item>('aiec-mvp-evidence'); } catch { idb = null; }
+  const use = async <R>(fn: (s: DurableStore<Item>) => Promise<R>): Promise<R> => {
+    if (idb) {
+      try { return await fn(idb); } catch { idb = null; }
+    }
+    return fn(mem);
+  };
+  return { put: i => use(s => s.put(i)), get: id => use(s => s.get(id)), list: () => use(s => s.list()), delete: id => use(s => s.delete(id)) };
 }
+const store = resilientStore();
 const outbox = new Outbox<EvidencePayload>(store);
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach(l => l());

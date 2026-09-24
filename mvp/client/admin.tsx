@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { api, useLive } from './api';
-import { EvidenceImage, HealthPill, Notifications, Progress, StatusPill, inr, toast } from './ui';
+import { ask, EvidenceImage, HealthPill, Notifications, Progress, StatusPill, inr, toast } from './ui';
 
 type Tab = 'tower' | 'health' | 'improve' | 'users' | 'demo';
 
@@ -24,13 +24,12 @@ export function AdminPage() {
       </div>
 
       <div className="grid kpis" style={{ marginTop: 12 }}>
-        <Kpi v={t?.counts.active} l="Active projects" />
+        <Kpi v={t?.counts.active} l={`Active projects${t ? ` · ${t.counts.completed} completed` : ''}`} />
         <Kpi v={t?.counts.autoRunning} l="Moving automatically" tone="ok" />
         <Kpi v={t?.counts.waitingForUser} l="System recovering" tone="warn" />
         <Kpi v={t?.counts.adminActionsRequired} l="Admin actions required" tone={t?.counts.adminActionsRequired ? 'bad' : undefined} />
         <Kpi v={k ? `${k.automationRate}%` : undefined} l="Automation rate" />
         <Kpi v={k?.adminInterventionsPerProject} l="Admin interventions / project" />
-        <Kpi v={t?.counts.completed} l="Completed" />
       </div>
 
       <div className="tabs" role="tablist">
@@ -194,17 +193,23 @@ function AdminActions({ why, users, projectId, onDone }: { why: any; users: any[
               <option value="">Assign to…</option>
               {why.candidates.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <button className="btn" disabled={!to} onClick={() => run(`/admin/work/${w.id}/assign`, { userId: to, reason: prompt('Reason?') ?? 'Admin decision' }, 'Assigned')}>Assign</button>
+            <button className="btn" disabled={!to} onClick={async () => { const a = await ask('Assign work', [{ key: 'reason', label: 'Reason', value: 'Admin decision' }], { confirm: 'Assign' }); if (a) run(`/admin/work/${w.id}/assign`, { userId: to, reason: a.reason }, 'Assigned'); }}>Assign</button>
           </div>
         )}
         <div className="row">
-          {opts.includes('extend') && <button className="btn" onClick={() => { const h = prompt('Extend deadline by how many hours?', '24'); if (h) run(`/admin/work/${w.id}/extend`, { minutes: Number(h) * 60, reason: prompt('Reason (e.g. called customer)?') ?? '' }, 'Deadline extended'); }}>Extend deadline</button>}
-          {opts.includes('approve_flag') && <button className="btn primary" onClick={() => run(`/admin/work/${w.id}/review`, { approve: true, note: prompt('Approval note?') ?? '' }, 'Approved')}>Approve flagged evidence</button>}
-          {opts.includes('reject_flag') && <button className="btn danger" onClick={() => run(`/admin/work/${w.id}/review`, { approve: false, note: prompt('What must be redone?') ?? '' }, 'Sent back')}>Reject evidence</button>}
-          {opts.includes('offline_payment') && <button className="btn" onClick={() => { const ref = prompt('NEFT/UTR/cheque reference'); if (ref) run(`/admin/work/${w.id}/offline-payment`, { reference: ref }, 'Offline payment recorded'); }}>Record offline payment</button>}
-          {opts.includes('complete_lead') && <button className="btn" onClick={() => {
-            const lat = prompt('Site latitude', '18.5204'), lng = prompt('Site longitude', '73.8567'), floors = prompt('Floors', '4'), phone = prompt('Customer phone (if missing)', '');
-            run(`/admin/projects/${projectId}/lead`, { lat: Number(lat), lng: Number(lng), floors: Number(floors), customerPhone: phone || undefined, siteAddress: prompt('Site address (if missing)', '') || undefined }, 'Lead updated');
+          {opts.includes('extend') && <button className="btn" onClick={async () => { const a = await ask('Extend deadline', [{ key: 'hours', label: 'Extra hours', value: '24', type: 'number' }, { key: 'reason', label: 'Reason', value: 'Called customer' }], { confirm: 'Extend' }); if (a && Number(a.hours) > 0) run(`/admin/work/${w.id}/extend`, { minutes: Number(a.hours) * 60, reason: a.reason }, 'Deadline extended'); }}>Extend deadline</button>}
+          {opts.includes('approve_flag') && <button className="btn primary" onClick={async () => { const a = await ask('Approve flagged evidence', [{ key: 'note', label: 'Approval note', value: '' }], { confirm: 'Approve' }); if (a) run(`/admin/work/${w.id}/review`, { approve: true, note: a.note }, 'Approved'); }}>Approve flagged evidence</button>}
+          {opts.includes('reject_flag') && <button className="btn danger" onClick={async () => { const a = await ask('Reject evidence', [{ key: 'note', label: 'What must be redone?', value: '' }], { confirm: 'Send back' }); if (a) run(`/admin/work/${w.id}/review`, { approve: false, note: a.note }, 'Sent back'); }}>Reject evidence</button>}
+          {opts.includes('offline_payment') && <button className="btn" onClick={async () => { const a = await ask('Record offline payment', [{ key: 'ref', label: 'NEFT / UTR / cheque reference', value: '' }], { confirm: 'Record payment' }); if (a?.ref.trim()) run(`/admin/work/${w.id}/offline-payment`, { reference: a.ref }, 'Offline payment recorded'); }}>Record offline payment</button>}
+          {opts.includes('complete_lead') && <button className="btn" onClick={async () => {
+            const a = await ask('Complete lead details', [
+              { key: 'lat', label: 'Site latitude', value: '18.5204', type: 'number' },
+              { key: 'lng', label: 'Site longitude', value: '73.8567', type: 'number' },
+              { key: 'floors', label: 'Floors', value: '4', type: 'number' },
+              { key: 'phone', label: 'Customer phone (if missing)', value: '' },
+              { key: 'address', label: 'Site address (if missing)', value: '' },
+            ], { confirm: 'Save' });
+            if (a) run(`/admin/projects/${projectId}/lead`, { lat: Number(a.lat), lng: Number(a.lng), floors: Number(a.floors), customerPhone: a.phone || undefined, siteAddress: a.address || undefined }, 'Lead updated');
           }}>Complete lead details</button>}
         </div>
       </div>

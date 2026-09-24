@@ -4,7 +4,9 @@ import { api, clearSession, getSession, setSession } from './api';
 import type { Me } from './api';
 import { AdminPage } from './admin';
 import { CustomerPage, MyWorkPage } from './field';
-import { Toaster, toast } from './ui';
+import { AskHost, Toaster, ask, toast } from './ui';
+
+const browserDemo: { reset(): Promise<void> } | undefined = (window as any).__AIEC_BROWSER_DEMO__;
 
 const ROLE_LABEL: Record<Me['role'], string> = { admin: 'Admin', technician: 'Technician', customer: 'Customer', supplier: 'Supplier' };
 
@@ -25,7 +27,9 @@ function Login({ onLogin }: { onLogin: (m: Me) => void }) {
     <div className="wrap narrow">
       <div className="card" style={{ marginTop: 24 }}>
         <h1>AIEC Work Manager</h1>
-        <p className="muted">ALL INDIA ELEVATORS COMPANY · workflow MVP. Pick who you are. Each browser tab can be a different person, so open one tab per role to watch them work together.</p>
+        <p className="muted">ALL INDIA ELEVATORS COMPANY · workflow MVP. Pick who you are.{' '}
+          {browserDemo ? 'This phone demo runs every user on this device: use Switch user (top right) to move between Admin, technician, customer and supplier.' : 'Each browser tab can be a different person, so open one tab per role to watch them work together.'}</p>
+        {browserDemo && <p className="small muted">Tip: log in as Admin and tap ▶ START DEMO. The demo bot plays the field users while you watch the Control Tower.</p>}
         {groups.map(g => (
           <div key={g} style={{ marginTop: 12 }}>
             <div className="muted small" style={{ fontWeight: 600 }}>{ROLE_LABEL[g].toUpperCase()}</div>
@@ -43,6 +47,11 @@ function Login({ onLogin }: { onLogin: (m: Me) => void }) {
           <button className="btn primary" disabled={!pick} onClick={() => login(pick)}>Log in</button>
           <span className="small muted">Demo PIN: 1234</span>
         </div>
+        {browserDemo && (
+          <div className="row" style={{ marginTop: 16 }}>
+            <button className="btn danger" onClick={async () => { const a = await ask('Reset all demo data?', [], { note: 'Deletes every project on this device and starts fresh.', confirm: 'Reset' }); if (a) browserDemo.reset(); }}>Reset demo data</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -71,6 +80,7 @@ function App() {
       {(me?.role === 'technician' || me?.role === 'supplier') && <MyWorkPage me={me} />}
       {me?.role === 'customer' && <CustomerPage me={me} />}
       <Toaster />
+      <AskHost />
     </>
   );
 }

@@ -5,7 +5,7 @@
  * reassignment, separation of duties (QC ≠ installer) and customer data
  * isolation can be demonstrated. All demo PINs are 1234.
  */
-import type { DB } from './db';
+import type { DB } from './db-core';
 
 export const DEMO_PIN = '1234';
 
