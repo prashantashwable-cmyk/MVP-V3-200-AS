@@ -7,18 +7,31 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    // MVP Step 03: a signed-in user with no profile document now has NO role
+    // ('none'), instead of being treated as a customer by default.
+    // Also fixed (found by the emulator check): `request.auth.token.role` throws when the
+    // token has no custom `role` claim, which made getUserRole() error for every user
+    // without that claim. Rules errors deny, so admins other than the owner email were
+    // always denied. Use a safe map lookup instead.
+    function tokenEmail() {
+      return request.auth.token.get('email', null);
+    }
+
     function getUserRole() {
-      return request.auth.token.role != null ? request.auth.token.role : 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : 'customer');
+      return request.auth.token.get('role', null) != null ? request.auth.token.role :
+        (exists(userPath()) ? get(userPath()).data.role : 'none');
     }
 
     function isAdmin() {
-      return isAuthenticated() && (getUserRole() == 'admin' || request.auth.token.email == 'prashantashwable@gmail.com');
+      return isAuthenticated() && (getUserRole() == 'admin' || tokenEmail() == 'prashantashwable@gmail.com');
     }
 
     function isTechnician() {
-      return isAuthenticated() && (getUserRole() == 'technician' || getUserRole() == 'qc_inspector' || isAdmin());
+      return isAuthenticated() && (getUserRole() == 'technician' || getUserRole() == 'qc_inspector' || getUserRole() == 'qc' || isAdmin());
     }
 
     function isSurveyor() {
@@ -30,49 +43,143 @@ service cloud.firestore {
     }
 
     function isOwnerEmail() {
-      return isAuthenticated() && request.auth.token.email == 'prashantashwable@gmail.com';
+      return isAuthenticated() && tokenEmail() == 'prashantashwable@gmail.com';
+    }
+
+    // ---- MVP helpers (docs/mvp/MVP_REFACTOR_PLAN.md §3) ----
+    // Owner role: read-only on everything (D-12).
+    function isOwnerRole() {
+      return isAuthenticated() && getUserRole() == 'owner';
+    }
+
+    function isAdminOrOwner() {
+      return isAdmin() || isOwnerRole();
+    }
+
+    function isSales() {
+      return isAuthenticated() && getUserRole() == 'sales';
+    }
+
+    // Customers are linked to their Customer record by invite (D-13); their
+    // participant token on an order is 'customer:<customerId>'.
+    function myCustomerToken() {
+      return exists(userPath()) && get(userPath()).data.get('customerId', null) != null
+        ? 'customer:' + get(userPath()).data.customerId
+        : '__no_customer__';
+    }
+
+    function amIn(ids) {
+      return request.auth.uid in ids || myCustomerToken() in ids;
+    }
+
+    function orderPath(orderId) {
+      return /databases/$(database)/documents/projects/$(orderId);
+    }
+
+    // D-12 participant model: order access comes from projects/{id}.participantIds.
+    function isParticipantOf(orderId) {
+      return isAuthenticated() && orderId != null && exists(orderPath(orderId)) &&
+        amIn(get(orderPath(orderId)).data.get('participantIds', []));
+    }
+
+    function canReadOrderScoped(orderId) {
+      return isAdminOrOwner() || isParticipantOf(orderId);
+    }
+
+    function leadPath(leadId) {
+      return /databases/$(database)/documents/leads/$(leadId);
+    }
+
+    function isLeadOwner(leadId) {
+      return isAuthenticated() && leadId != null && exists(leadPath(leadId)) &&
+        (get(leadPath(leadId)).data.get('ownerUserId', null) == request.auth.uid ||
+         get(leadPath(leadId)).data.get('surveyorId', null) == request.auth.uid);
+    }
+
+    function onlyKeys(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // Forward-only stage rank for non-admin writers (D-03, I-4).
+    function stageRank(s) {
+      return {
+        'lead': 0, 'closed_lost': 0, 'customer_site_confirmed': 1, 'survey': 2, 'quoting': 3, 'negotiation': 3,
+        'contract': 4, 'payment': 4, 'site_ready': 5, 'procurement': 6, 'production': 6, 'delivery': 6,
+        'installation': 7, 'qc': 8, 'handover': 8, 'warranty_amc': 9, 'service': 9
+      }[s];
+    }
+
+    // An invite for the signed-in user's verified email (D-13 as changed in Step 02).
+    function invitePath() {
+      return /databases/$(database)/documents/invites/$(request.auth.token.email.lower());
+    }
+
+    function inviteMatches() {
+      return isAuthenticated() && tokenEmail() != null && request.auth.token.get('email_verified', false) == true &&
+        exists(invitePath()) &&
+        get(invitePath()).data.role == request.resource.data.role &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.get('customerId', null) == get(invitePath()).data.get('customerId', null);
     }
 
     // 1. Users collection
     // Users can read their own profile; only Admins can create/modify arbitrary user roles.
     //
-    // Phase 05 fix (real, previously-live privilege-escalation hole):
-    // the prior blanket `allow write: if ... request.auth.uid == userId`
-    // let ANY authenticated user set THEIR OWN `role` field to 'admin'
-    // (or any other role) via a direct Firestore write, bypassing the
-    // owner-email-only admin logic that existed only in client JS
-    // (src/lib/firestoreUsers.ts) — exactly the "client-side authorization
-    // is not enforcement" gap non-negotiable principle #8 warns about.
-    // Fixed by: (a) a new document may only self-claim role 'admin' if
-    // the token's email is the designated owner email — matching the
-    // existing client-side intent, now actually enforced; (b) an
-    // existing document's `role`/`status` can only be changed by an
-    // Admin, never by the user themself.
+    // Phase 05 fix: an existing document's `role`/`status` can only be changed by an Admin.
+    // MVP Step 03 fix (audit F-1): a NEW document could previously self-claim any
+    // non-admin role with any status (e.g. an active 'surveyor', which could read
+    // every customer). Now a self-created profile is either the pending placeholder,
+    // exactly the role/customer the Admin's invite names (verified email), or the
+    // owner email's admin profile.
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isOwnerRole());
 
-      allow create: if isAuthenticated() && request.auth.uid == userId &&
-        (isOwnerEmail() || request.resource.data.role != 'admin');
+      allow create: if isAuthenticated() && request.auth.uid == userId && (
+        isOwnerEmail() ||
+        (request.resource.data.role == 'pending_selection' && request.resource.data.status == 'pending') ||
+        // Phase 05 guard kept: a self-created profile never claims 'admin' (only the owner email can).
+        (inviteMatches() && request.resource.data.role != 'admin')
+      );
 
       allow update: if isAdmin() || (
-        isAuthenticated() && request.auth.uid == userId &&
-        request.resource.data.role == resource.data.role &&
-        request.resource.data.status == resource.data.status
+        isAuthenticated() && request.auth.uid == userId && (
+          (request.resource.data.role == resource.data.role &&
+           request.resource.data.status == resource.data.status &&
+           request.resource.data.get('customerId', null) == resource.data.get('customerId', null)) ||
+          // A user who signed in before being invited may apply their invite once.
+          (resource.data.role == 'pending_selection' && inviteMatches() && request.resource.data.role != 'admin')
+        )
       );
 
       allow delete: if isAdmin();
     }
 
-    // 1b. Leads (sales pipeline captured by surveyors, managed by admins)
+    // MVP: the Admin's invite list (id = lower-case email). A user may read only their own invite.
+    match /invites/{inviteId} {
+      allow read: if isAdmin() || (isAuthenticated() && tokenEmail() != null &&
+        tokenEmail().lower() == inviteId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 1b. Leads (sales pipeline captured by surveyors/sales, managed by admins)
+    // MVP: sales users create and see their own leads (ownerUserId); the owner role reads all.
     match /leads/{leadId} {
-      allow read: if isAuthenticated() && (
-        isAdmin() ||
-        resource.data.surveyorId == request.auth.uid
+      allow get: if isAuthenticated() && (resource == null ||
+        isAdminOrOwner() ||
+        resource.data.get('surveyorId', null) == request.auth.uid ||
+        resource.data.get('ownerUserId', null) == request.auth.uid);
+      allow list: if isAuthenticated() && (
+        isAdminOrOwner() ||
+        resource.data.get('surveyorId', null) == request.auth.uid ||
+        resource.data.get('ownerUserId', null) == request.auth.uid
       );
-      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor() ||
+        (isSales() && request.resource.data.ownerUserId == request.auth.uid));
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        resource.data.surveyorId == request.auth.uid
+        resource.data.get('surveyorId', null) == request.auth.uid ||
+        (resource.data.get('ownerUserId', null) == request.auth.uid &&
+         request.resource.data.get('ownerUserId', null) == request.auth.uid)
       );
       allow delete: if isAdmin();
     }
@@ -81,7 +188,7 @@ service cloud.firestore {
     // Customers can ONLY read their own elevator contracts; Admins have full access.
     match /contracts/{contractId} {
       allow read: if isAuthenticated() && (
-        isAdmin() || 
+        isAdmin() ||
         resource.data.customerId == request.auth.uid ||
         resource.data.customerEmail == request.auth.token.email
       );
@@ -120,9 +227,9 @@ service cloud.firestore {
     }
 
     // 5. Audit Logs Master
-    // STRICT: Master audit logs are read-only to Admin for enterprise compliance.
+    // STRICT: Master audit logs are read-only to Admin (and, MVP, the read-only Owner role).
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdminOrOwner();
       allow create: if isAuthenticated(); // Application server/client logs audit trail
       allow update, delete: if false;     // Immutable audit trail
     }
@@ -134,59 +241,195 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 7. Phase 04 — canonical project-spine collections (Customer, Site,
-    // Project, Quote, QuoteVersion, Contract, PaymentSchedule, Payment).
-    // See src/domain/entities.ts for the shapes and src/repository/ for
-    // the code that writes them.
+    // 7. Phase 04 — canonical project-spine collections.
     //
-    // These rules are intentionally conservative pending Phase 05's full
-    // permission model: Admin has full access everywhere; the creating/
-    // owning internal user (surveyor/sales on Customer/Site/Project/Quote)
-    // can read and update their own records. Direct customer/supplier
-    // self-service access is deferred to Phase 05, which introduces the
-    // permission model and the Customer<->Firebase-Auth-uid link needed
-    // to scope it safely rather than guessing at an ownership check here
-    // that could be wrong in either direction (too open or too closed).
-    // Until Phase 05 lands, customer/supplier roles get NO direct access
-    // to these collections — safer than a guessed-wrong rule, and not a
-    // regression since none of these collections existed before this
-    // phase.
+    // MVP Step 03: order access follows the participant model (D-12):
+    // `projects/{id}.participantIds` holds the uids on the order's open tasks, the
+    // sales owner and 'customer:<customerId>'. Customers and field staff read only
+    // orders they participate in; the owner role reads everything; non-admin writes
+    // are limited to workflow fields and forward-only stage moves.
     function isRecordOwner(field) {
       return isAuthenticated() && resource.data[field] == request.auth.uid;
     }
 
+    // MVP Step 03: customers/sites are no longer readable by every surveyor
+    // (audit F-1). Readers: admin/owner, the customer themself, and the owner of
+    // the lead the customer came from. `resource == null` lets a creator check
+    // that a deterministic id is still free inside a transaction.
+    function canReadCustomer(customerId, sourceLeadId) {
+      return isAdminOrOwner() || myCustomerToken() == 'customer:' + customerId || isLeadOwner(sourceLeadId);
+    }
+
     match /customers/{customerId} {
-      allow read: if isAdmin() || isSurveyor();
-      allow create: if isAdmin() || isSurveyor();
-      allow update: if isAdmin() || isSurveyor();
+      allow get: if isAuthenticated() && (resource == null || canReadCustomer(customerId, resource.data.get('sourceLeadId', null)));
+      allow list: if isAdminOrOwner();
+      allow create: if isAdmin() || isSurveyor() ||
+        (isSales() && isLeadOwner(request.resource.data.get('sourceLeadId', null)));
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /sites/{siteId} {
-      allow read: if isAdmin() || isSurveyor();
-      allow create: if isAdmin() || isSurveyor();
-      allow update: if isAdmin() || isSurveyor();
+      allow get: if isAuthenticated() && (resource == null || isAdminOrOwner() || myCustomerToken() == 'customer:' + resource.data.customerId);
+      allow list: if isAdminOrOwner();
+      allow create: if isAdmin() || isSurveyor() || isSales();
+      allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    function participantOrderUpdateOk() {
+      return onlyKeys(['stage', 'status', 'statusReason', 'participantIds', 'updatedAt', 'updatedBy', 'version',
+                       'checklistDone', 'qcPassedAt', 'sellingPrice']) &&
+        (request.resource.data.get('status', 'ACTIVE') == resource.data.get('status', 'ACTIVE') ||
+         request.resource.data.get('status', 'ACTIVE') == 'ON_HOLD') &&
+        stageRank(request.resource.data.stage) >= stageRank(resource.data.stage);
     }
 
     match /projects/{projectId} {
-      allow read: if isAdmin() || isRecordOwner('ownerUserId');
-      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
-      allow update: if isAdmin() || isRecordOwner('ownerUserId');
+      allow get: if isAuthenticated() && (resource == null || isAdminOrOwner() ||
+        isRecordOwner('ownerUserId') || amIn(resource.data.get('participantIds', [])));
+      allow list: if isAuthenticated() && (isAdminOrOwner() ||
+        resource.data.ownerUserId == request.auth.uid ||
+        amIn(resource.data.get('participantIds', [])));
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor() ||
+        (isSales() && request.resource.data.ownerUserId == request.auth.uid));
+      allow update: if isAdmin() || (
+        (isRecordOwner('ownerUserId') || amIn(resource.data.get('participantIds', []))) &&
+        participantOrderUpdateOk());
       allow delete: if isAdmin();
     }
 
+    // MVP: the AE-#### order counter (D-02). Only +1 steps.
+    match /counters/{counterId} {
+      allow get: if isAdmin() || isSales();
+      allow create: if (isAdmin() || isSales()) && request.resource.data.value == 1;
+      allow update: if (isAdmin() || isSales()) && request.resource.data.value == resource.data.value + 1;
+      allow delete: if false;
+    }
+
+    // MVP tasks (D-06). Readers: admin/owner, the assignee, order participants,
+    // and the lead owner for lead-stage tasks. Reassignment is Admin-only.
+    function canReadTask(t) {
+      return isAdminOrOwner() ||
+        t.assigneeId == request.auth.uid || t.assigneeId == myCustomerToken() ||
+        (t.get('orderId', null) != null && isParticipantOf(t.orderId)) ||
+        (t.get('leadId', null) != null && isLeadOwner(t.leadId));
+    }
+
+    function canWriteTaskScope(t) {
+      return (t.get('orderId', null) != null && isParticipantOf(t.orderId)) ||
+        (t.get('leadId', null) != null && isLeadOwner(t.leadId));
+    }
+
+    match /tasks/{taskId} {
+      allow get: if isAuthenticated() && (resource == null || canReadTask(resource.data));
+      allow list: if isAuthenticated() && canReadTask(resource.data);
+      allow create: if isAdmin() || (
+        request.resource.data.status == 'TODO' && canWriteTaskScope(request.resource.data));
+      allow update: if isAdmin() || (
+        (resource.data.assigneeId == request.auth.uid || resource.data.assigneeId == myCustomerToken() ||
+         canWriteTaskScope(resource.data)) &&
+        onlyKeys(['status', 'updatedAt', 'completedAt', 'notes', 'evidenceIds', 'previousStatus', 'version']) &&
+        request.resource.data.status in ['TODO', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED']);
+      allow delete: if false;
+    }
+
+    // MVP blockers (D-07).
+    match /blockers/{blockerId} {
+      allow read: if isAuthenticated() && canReadOrderScoped(resource.data.orderId);
+      allow create: if isAdmin() || (isParticipantOf(request.resource.data.orderId) &&
+        request.resource.data.createdBy == request.auth.uid && request.resource.data.status == 'OPEN');
+      allow update: if isAdmin() || (
+        (resource.data.ownerUserId == request.auth.uid || resource.data.ownerUserId == myCustomerToken()) &&
+        onlyKeys(['status', 'resolutionNote', 'resolvedAt', 'resolvedBy', 'version']));
+      allow delete: if false;
+    }
+
+    // MVP payment milestones (D-14). Customers may only attach payment proof.
+    match /payment_milestones/{milestoneId} {
+      allow read: if isAuthenticated() && canReadOrderScoped(resource.data.orderId);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isParticipantOf(resource.data.orderId) &&
+        myCustomerToken() in get(orderPath(resource.data.orderId)).data.get('participantIds', []) &&
+        onlyKeys(['proof', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    // MVP site surveys (spec §15).
+    match /surveys/{surveyId} {
+      allow get: if isAuthenticated() && (resource == null || canReadOrderScoped(resource.data.orderId));
+      allow list: if isAuthenticated() && canReadOrderScoped(resource.data.orderId);
+      allow create: if isAdmin() || (isParticipantOf(request.resource.data.orderId) &&
+        request.resource.data.surveyorId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // MVP: quote cost/margin and approvals are Admin/Owner-only (D-15, invariant I-5).
+    match /quote_costs/{costId} {
+      allow read: if isAdminOrOwner();
+      allow write: if isAdmin();
+    }
+
+    match /approval_requests/{requestId} {
+      allow read: if isAdminOrOwner();
+      allow write: if isAdmin();
+    }
+
+    // MVP suppliers: Admin-managed; no supplier login in Phase 1 (D-12).
+    match /suppliers/{supplierId} {
+      allow read: if isAdminOrOwner();
+      allow write: if isAdmin();
+    }
+
+    // MVP AMC records (D-26).
+    match /amcs/{amcId} {
+      allow read: if isAuthenticated() && canReadOrderScoped(resource.data.projectId);
+      allow write: if isAdmin();
+    }
+
+    // MVP service cases: emergencies (D-28) and complaints.
+    match /service_cases/{caseId} {
+      allow read: if isAuthenticated() && (canReadOrderScoped(resource.data.projectId) ||
+        resource.data.get('assignedTo', null) == request.auth.uid);
+      allow create: if isAdmin() || (isParticipantOf(request.resource.data.projectId) &&
+        request.resource.data.reportedBy == request.auth.uid);
+      allow update: if isAdmin() || (resource.data.get('assignedTo', null) == request.auth.uid &&
+        onlyKeys(['status', 'acknowledgedAt', 'resolvedAt', 'resolutionNote', 'documentIds', 'version']));
+      allow delete: if false;
+    }
+
+    // MVP compliance records (D-27, ⚖ record only).
+    match /compliance_items/{itemId} {
+      allow get: if isAuthenticated() && (resource == null || canReadOrderScoped(resource.data.orderId));
+      allow list: if isAuthenticated() && canReadOrderScoped(resource.data.orderId);
+      allow write: if isAdmin();
+    }
+
+    // MVP settings (on-call technician, D-28). Everyone signed in may read.
+    match /mvp_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /quotes/{quoteId} {
-      allow read: if isAdmin() || isRecordOwner('createdBy');
+      allow read: if isAdminOrOwner() || isRecordOwner('createdBy') || isParticipantOf(resource.data.projectId);
       allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
-      allow update: if isAdmin() || isRecordOwner('createdBy');
+      // MVP: the customer on the order records their decision on a sent quote.
+      allow update: if isAdmin() || isRecordOwner('createdBy') || (
+        isParticipantOf(resource.data.projectId) &&
+        myCustomerToken() in get(orderPath(resource.data.projectId)).data.get('participantIds', []) &&
+        resource.data.status == 'sent' &&
+        request.resource.data.status in ['accepted', 'negotiating'] &&
+        onlyKeys(['status', 'decisionNote', 'decidedAt', 'updatedAt', 'version']));
       allow delete: if isAdmin();
     }
 
     match /quote_versions/{quoteVersionId} {
       // Append-only per the domain model (src/domain/entities.ts):
-      // no update/delete once created.
-      allow read: if isAdmin() || isRecordOwner('createdBy');
+      // no update/delete once created. MVP: holds customer-visible prices only;
+      // cost lives in quote_costs.
+      allow read: if isAdminOrOwner() || isRecordOwner('createdBy') || isParticipantOf(resource.data.projectId);
       allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
       allow update, delete: if false;
     }
@@ -197,73 +440,47 @@ service cloud.firestore {
     // separate deliberately so this new rule can never be misread as
     // governing the old collection or vice versa.
     match /contracts_v2/{contractId} {
-      allow read: if isAdmin();
+      allow read: if isAdminOrOwner();
       allow create, update: if isAdmin();
       allow delete: if false; // contracts are void'd via status, never deleted
     }
 
     match /payment_schedules/{scheduleId} {
-      allow read: if isAdmin();
+      allow read: if isAdminOrOwner();
       allow create, update: if isAdmin();
       allow delete: if false;
     }
 
     match /payments/{paymentId} {
-      allow read: if isAdmin() || isRecordOwner('createdBy');
-      // Phase 35 fix (real Phase 34 finding): previously bare
-      // `isAuthenticated()` let ANY signed-in user create a Payment
-      // document self-claiming ANY `createdBy` value — impersonating a
-      // different user's payment record. Now the created document must
-      // self-attest the real acting user's uid (or be created by an
-      // Admin on someone else's behalf), matching the same `createdBy`
-      // field the read rule above already trusts. Does not (yet) verify
-      // the referenced `projectId` is one this user actually owns — a
-      // deeper, cross-document check flagged as remaining, real,
-      // documented scope in docs/security/LEGACY-AUTHORIZATION-REMEDIATION.md
-      // rather than guessed at without live verification.
+      allow read: if isAdminOrOwner() || isRecordOwner('createdBy');
+      // Phase 35 fix: the created document must self-attest the real acting
+      // user's uid (or be created by an Admin on someone else's behalf).
       allow create: if isAdmin() ||
         (isAuthenticated() && request.resource.data.createdBy == request.auth.uid);
-      // Payments are never edited in place once confirmed — status moves
-      // forward via new fields, not arbitrary field overwrite, and only
-      // Admin (finance role arrives with full RBAC in Phase 05) can post
-      // those transitions.
+      // Payments are never edited in place once confirmed; only Admin posts transitions.
       allow update: if isAdmin();
       allow delete: if false; // immutable financial record
     }
 
     // 8. Phase 06 — audit trail and idempotency store.
-    // `audit_logs` already existed (Phase 01 §5) with exactly this
-    // shape of rule; unchanged here. `idempotency_keys` is new: it
-    // backs src/lib/idempotency.ts's runIdempotent() and must be
-    // exactly as immutable as an audit log, for the same reason — an
-    // idempotency record that could be edited or deleted defeats its
-    // own purpose (a retried payment/PO/webhook could "forget" it
-    // already ran).
     match /purchase_orders/{poId} {
-      allow read: if isAdmin() || isRecordOwner('createdBy');
+      // Admin/Owner only (plus the legacy creator). Customers never see PO amounts.
+      allow read: if isAdminOrOwner() || isRecordOwner('createdBy');
       allow create: if isAuthenticated() && isAdmin();
       allow update: if isAdmin();
       allow delete: if false;
     }
 
     match /idempotency_keys/{keyId} {
-      allow read: if isAdmin();
+      // MVP Step 03: a non-admin may read back only their own claim (ownerUid),
+      // or check that a key is still unclaimed — needed by the transactional claim.
+      allow get: if isAuthenticated() && (resource == null || isAdmin() ||
+        resource.data.get('ownerUid', null) == request.auth.uid);
+      allow list: if isAdmin();
       allow create: if isAuthenticated(); // any authenticated write path may register a dedup record
-      // Phase 37 fix: a real, more fundamental bug found while building
-      // the transactional-idempotency concurrency tests — `allow update:
-      // if false` blocked EVERY completion write, meaning
-      // src/lib/idempotency.ts's documented CLAIM -> COMPLETE lifecycle
-      // could never actually reach 'completed' against real Firestore
-      // rules; every real production idempotency-guarded operation would
-      // have failed its own completion step. Scoped narrowly, not thrown
-      // open: exactly two transitions are allowed on THIS SAME record —
-      // (a) pending -> completed/failed (the real CLAIM -> COMPLETE/FAIL
-      // lifecycle) and (b) failed -> pending (a fresh retry reclaiming a
-      // record whose prior attempt genuinely failed, `src/lib/idempotency.ts`'s
-      // `isReclaimable()`). The identity fields (idempotencyKey/opType)
-      // can never be rewritten in either case — a completed record can
-      // never be reopened, and no one can claim a DIFFERENT key/opType by
-      // overwriting an existing document id.
+      // Phase 37: exactly two transitions on the same record — pending ->
+      // completed/failed, and failed -> pending (a retry reclaiming a failed
+      // attempt). Identity fields never change.
       allow update: if isAuthenticated() &&
         request.resource.data.idempotencyKey == resource.data.idempotencyKey &&
         request.resource.data.opType == resource.data.opType && (
@@ -285,53 +502,44 @@ service cloud.firestore {
 
     match /workflow_executions/{executionId} {
       // Every execution attempt, including dead-letters, is part of the
-      // audit trail for automation — immutable once written, same as
-      // audit_logs/idempotency_keys.
+      // audit trail for automation — immutable once written.
       allow read: if isAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if false;
     }
 
     match /snags/{snagId} {
-      allow read: if isAdmin() || isRecordOwner('assignedTo');
+      allow read: if isAdminOrOwner() || isRecordOwner('assignedTo') || isParticipantOf(resource.data.projectId);
       allow create: if isAuthenticated();
       allow update: if isAdmin() || isRecordOwner('assignedTo');
       allow delete: if false;
     }
 
+    // MVP: the notification bell. Audience may be a uid, 'customer:<id>' or 'role:<role>';
+    // the audience may only mark a notification read.
+    function isAudience(n) {
+      return n.audienceUserId == request.auth.uid || n.audienceUserId == myCustomerToken() ||
+        n.audienceUserId == 'role:' + getUserRole();
+    }
+
     match /notifications/{notificationId} {
-      allow read: if isAdmin() || isRecordOwner('audienceUserId');
+      allow read: if isAdmin() || (isAuthenticated() && isAudience(resource.data));
       allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && isAudience(resource.data) && onlyKeys(['readAt']));
       allow delete: if false;
     }
 
     match /handovers/{handoverId} {
       // Admin-only write: Handover.qcPassed is the hard gate Phase 09
-      // relies on, and it must never be settable by anyone other than
-      // the automation engine / an admin action — not by a technician
-      // or customer request, however indirectly.
-      allow read: if isAdmin();
+      // relies on, and it must never be settable by anyone other than an admin.
+      allow read: if isAdminOrOwner() || isParticipantOf(resource.data.projectId);
       allow create, update: if isAdmin();
       allow delete: if false;
     }
 
     match /qc_inspections/{inspectionId} {
-      allow read: if isAdmin() || isRecordOwner('inspectorId');
-      // Phase 35 fix (real Phase 34 finding): previously bare
-      // `isAuthenticated()` let ANY signed-in user (including a customer
-      // session) create a QC inspection record for ANY project — a
-      // quality-gate-integrity concern, since Handover.qcPassed (the
-      // Phase 09 hard gate) derives from this collection via the event
-      // bus. Deliberately uses `isTechnician()` (admin + technician +
-      // qc_inspector) rather than a strict `inspectorId == request.auth.uid`
-      // self-match: the real QC-assignment flow
-      // (QcInspectorAssignmentScreen -> requestQC()) lets one technician/
-      // admin assign a DIFFERENT technician as the inspector, which a
-      // strict self-match would have broken with no way to verify against
-      // a live emulator. This still closes the real gap found (customer/
-      // supplier sessions can no longer create QC records at all) without
-      // risking a regression on the legitimate assignment-by-a-peer path.
+      allow read: if isAdminOrOwner() || isRecordOwner('inspectorId') || isParticipantOf(resource.data.projectId);
+      // Phase 35: customer/supplier sessions cannot create QC records.
       allow create: if isTechnician();
       allow update: if isAdmin() || isRecordOwner('inspectorId');
       allow delete: if false;
@@ -339,40 +547,41 @@ service cloud.firestore {
 
     // 10. Phase 09 — delivery, installation, and warranty entities.
     match /shipments/{shipmentId} {
-      allow read: if isAdmin() || isTechnician();
+      allow read: if isAdminOrOwner() || isTechnician();
       allow create, update: if isAdmin() || isTechnician();
       allow delete: if false;
     }
 
     match /delivery_receipts/{receiptId} {
-      allow read: if isAdmin() || isRecordOwner('receivedBy');
+      allow read: if isAdminOrOwner() || isRecordOwner('receivedBy') || isParticipantOf(resource.data.projectId);
       allow create: if isAuthenticated();
       allow update: if isAdmin();
       allow delete: if false; // a receipt is a point-in-time record; corrections happen via a new record, not an edit
     }
 
     match /installation_jobs/{jobId} {
-      allow read: if isAdmin() || isRecordOwner('technicianId');
+      allow read: if isAdminOrOwner() || isRecordOwner('technicianId') || isParticipantOf(resource.data.projectId);
       allow create: if isAdmin();
       allow update: if isAdmin() || isRecordOwner('technicianId');
       allow delete: if false;
     }
 
     match /warranties/{warrantyId} {
-      allow read: if isAdmin();
+      allow read: if isAdminOrOwner() || isParticipantOf(resource.data.projectId);
       allow create, update: if isAdmin();
       allow delete: if false;
     }
 
-    // 11. Phase 11 — media/document metadata and reconciliation records.
-    // Actual media BYTES are not stored in Firestore (Storage rules
-    // would govern those, in a real deployment with a bucket
-    // configured — see src/offline/mediaUpload.ts's documented gap);
-    // this collection is document METADATA only, written after a
-    // confirmed upload.
+    // 11. Phase 11 — document metadata. MVP (D-16 as changed in Step 02): evidence
+    // images are stored inline (`dataUrl`, ≤ 900 KB), guarded by order participation.
     match /documents/{documentId} {
-      allow read: if isAdmin() || isRecordOwner('uploadedBy');
-      allow create: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || isAdminOrOwner() || isRecordOwner('uploadedBy') ||
+        (resource.data.get('projectId', null) != null && isParticipantOf(resource.data.projectId)));
+      allow list: if isAdminOrOwner() || isRecordOwner('uploadedBy') ||
+        (resource.data.get('projectId', null) != null && isParticipantOf(resource.data.projectId));
+      allow create: if isAuthenticated() && request.resource.data.uploadedBy == request.auth.uid && (
+        request.resource.data.get('projectId', null) == null || isAdmin() ||
+        isParticipantOf(request.resource.data.projectId));
       allow update: if isAdmin();
       allow delete: if false; // versioning, not deletion, per the domain model
     }
@@ -384,11 +593,6 @@ service cloud.firestore {
     }
 
     // 12. Phase 12 — observability events (src/lib/observability.ts).
-    // Any authenticated session may report a client crash / app error
-    // about itself (that's the whole point — a crashed session still
-    // needs to be able to report the crash); only Admin can read the
-    // resulting stream. Immutable once written, same as every other
-    // audit-shaped collection in this file.
     match /observability_events/{eventId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated();

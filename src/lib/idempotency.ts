@@ -73,6 +73,9 @@ export interface IdempotencyRecord<TResult = unknown> {
   result?: TResult;
   createdAt: string;
   completedAt?: string;
+  /** MVP Step 03: the uid that claimed this record, so firestore.rules can let a
+   * non-admin read back their own claim (needed by the transactional claim below). */
+  ownerUid?: string;
 }
 
 /**
@@ -113,7 +116,7 @@ export interface IdempotentRunResult<TResult> {
  * when `ctx.environment !== 'demo'`; throws if Firestore did not
  * initialize (same `requireDb`-style honesty as firestoreRepository.ts —
  * never silently falls back to an unguarded write). */
-async function claimFirestoreSlot(id: string, opType: string, idempotencyKey: string): Promise<{ claimed: boolean; existing?: IdempotencyRecord }> {
+async function claimFirestoreSlot(id: string, opType: string, idempotencyKey: string, ownerUid?: string): Promise<{ claimed: boolean; existing?: IdempotencyRecord }> {
   if (!db) {
     throw new Error('Firestore is not initialized — cannot take a transactional idempotency claim outside demo mode.');
   }
@@ -128,7 +131,7 @@ async function claimFirestoreSlot(id: string, opType: string, idempotencyKey: st
       // Reclaim a 'failed' record — a fresh attempt, matching the
       // firestore.rules failed->pending transition this phase added.
     }
-    const record: IdempotencyRecord = { id, opType, idempotencyKey, status: 'pending', createdAt: new Date().toISOString() };
+    const record: IdempotencyRecord = { id, opType, idempotencyKey, status: 'pending', createdAt: new Date().toISOString(), ...(ownerUid ? { ownerUid } : {}) };
     tx.set(ref, record);
     return { claimed: true };
   });
@@ -225,7 +228,7 @@ export async function runIdempotent<TResult>(
   // reclaimable (`isReclaimable()`), so a retry after a genuine failure
   // correctly re-attempts the operation, not silently "succeeds" with no
   // result.
-  const claim = await claimFirestoreSlot(id, opType, idempotencyKey);
+  const claim = await claimFirestoreSlot(id, opType, idempotencyKey, ctx.actorUserId);
   if (!claim.claimed) {
     if (claim.existing!.status === 'pending') {
       // A claim exists but never completed — genuinely still in flight
