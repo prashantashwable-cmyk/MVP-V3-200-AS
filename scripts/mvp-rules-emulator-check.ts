@@ -171,8 +171,11 @@ async function main() {
   // Step 08: the technician's own job, checklist count and the QC task their COMPLETE creates.
   ok(await allowed(updateDoc(doc(db.tech1, 'installation_jobs/job_ord1'), { checkedInAt: '2026-10-20T10:00:00Z', checklist: { materialReceived: { done: true } }, version: 1 })), 'tech1 updates their installation job');
   ok(!(await allowed(updateDoc(doc(db.tech2, 'installation_jobs/job_ord1'), { checklist: {} }))), 'another technician cannot touch the job');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'installation_jobs/job_ord1'), { technicianId: uid.tech2, version: 2 }))), 'Step 11 (issue #22 fix): the assigned technician cannot reassign the job to someone else (or write any other field outside the allow-list)');
   ok(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { checklistDone: 1, updatedAt: '2026-10-20T10:00:00Z', updatedBy: uid.tech1 })), 'tech1 mirrors the checklist count onto the order');
   ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { checklistDone: 11 }))), 'a customer cannot set the checklist count');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { checklistDone: 15, updatedAt: '2026-10-20T10:00:00Z', updatedBy: uid.tech1 }))), 'Step 11 (issue #22 fix): checklistDone cannot be set above 11');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { checklistDone: -1, updatedAt: '2026-10-20T10:00:00Z', updatedBy: uid.tech1 }))), 'Step 11 (issue #22 fix): checklistDone cannot be negative');
   ok(await allowed(setDoc(doc(db.tech1, 'tasks/ord1__QC_INSPECTION__1'), { id: 'ord1__QC_INSPECTION__1', orderId: 'ord1', type: 'QC_INSPECTION', assigneeId: uid.qc, assigneeRole: 'qc', status: 'TODO', dueDate: '2026-10-23', version: 0 })), 'tech1 creates the QC task their COMPLETE causes');
 
   // Customer writes are limited to their own decisions (scope-guard fix, Step 03).

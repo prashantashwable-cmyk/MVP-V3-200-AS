@@ -4,18 +4,19 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 10 Customer portal, Owner view, Notifications, Reports, Languages (draft PR #14)
-- **Next step:** 11 Security, Compliance and Production hardening. Branch `claude/mvp-step-11-security-hardening` from `claude/mvp-step-10-customer-owner-i18n`; PR base = that branch.
-- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover.
+- **Last completed step:** 11 Security, Compliance and Production hardening (draft PR pending — see Handoff notes for the number once opened). **This is the last step in the approved plan's breakdown (§8, Steps 03–11).**
+- **Next step:** none currently approved. The "Do autonomously" mandate (2026-09-24) was scoped to Steps 02–11; that run is now complete. Any further work (a Step 12, go-live hardening, Phase 2 items from `docs/mvp/future/`) needs a fresh Owner instruction before a session should start it.
+- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude ran Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as 12 stacked draft PRs (#3–#14, plus this step's). It stopped for nothing on CLAUDE.md's "stop and ask" list — no such item came up across the whole run.
 - **Owner standing instructions (2026-09-24):**
   - Every step must include screenshots, sent to the Owner in chat.
   - Every step must include a verified `npm run build`.
   - See CLAUDE.md step protocol items 4 and 8.
 - **Blocked on Owner:** still needed before go-live:
   - the emergency phone number (audit §8 Q7)
-  - `VITE_APP_ENV=production` set in Vercel
-  - Firebase Storage and backups enabled (Q3)
+  - `VITE_APP_ENV=production` set in Vercel (Step 11 verified the code-side gating; the live env var itself is unverifiable from a session — Vercel connector is read-only/403)
+  - Enabling the Firestore backup schedule (`docs/mvp/BACKUP_AND_RESTORE.md`, new in Step 11) — Firebase Storage is **not** needed (D-16 already moved evidence files inline into Firestore)
   - the GST rate (⚖ VERIFY with the CA)
+  - Deploying `firestore.rules` to the real Firebase project (issue #12) — merging these PRs does not do this; it's a separate Firebase console/CLI action, together with the MVP build going live, not before
 
 ## Handoff notes (for any model or session picking this up)
 - **Stacked draft PRs, none merged:**
@@ -49,10 +50,10 @@
   3. Stop the server with `ps -eo pid,args | grep "[t]sx server" | awk '{print $1}' | xargs -r kill`. Don't use `pkill -f`, which kills its own shell.
   4. Send the PNGs to the Owner.
 - **MVP i18n:** `src/mvp/i18n.ts`, separate from the legacy `src/lib/language.ts` dictionary. `useMvpLang()` (`src/mvp/screens/ui.tsx`) reads the same language switch the legacy app uses. Only stage/health/"Needs attention"/notification/nav-label strings are translated so far (D-18: expand one key at a time, not all at once) — task titles, audit text and admin-only prose stay English. `mvp-i18n-check.ts` checks every key resolves (falls back to English, never blank) for en/mr/hi.
-- **Step 11 must add:**
-  - `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone` (open issue from Step 08)
-  - scope `qc_inspections` create to `isParticipantOf(projectId)` (open issue 15, Step 09)
-  - the final S8 rules suite and `mvp-audit-coverage-check.ts`
+- **Step 11 must add:** (all done — see the Step 11 note below)
+  - ~~`onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone` (open issue from Step 08)~~ DONE
+  - ~~scope `qc_inspections` create to `isParticipantOf(projectId)` (open issue 15, Step 09)~~ DONE
+  - ~~the final S8 rules suite and `mvp-audit-coverage-check.ts`~~ DONE
 - **Optional, not yet done:** a demo order at AMC bound to a second demo customer, so EmergencyButton/AmcPanel are screenshot-able via `?demoRole=customer` (open issue 17); translate the remaining admin-only prose (LeadForm, QuotePanels, etc.) if the Owner wants full-app coverage rather than the current core-chrome coverage.
 
 ## Step status
@@ -69,7 +70,7 @@
 | 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 80/80, 42/42 legacy |
 | 09 | QC, Handover and AMC | DONE | MVP Step 09 draft PR | 2026-09-24 | mvp:checks 10/10 + backfill, mvp:rules 102/102, 42/42 legacy |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | DONE | MVP Step 10 draft PR | 2026-09-24 | mvp:checks 12/12 + backfill, mvp:rules 102/102, 42/42 legacy |
-| 11 | Security, Compliance and Production hardening | TODO | | | |
+| 11 | Security, Compliance and Production hardening | DONE | MVP Step 11 draft PR | 2026-09-24 | mvp:checks 13/13 + backfill, mvp:rules 106/106, 42/42 legacy. **Last step of the approved plan (03–11).** |
 | 12 | Test and Verify (Phases D and E) | TODO | | | |
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
@@ -148,6 +149,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 19 | `preferred_language` no longer syncs across devices for MVP users (the DbManager write was removed, D-01); the choice persists per-browser only, via `localStorage` | 10 | Low | Acceptable per D-18 ("keep it simple, expand later"); Phase 2 could sync it to the canonical `users` doc |
 | 20 | `scanTaskNotifications` reads the whole `tasks` collection on every Admin/Owner dashboard load (same pattern `buildDashboard` already uses) | 10 | Low | Fine at 10–20 lifts; revisit if the task count grows much larger |
 | 21 | New mr/hi strings in `src/mvp/i18n.ts` initially had no `// needs native review` marker (D-18) | 10 | Low | Fixed before this step's PR — the marker is now on both dictionaries |
+| 22 | `installation_jobs.update` had no `onlyKeys` limit (the assigned technician could write ANY field, including reassigning `technicianId` to themselves) and `projects.checklistDone` had no 0–11 bound (Step 08's own step note flagged both, deferred to Step 11) | 08 | Medium (fixed) | Fixed in Step 11: `installation_jobs.update` now scoped to the 7 fields `installationService.ts` actually writes; a new `checklistDoneOk()` rejects anything outside 0–11 |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -363,4 +365,25 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Scope guard:** self-reviewed against the checklist: no legacy-store writes for MVP users (the one DbManager call left is now gated `!isMvpMode()`), additive only (`MvpNotification` union, `HealthInput` unchanged, no schema/collection change), no new dependency, `firestore.rules` untouched, cost/margin still never reach a role outside admin/owner, i18n catalogs are small and enum-bounded (not a "large catalog").
 - **Screenshots:** `docs/mvp/screenshots/step-10/` (the Owner's Overview on a phone; the Admin's Reports and Users tabs on desktop; the Dashboard with the notification bell, on desktop).
 - **Known limits:** logged as open issues 18–20 above.
+
+### Step 11: Security, Compliance and Production hardening (2026-09-24), DONE
+- **F-5 fix (open issue #10, spec/D-13 R-3):** `App.tsx`'s cold-start restore trusted a plain `aiec_session_token` localStorage flag to look up *any* user id in `DbManager.getUsers()` and sign them in as that user, with zero server verification — anyone with devtools could become any known user, including the Admin, without ever authenticating. In MVP_MODE this path is now skipped entirely (`if (savedToken && !mvpMode)`); the only way back in for a returning real user is Firebase Auth's own persisted session, via a new `onAuthStateChanged` effect that resolves identity through `getOrCreateFirestoreUser` — the exact same resolution `handleGoogleSignIn` already used, now shared through an extracted `mirrorFirebaseUser` helper (avoids duplicating ~15 lines across the two call sites). `handleLogout` now also calls Firebase `signOut()` in MVP_MODE, so the new restore effect doesn't immediately sign the same user back in right after they log out. Legacy (non-MVP) session restore is untouched.
+- **`firestore.rules` fixes:**
+  - (open issue #15) `qc_inspections`'s `create` rule was `isTechnician()` with no order-scoping (a legacy Phase 35 rule predating the participant model) — any technician/qc/admin could create an inspection record for *any* order. Now `isAdmin() || (isTechnician() && isParticipantOf(request.resource.data.projectId))`. A new negative test in `mvp-rules-emulator-check.ts` proves a non-participant technician is denied; the existing positive test (the assigned qc creates their own order's inspection) still passes unchanged.
+  - (open issue #22, flagged in Step 08's own note) `installation_jobs.update` had no `onlyKeys` limit — the assigned technician could write *any* field, including reassigning `technicianId` to themselves. Now scoped to the 7 fields `installationService.ts` actually writes (`status`, `startedAt`, `checkedInAt`, `checkInLocation`, `checklist`, `completedAt`, `version`).
+  - (open issue #22) `projects.checklistDone` had no bound — the service layer only ever writes `checklistDoneCount()`'s own 0–11 tally, but a spoofed direct write could set anything. A new `checklistDoneOk()` helper, wired into `participantOrderUpdateOk()`, now rejects anything outside 0–11 (or a non-integer).
+- **`src/mvp/validate.ts` (new):** `MvpError` and `requireText` were byte-for-byte duplicated across 4 service files (`orderService.ts`, `qcHandoverService.ts`, `emergencyService.ts`, `invites.ts`) — a real, pre-existing duplication this step's own audit-coverage work surfaced. Consolidated into one dependency-free module (so no service risks a circular import depending on it), plus a new `requireEmail` (replacing `invites.ts`'s inline regex check). `orderService.ts` re-exports `MvpError` so none of the 17 other files that already `import { MvpError } from './orderService'` needed to change.
+- **`scripts/mvp-audit-coverage-check.ts` (new, `mvp:audit-coverage`):** the plan's acceptance line "audit coverage" — actually exercises, on the demo repository, every one of I-3's 8 categories (ACCEPTANCE_SCENARIOS.md: "Every change to stage, status, payment, task owner, due date, quote approval, QC decision or cancellation writes an AuditEvent recording who, when, what, and the before and after values") and asserts a matching AuditEvent exists with a real actor, a valid timestamp, and a before/after that actually differ. Stage/status/payment/QC decision come for free from the S1 happy path; task-owner reassignment, due-date change, quote-margin approval and cancellation needed their own short exercise (a second order, stopped at QUOTE) since S1 never hits them.
+- **`docs/mvp/BACKUP_AND_RESTORE.md` (new):** documentation only — no script here runs a backup or restore (D-19/CLAUDE.md: never touch real data from a session). Explains Firestore is the only store that needs backing up for MVP data (D-16 already moved evidence/compliance files inline into Firestore, so Firebase Storage isn't part of this), the two backup options (Firebase console scheduled backups, recommended; manual `gcloud firestore export`), the restore procedure (verify against the local emulator first — there is no second/staging Firebase project to test against, per REPO_FACTS.md), and a restore-drill checklist and timing log to fill in before go-live.
+- **Acceptance items already satisfied by earlier steps, reconfirmed rather than rebuilt:** S8 (access control) is fully covered by the existing `mvp-rules-emulator-check.ts` (signed-out denied, cross-customer/cross-technician denied, non-admin role/payment-status/quote-price writes denied, `estimatedCost` hidden from customer/technician) — verified still passing. "Hidden routes unreachable in MVP_MODE" was already true from Step 04: when `mvpMode` is on, `App.tsx` mounts *only* `<MvpRouter>` (the legacy `AdminRouter`/`TechnicianRouter`/etc. trees never render at all, not just their tab buttons), and `MvpRouter` itself re-checks `isAllowedTab()` and falls back to `homeTabFor()` for anything not allowed — reconfirmed via `mvp-mode-check.ts`. `production-bundle-bypass:check` and `code-splitting:check` (both already-existing legacy scripts named in the plan's acceptance line) re-run clean.
+- **Deliberately not built:** real `storage.rules` (open issues #2/#8) — superseded by D-16, which already made Firebase Storage unnecessary for MVP data; building rules for a store the MVP doesn't write to would be pure unused surface area. AMC status-transition sequencing (issue #16) stays accepted as-is (low severity, rare manual Admin action). The live Vercel `VITE_APP_ENV=production` value itself: code-side gating was verified end to end (see Checks), but the actual deployed env var is unverifiable from any session (Vercel connector is read-only, returns 403) — still an Owner action, tracked in "Blocked on Owner" above.
+- **Regressions caught and fixed before shipping:** the F-5 fix's own explanatory code comment accidentally added a second textual mention of `DbManager.getUsers()` inside App.tsx, which inflated the literal call-site count `dbmanager-remaining:check` compares against a committed report — reworded the comment (no functional change) rather than regenerating the report. The `qc_inspections` rule tightening broke `legacy-authz-remediation-check.ts`'s brittle exact-text regex (`allow create: if isTechnician\(\)`) — widened it to tolerate the added `isParticipantOf` conjunct while still requiring `isTechnician()` (its real intent — role-gating exists — is unchanged, not weakened). Both caught by running all 42 non-`live-*` legacy checks individually, not just the ones this step's diff obviously touches.
+- **Checks:**
+  - `npx tsc --noEmit` PASS · `npm run build` PASS.
+  - `npm run mvp:checks` 13/13 + backfill PASS (new: `mvp-audit-coverage-check`, 32 assertions across all 8 I-3 categories).
+  - `npm run mvp:rules` 106/106 PASS on the Firestore emulator (102 existing + 4 new: the qc_inspections negative test, a technician-cannot-reassign-the-job test, and two checklistDone-out-of-bounds tests).
+  - All 42 non-`live-*` legacy checks PASS individually (including the two initially broken by this step's own edits, both fixed — see above). Date-only doc rewrites reverted afterward (`git checkout -- docs/architecture docs/migration docs/production`).
+- **Scope guard:** PASS, all 14 checklist items, no required fixes. One contextual observation, not a fail: `mirrorFirebaseUser` still calls `DbManager.getUsers/addUser/updateUser` — a straight extraction of pre-existing `handleGoogleSignIn` logic (mirroring the real Firebase user into the legacy array so old admin/staff screens still see them), same call sites as before, not new legacy-store use.
+- **Screenshots:** this step has no UI change (App.tsx's fix is invisible session-restore logic) — `docs/mvp/screenshots/step-11/admin-dashboard-desktop.png` (nothing broke) and `login-google-signin-phone.png` (MVP_MODE's Secure Login tab, confirming Google Sign-In really is the only login path there — no phone/email fallback shown — which is the precondition the F-5 fix depends on).
+- **Known limits:** none newly introduced. Issue #6 (live Vercel env var) and issue #16 (AMC sequencing) remain as before, with notes updated above.
 
