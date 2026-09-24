@@ -48,6 +48,7 @@ const en: MvpDict = {
   },
 };
 
+// needs native review (D-18): a working translation, not yet checked by a Marathi speaker.
 const mr: MvpDict = {
   stage: {
     LEAD: 'लीड', QUALIFIED: 'पात्र', SURVEY: 'सर्वेक्षण', QUOTE: 'कोटेशन', BOOKED: 'बुक केले',
@@ -70,6 +71,7 @@ const mr: MvpDict = {
   },
 };
 
+// needs native review (D-18): a working translation, not yet checked by a Hindi speaker.
 const hi: MvpDict = {
   stage: {
     LEAD: 'लीड', QUALIFIED: 'योग्य', SURVEY: 'सर्वेक्षण', QUOTE: 'कोटेशन', BOOKED: 'बुक किया',

@@ -147,6 +147,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 18 | Only stage/health/attention-bucket/notification/nav-label strings are translated to mr/hi so far. Task titles, audit history text and admin-only prose (LeadForm, QuotePanels, Reports, Users, …) stay English | 10 | Low | D-18 says to expand one key at a time; translate more screens only if the Owner asks |
 | 19 | `preferred_language` no longer syncs across devices for MVP users (the DbManager write was removed, D-01); the choice persists per-browser only, via `localStorage` | 10 | Low | Acceptable per D-18 ("keep it simple, expand later"); Phase 2 could sync it to the canonical `users` doc |
 | 20 | `scanTaskNotifications` reads the whole `tasks` collection on every Admin/Owner dashboard load (same pattern `buildDashboard` already uses) | 10 | Low | Fine at 10–20 lifts; revisit if the task count grows much larger |
+| 21 | New mr/hi strings in `src/mvp/i18n.ts` initially had no `// needs native review` marker (D-18) | 10 | Low | Fixed before this step's PR — the marker is now on both dictionaries |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
