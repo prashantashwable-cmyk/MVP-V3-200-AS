@@ -6,6 +6,8 @@ import type { User } from '../../types';
 import { resolveEnvironment } from '../../lib/environment';
 import type { MvpActor, MvpCtx } from '../services/orderService';
 import type { Health } from '../health';
+import { useLanguage } from '../../lib/language';
+import { translateHealth, type Lang } from '../i18n';
 
 export function toMvpActor(user: User): MvpActor {
   return {
@@ -41,20 +43,26 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): { data: T |
   return { data, error, loading, reload };
 }
 
-const HEALTH_STYLE: Record<Health, { label: string; cls: string; icon: React.ComponentType<{ className?: string }> }> = {
-  ON_TRACK: { label: 'On track', cls: 'bg-royalemerald/10 text-royalemerald', icon: CheckCircle2 },
-  AT_RISK: { label: 'At risk', cls: 'bg-[#B8873D]/15 text-[#8a6224]', icon: Clock },
-  OVERDUE: { label: 'Overdue', cls: 'bg-error/10 text-error', icon: AlertTriangle },
-  BLOCKED: { label: 'Blocked', cls: 'bg-error/15 text-error', icon: OctagonAlert },
-  ON_HOLD: { label: 'On hold', cls: 'bg-charcoal/10 text-charcoal', icon: PauseCircle },
+const HEALTH_STYLE: Record<Health, { cls: string; icon: React.ComponentType<{ className?: string }> }> = {
+  ON_TRACK: { cls: 'bg-royalemerald/10 text-royalemerald', icon: CheckCircle2 },
+  AT_RISK: { cls: 'bg-[#B8873D]/15 text-[#8a6224]', icon: Clock },
+  OVERDUE: { cls: 'bg-error/10 text-error', icon: AlertTriangle },
+  BLOCKED: { cls: 'bg-error/15 text-error', icon: OctagonAlert },
+  ON_HOLD: { cls: 'bg-charcoal/10 text-charcoal', icon: PauseCircle },
 };
 
+/** D-18: the current language, reactive to the same switch the legacy app uses. */
+export function useMvpLang(): Lang {
+  return useLanguage().language;
+}
+
 export const HealthBadge: React.FC<{ health: Health }> = ({ health }) => {
+  const lang = useMvpLang();
   const s = HEALTH_STYLE[health];
   const Icon = s.icon;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${s.cls}`}>
-      <Icon className="w-3.5 h-3.5" />{s.label}
+      <Icon className="w-3.5 h-3.5" />{translateHealth(lang, health)}
     </span>
   );
 };

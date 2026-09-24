@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 09 QC, Handover and AMC (draft PR #13)
-- **Next step:** 10 Customer portal, Owner view, Notifications, Reports, Languages. Branch `claude/mvp-step-10-customer-owner-i18n` from `claude/mvp-step-09-qc-handover-amc`; PR base = that branch.
+- **Last completed step:** 10 Customer portal, Owner view, Notifications, Reports, Languages (draft PR #14)
+- **Next step:** 11 Security, Compliance and Production hardening. Branch `claude/mvp-step-11-security-hardening` from `claude/mvp-step-10-customer-owner-i18n`; PR base = that branch.
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover.
 - **Owner standing instructions (2026-09-24):**
   - Every step must include screenshots, sent to the Owner in chat.
@@ -33,6 +33,7 @@
   | #11 | 07 |
   | #12 | 08 |
   | #13 | 09 |
+  | #14 | 10 |
 
   Each PR's base is the previous step's branch. Start a new step's branch from the latest step branch, not from `main`.
 - **Where things are:**
@@ -47,11 +48,12 @@
   2. Run `node scripts/mvp/screenshot.mjs "http://localhost:3000/?demoRole=<role>" docs/mvp/screenshots/step-NN/<name>.png 390 <height> ["button text to click" ...]`.
   3. Stop the server with `ps -eo pid,args | grep "[t]sx server" | awk '{print $1}' | xargs -r kill`. Don't use `pkill -f`, which kills its own shell.
   4. Send the PNGs to the Owner.
-- **Step 10 should add:** a demo order at AMC bound to a second demo customer, so EmergencyButton/AmcPanel are screenshot-able via `?demoRole=customer` (open issue 17); decouple `language.ts` from DbManager; the overdue/digest notification scan.
+- **MVP i18n:** `src/mvp/i18n.ts`, separate from the legacy `src/lib/language.ts` dictionary. `useMvpLang()` (`src/mvp/screens/ui.tsx`) reads the same language switch the legacy app uses. Only stage/health/"Needs attention"/notification/nav-label strings are translated so far (D-18: expand one key at a time, not all at once) — task titles, audit text and admin-only prose stay English. `mvp-i18n-check.ts` checks every key resolves (falls back to English, never blank) for en/mr/hi.
 - **Step 11 must add:**
   - `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone` (open issue from Step 08)
   - scope `qc_inspections` create to `isParticipantOf(projectId)` (open issue 15, Step 09)
   - the final S8 rules suite and `mvp-audit-coverage-check.ts`
+- **Optional, not yet done:** a demo order at AMC bound to a second demo customer, so EmergencyButton/AmcPanel are screenshot-able via `?demoRole=customer` (open issue 17); translate the remaining admin-only prose (LeadForm, QuotePanels, etc.) if the Owner wants full-app coverage rather than the current core-chrome coverage.
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
@@ -66,7 +68,7 @@
 | 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
 | 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 80/80, 42/42 legacy |
 | 09 | QC, Handover and AMC | DONE | MVP Step 09 draft PR | 2026-09-24 | mvp:checks 10/10 + backfill, mvp:rules 102/102, 42/42 legacy |
-| 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
+| 10 | Customer portal, Owner view, Notifications, Reports, Languages | DONE | MVP Step 10 draft PR | 2026-09-24 | mvp:checks 12/12 + backfill, mvp:rules 102/102, 42/42 legacy |
 | 11 | Security, Compliance and Production hardening | TODO | | | |
 | 12 | Test and Verify (Phases D and E) | TODO | | | |
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
@@ -142,6 +144,9 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 15 | `qc_inspections` create has no order-scoping (`isTechnician()`, a legacy Phase 35 rule predating the MVP participant model): any technician/QC/admin can create an inspection record for any order, not just their own | 09 | Medium | Step 11: scope it to `isParticipantOf(projectId)` |
 | 16 | AMC status transitions (WARRANTY→AMC_OFFERED→AMC_ACTIVE/AMC_LOST) are not sequence-enforced; the Admin can set any of the three non-WARRANTY values at any time | 09 | Low | Acceptable for a manual, rarely-used Admin action; revisit if AMC volume grows |
 | 17 | No customer-facing demo order reaches AMC (the demo customer login stays bound to AE-1003, mid-installation, to keep Step 08's screenshots valid), so EmergencyButton/AmcPanel aren't reachable via the demo "Try as customer" flow. Fully covered by `mvp-qc-handover-check.ts` instead | 09 | Low | Optional in Step 10: add a demo order at AMC bound to a second demo customer |
+| 18 | Only stage/health/attention-bucket/notification/nav-label strings are translated to mr/hi so far. Task titles, audit history text and admin-only prose (LeadForm, QuotePanels, Reports, Users, …) stay English | 10 | Low | D-18 says to expand one key at a time; translate more screens only if the Owner asks |
+| 19 | `preferred_language` no longer syncs across devices for MVP users (the DbManager write was removed, D-01); the choice persists per-browser only, via `localStorage` | 10 | Low | Acceptable per D-18 ("keep it simple, expand later"); Phase 2 could sync it to the canonical `users` doc |
+| 20 | `scanTaskNotifications` reads the whole `tasks` collection on every Admin/Owner dashboard load (same pattern `buildDashboard` already uses) | 10 | Low | Fine at 10–20 lifts; revisit if the task count grows much larger |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -334,4 +339,27 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Scope guard:** self-reviewed against the checklist (subagent unavailable this run): no legacy-store use, additive schema only (`TaskSpec.notes`, `HealthInput.tasks` type widening), no new dependency, no destructive change, ⚖ marks kept on GST/warranty/licence-timeline text, catalogs stay small (4 QC test items, 8 compliance types — both fixed, matching D-27's own cap).
 - **Screenshots:** `docs/mvp/screenshots/step-09/` (QC's task list and decision panel on a phone; the Admin's handover panel with both gates refused, on desktop).
 - **Open issues:** logged as 15 (rules), 16 (AMC sequencing) and 17 (demo reach) above.
+
+### Step 10: Customer portal, Owner view, Notifications, Reports, Languages (2026-09-24), DONE
+- **Customer module (spec §14):** no new screen. `OrdersList.tsx` (the customer's "My lift" tab) and `MvpOrderView.tsx` already show stage, progress, next action, payment status, documents (Evidence) and support (Raise blocker in `AdminActions.tsx`, and now EmergencyButton from Step 09); the customer already approves quotes, confirms readiness, submits payment proof and approves handover through the existing panels. Building a separate `CustomerHome.tsx` would have duplicated all of this (D-31) — logged as the why-not-reuse line instead of a new file.
+- **`OwnerView.tsx`** (spec §27, a new "Overview" tab, first for the owner role — Dashboard stays a secondary tab, unchanged): revenue collected, outstanding, booked value, estimated margin %, orders, active installations, completed lifts, and an AMC breakdown (warranty/due/offered/active/lost). Built from `services/reports.ts`'s `buildOwnerSummary`. Cost/margin are Admin+Owner only (I-5), matching `QuotePanels.tsx`'s existing rule.
+- **`Reports.tsx`** (spec §28, Admin/Owner): Sales (leads/qualified/quotes/orders/conversion), Operations (active/overdue/blocked/avg. installation days), Money (booked/collected/outstanding/margin), Quality (QC pass/rework/complaints) — four small tables, from `buildReports`. The Quality section's "Rework" figure is the S4 acceptance's "Quality report shows rework count" (verified in the check: +1 after a REWORK decision).
+- **`src/mvp/services/reports.ts`:** `buildOwnerSummary`, `buildReports` — pure aggregation over the existing repositories (projects, milestones, quote_costs, tasks, leads, installation_jobs, qc_inspections, snags, service_cases). No new collections.
+- **Notifications (spec §25, D-17):**
+  - `Bell.tsx`, mounted once at the top of `MvpRouter.tsx` (not inside Settings) so it's on every screen. Lists the viewer's notifications (uid, `role:<role>`, and `customer:<id>` for customers), unread count, mark-read-on-open, deep-links into the order.
+  - `notify.ts` gains `listMyNotifications`, `markNotificationRead`, and `scanTaskNotifications` — the plan's "overdue scan on dashboard load, daily digest on the Admin's first login of the day". Both are safe to call on every Admin/Owner dashboard load: `sendNotification`'s own idempotent dedupe key (day-scoped) makes repeat calls a no-op.
+  - One new template, `mvp_daily_digest` (added to `notify.ts`'s `MvpNotification` union and `notificationService.ts`'s `TEMPLATES`), for the daily digest. The spec's other 10 notifications, plus D-07/D-28's `mvp_blocker_raised`/`mvp_emergency`, were already wired in earlier steps.
+- **`src/mvp/services/invites.ts`** (D-13, closing a real gap — until now nothing in the MVP app could actually write an `invites/{email}` document): `createInvite` (Admin only; email + name + role; a customer invite must name an existing `Customer`), `listInvites`, `listCustomersForInvite`. Inviting the same email twice updates it rather than duplicating it.
+- **`UsersScreen.tsx`** (Admin, a new "Users" tab): the invite form, the invited list (signed-in vs. pending), and the signed-in directory (reusing `listPeople`).
+- **Languages (spec §30, D-18):** `src/mvp/i18n.ts` — a small, separate dictionary (en/mr/hi, English fallback) for stage names, health, the dashboard's "Needs attention" buckets, notification text and nav labels — the strings every role sees regardless of screen. Wired into `HealthBadge` (`ui.tsx`, self-contained via a new `useMvpLang()` hook — no prop changes at call sites), `MvpOrderView.tsx`, `AdminDashboard.tsx`, `OrdersList.tsx` (stage labels) and `mvpTabsFor()`/`App.tsx`'s `getTabsByRole` (nav labels). Task titles, audit text and admin-only prose are **not yet translated** (D-18: expand later, one key at a time — logged as open issue 18).
+  - `src/lib/language.ts` decoupled from `DbManager` for MVP users (D-01): `setAppLanguage` no longer calls `DbManager.updateUser` when `isMvpMode()` is on. The choice still persists per-browser via `localStorage`; cross-device sync is not built (open issue 19).
+- **Why not reuse:** `CustomerHomeDashboardScreen`/`CustomerDocumentVaultScreen`/`CustomerSupportTicketScreen`/`CustomerNotificationCenterScreen` are legacy DbManager screens whose canonical replacements (Order View, Evidence, blockers, the new Bell) already exist; `RevenueProfitAnalytics`/`SalesFunnelAnalytics` (1,398/1,031 lines, DbManager, charts) were reused only for the idea of four report sections, not their code — a plain table is enough at 10–20 lifts.
+- **Checks:**
+  - `npm run lint` PASS · `npm run build` PASS · 42/42 legacy (including `App.tsx`'s tab-filtering, since this step edited it).
+  - `npm run mvp:checks` 12/12 + backfill PASS. Two new scripts: `mvp-reports-check` (owner totals after S1 = collected ₹11,80,000 / 1 completed lift per the plan's own acceptance line, the AMC/active-installations breakdown, all four Reports sections, the Quality rework count, invites incl. validation and dedupe-by-email, the notification bell, and the overdue-scan/daily-digest idempotency) and `mvp-i18n-check` (every stage/health/attention/notification/nav key resolves for en/mr/hi, English is exact, an unknown key falls back to the caller's label rather than crashing).
+  - `npm run mvp:rules` 102/102, unchanged — Step 10 added no new collections or write patterns beyond what the rules already allow (Admin-only invites/compliance-style writes, the existing notification read/own-readAt-update rule).
+  - `scripts/mvp-mode-check.ts`'s regex assertion on `App.tsx` was loosened to allow `mvpTabsFor(role, appLanguage)` (it previously matched the exact call with no arguments).
+- **Scope guard:** self-reviewed against the checklist: no legacy-store writes for MVP users (the one DbManager call left is now gated `!isMvpMode()`), additive only (`MvpNotification` union, `HealthInput` unchanged, no schema/collection change), no new dependency, `firestore.rules` untouched, cost/margin still never reach a role outside admin/owner, i18n catalogs are small and enum-bounded (not a "large catalog").
+- **Screenshots:** `docs/mvp/screenshots/step-10/` (the Owner's Overview on a phone; the Admin's Reports and Users tabs on desktop; the Dashboard with the notification bell, on desktop).
+- **Known limits:** logged as open issues 18–20 above.
 

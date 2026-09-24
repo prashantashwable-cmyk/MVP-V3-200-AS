@@ -9,6 +9,7 @@
  */
 
 import type { CanonicalUserRole } from '../domain/entities';
+import { translateNav, type Lang } from './i18n';
 
 const env: Record<string, string | undefined> =
   typeof import.meta !== 'undefined' ? ((import.meta as any).env ?? {}) : {};
@@ -33,12 +34,14 @@ export function setLocalMvpMode(on: boolean): void {
 }
 
 export type MvpTabId =
-  | 'MvpDashboard' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings'
-  | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey' | 'MvpSuppliers' | 'MvpToday';
+  | 'MvpDashboard' | 'MvpOwnerView' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings'
+  | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey' | 'MvpSuppliers' | 'MvpToday'
+  | 'MvpReports' | 'MvpUsers';
 
 export interface MvpTab { id: MvpTabId; label: string; icon: string }
 
 const DASHBOARD: MvpTab = { id: 'MvpDashboard', label: 'Dashboard', icon: 'dashboard' };
+const OWNER_VIEW: MvpTab = { id: 'MvpOwnerView', label: 'Overview', icon: 'reports' };
 const ORDERS: MvpTab = { id: 'MvpOrders', label: 'Orders', icon: 'orders' };
 const TASKS: MvpTab = { id: 'MvpTasks', label: 'My tasks', icon: 'tasks' };
 const SETTINGS: MvpTab = { id: 'MvpSettings', label: 'Settings', icon: 'settings' };
@@ -47,11 +50,13 @@ const NEW_LEAD: MvpTab = { id: 'MvpNewLead', label: 'New lead', icon: 'leads' };
 const SURVEYS: MvpTab = { id: 'MvpSurveys', label: 'Surveys', icon: 'survey' };
 const SUPPLIERS: MvpTab = { id: 'MvpSuppliers', label: 'Suppliers', icon: 'supply' };
 const TODAY: MvpTab = { id: 'MvpToday', label: 'Today', icon: 'work' };
+const REPORTS: MvpTab = { id: 'MvpReports', label: 'Reports', icon: 'reports' };
+const USERS: MvpTab = { id: 'MvpUsers', label: 'Users', icon: 'users' };
 
 /** The allow-list per role. Later steps add their screens here (plan §5). */
 export const MVP_TABS: Record<CanonicalUserRole, MvpTab[]> = {
-  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SUPPLIERS, SETTINGS],
-  owner: [DASHBOARD, ORDERS, LEADS, SUPPLIERS, SETTINGS],
+  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SUPPLIERS, REPORTS, USERS, SETTINGS],
+  owner: [OWNER_VIEW, DASHBOARD, REPORTS, ORDERS, LEADS, SUPPLIERS, SETTINGS],
   sales: [LEADS, NEW_LEAD, TASKS, ORDERS, SETTINGS],
   surveyor: [SURVEYS, TASKS, SETTINGS],
   technician: [TODAY, TASKS, SETTINGS],
@@ -60,13 +65,15 @@ export const MVP_TABS: Record<CanonicalUserRole, MvpTab[]> = {
   supplier: [SETTINGS],
 };
 
-export function mvpTabsFor(role: string): MvpTab[] {
-  return MVP_TABS[role as CanonicalUserRole] ?? [SETTINGS];
+/** `lang` translates the nav labels (D-18); everything else about the allow-list is unaffected. */
+export function mvpTabsFor(role: string, lang: Lang = 'en'): MvpTab[] {
+  const tabs = MVP_TABS[role as CanonicalUserRole] ?? [SETTINGS];
+  return lang === 'en' ? tabs : tabs.map(t => ({ ...t, label: translateNav(lang, t.id, t.label) }));
 }
 
 /** Tabs a role may open, including the detail screens reached from a list. */
 export function isAllowedTab(role: string, tabId: string): boolean {
-  if (tabId === 'MvpOrder') return mvpTabsFor(role).some(t => t.id === 'MvpOrders' || t.id === 'MvpTasks' || t.id === 'MvpDashboard');
+  if (tabId === 'MvpOrder') return mvpTabsFor(role).some(t => t.id === 'MvpOrders' || t.id === 'MvpTasks' || t.id === 'MvpDashboard' || t.id === 'MvpOwnerView');
   if (tabId === 'MvpLead') return mvpTabsFor(role).some(t => t.id === 'MvpLeads');
   if (tabId === 'MvpNewLead') return role === 'admin' || role === 'sales';
   if (tabId === 'MvpSurvey') return mvpTabsFor(role).some(t => t.id === 'MvpSurveys') || role === 'admin';

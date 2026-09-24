@@ -19,6 +19,10 @@ import { SurveyForm, SurveyList } from './SurveyScreens';
 import { OrderExtras } from './OrderExtras';
 import { SuppliersScreen } from './SupplyPanels';
 import { TechToday } from './InstallationPanels';
+import { OwnerView } from './OwnerView';
+import { Reports } from './Reports';
+import { UsersScreen } from './UsersScreen';
+import { NotificationBell } from './Bell';
 
 export interface MvpRouterProps {
   user: User;
@@ -57,34 +61,49 @@ export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActive
   const openLead = (id: string) => { selection.leadId = id; setActiveTab('MvpLead'); };
   const openSurvey = (id: string) => { setOrderId(id); setActiveTab('MvpSurvey'); };
 
-  switch (tab) {
-    case 'MvpDashboard':
-      return <AdminDashboard user={user} onOpenOrder={openOrder} />;
-    case 'MvpOrders':
-      return <OrdersList user={user} onOpenOrder={openOrder} />;
-    case 'MvpTasks':
-      return <WorkQueueScreen user={user} onOpenOrder={openOrder} />;
-    case 'MvpOrder':
-      return (
-        <ProjectOperatingView user={user} orderId={orderId} onBack={() => setActiveTab(returnTab)}
-          renderExtra={p => <OrderExtras user={user} onOpenSurvey={openSurvey} {...p} />} />
-      );
-    case 'MvpLeads':
-      return <LeadsList user={user} onOpenLead={openLead} onNewLead={() => setActiveTab('MvpNewLead')} />;
-    case 'MvpNewLead':
-      return <LeadForm user={user} onSaved={openLead} onOpenLead={openLead} />;
-    case 'MvpLead':
-      return <LeadDetailScreen user={user} leadId={selection.leadId} onOpenOrder={openOrder} onBack={() => setActiveTab('MvpLeads')} />;
-    case 'MvpToday':
-      return <TechToday user={user} onOpenOrder={openOrder} />;
-    case 'MvpSuppliers':
-      return <SuppliersScreen user={user} />;
-    case 'MvpSurveys':
-      return <SurveyList user={user} onOpenSurvey={openSurvey} />;
-    case 'MvpSurvey':
-      return <SurveyForm user={user} orderId={orderId} onDone={() => setActiveTab('MvpSurveys')} />;
-    case 'MvpSettings':
-    default:
-      return <MvpSettings user={user} onLogout={onLogout} languageSection={languageSection} />;
-  }
+  const renderTab = () => {
+    switch (tab) {
+      case 'MvpDashboard':
+        return <AdminDashboard user={user} onOpenOrder={openOrder} />;
+      case 'MvpOwnerView':
+        return <OwnerView user={user} />;
+      case 'MvpReports':
+        return <Reports user={user} />;
+      case 'MvpUsers':
+        return <UsersScreen user={user} />;
+      case 'MvpOrders':
+        return <OrdersList user={user} onOpenOrder={openOrder} />;
+      case 'MvpTasks':
+        return <WorkQueueScreen user={user} onOpenOrder={openOrder} />;
+      case 'MvpOrder':
+        return (
+          <ProjectOperatingView user={user} orderId={orderId} onBack={() => setActiveTab(returnTab)}
+            renderExtra={p => <OrderExtras user={user} onOpenSurvey={openSurvey} {...p} />} />
+        );
+      case 'MvpLeads':
+        return <LeadsList user={user} onOpenLead={openLead} onNewLead={() => setActiveTab('MvpNewLead')} />;
+      case 'MvpNewLead':
+        return <LeadForm user={user} onSaved={openLead} onOpenLead={openLead} />;
+      case 'MvpLead':
+        return <LeadDetailScreen user={user} leadId={selection.leadId} onOpenOrder={openOrder} onBack={() => setActiveTab('MvpLeads')} />;
+      case 'MvpToday':
+        return <TechToday user={user} onOpenOrder={openOrder} />;
+      case 'MvpSuppliers':
+        return <SuppliersScreen user={user} />;
+      case 'MvpSurveys':
+        return <SurveyList user={user} onOpenSurvey={openSurvey} />;
+      case 'MvpSurvey':
+        return <SurveyForm user={user} orderId={orderId} onDone={() => setActiveTab('MvpSurveys')} />;
+      case 'MvpSettings':
+      default:
+        return <MvpSettings user={user} onLogout={onLogout} languageSection={languageSection} />;
+    }
+  };
+
+  return (
+    <>
+      <div className="flex justify-end max-w-5xl mx-auto px-1"><NotificationBell user={user} onOpenOrder={openOrder} /></div>
+      {renderTab()}
+    </>
+  );
 };

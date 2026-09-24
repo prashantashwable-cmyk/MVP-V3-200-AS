@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DbManager } from './db';
 import { User } from '../types';
+import { isMvpMode } from '../mvp/mvpMode';
 
 export type Language = 'en' | 'mr' | 'hi';
 
@@ -252,7 +253,10 @@ export function setAppLanguage(lang: Language, currentUser?: User | null) {
   localStorage.setItem('aiec_app_lang', lang);
   document.documentElement.setAttribute('lang', lang);
   
-  if (currentUser) {
+  // D-01: MVP users are never written through the legacy local store. The choice already
+  // persists per-browser via localStorage above; cross-device sync is not built (D-18: keep
+  // it simple, expand later).
+  if (currentUser && !isMvpMode()) {
     const updatedUser = {
       ...currentUser,
       preferred_language: lang

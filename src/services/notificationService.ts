@@ -59,6 +59,7 @@ const TEMPLATES: Record<string, NotificationTemplate> = {
   mvp_amc_reminder: { id: 'mvp_amc_reminder', subject: 'AMC reminder', body: 'The warranty ends soon; offer the AMC.' },
   mvp_blocker_raised: { id: 'mvp_blocker_raised', subject: 'Blocker raised', body: 'A blocker was raised on an order.' },
   mvp_emergency: { id: 'mvp_emergency', subject: 'EMERGENCY', body: 'A lift emergency was reported. Respond now.' },
+  mvp_daily_digest: { id: 'mvp_daily_digest', subject: 'Daily summary', body: 'Your daily summary is ready on the dashboard.' },
 };
 
 /** MVP: lets the notification bell show a template's text without duplicating it. */

@@ -838,7 +838,7 @@ export default function App() {
   // Sidebar / bottom tab items per role
   const getTabsByRole = (role: UserRole) => {
     if (mvpMode) {
-      return mvpTabsFor(role).map(t => ({ id: t.id, label: t.label, icon: MVP_NAV_ICONS[t.icon] ?? LayoutDashboard }));
+      return mvpTabsFor(role, appLanguage).map(t => ({ id: t.id, label: t.label, icon: MVP_NAV_ICONS[t.icon] ?? LayoutDashboard }));
     }
     switch (role) {
       case 'admin':

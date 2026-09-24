@@ -8,14 +8,15 @@ import { AlertTriangle, CalendarClock, Columns3, RefreshCw } from 'lucide-react'
 import type { User } from '../../types';
 import { Card } from '../../components/Common';
 import { buildDashboard, PIPELINE_COLUMNS, type DashboardOrder } from '../services/readModels';
-import { MVP_STAGE_LABELS } from '../stage';
 import { formatDateTime } from '../format';
-import { ErrorNote, HealthBadge, Loading, SectionTitle, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, HealthBadge, Loading, SectionTitle, useLoad, useMvpCtx, useMvpLang } from './ui';
+import { translateAttention, translateStage } from '../i18n';
 
 const PIPE_LABEL: Record<string, string> = { LEAD: 'Lead', QUALIFIED: 'Qualified', SURVEY: 'Survey', QUOTE: 'Quote', BOOKED: 'Booked', SITE_READY: 'Site ready', DELIVERY: 'Delivery', INSTALLATION: 'Installation', QC: 'QC', HANDOVER: 'Handover', AMC: 'AMC' };
 
 export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) => void }> = ({ user, onOpenOrder }) => {
   const { ctx } = useMvpCtx(user);
+  const lang = useMvpLang();
   const { data, error, loading, reload } = useLoad(() => buildDashboard(ctx), [ctx]);
 
   if (loading && !data) return <Loading label="Loading dashboard…" />;
@@ -30,7 +31,7 @@ export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) =>
         <HealthBadge health={o.health} />
       </div>
       <div className="text-xs text-warmgray mt-1">
-        {MVP_STAGE_LABELS[o.stage]} · {o.progress}% · {o.currentTask ? <>{o.currentTask.title} · due {formatDateTime(o.currentTask.dueDate)}</> : 'NO NEXT ACTION'}
+        {translateStage(lang, o.stage)} · {o.progress}% · {o.currentTask ? <>{o.currentTask.title} · due {formatDateTime(o.currentTask.dueDate)}</> : 'NO NEXT ACTION'}
       </div>
     </button>
   );
@@ -60,7 +61,7 @@ export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) =>
         {data.attention.length === 0 && <p className="text-xs text-warmgray">Nothing needs attention. Every active order is on track.</p>}
         {data.attention.map(g => (
           <div key={g.bucket} className="space-y-1.5">
-            <div className={`text-xs font-bold ${g.bucket === 'emergency' ? 'text-error' : 'text-charcoal'}`}>{g.label} ({g.orders.length})</div>
+            <div className={`text-xs font-bold ${g.bucket === 'emergency' ? 'text-error' : 'text-charcoal'}`}>{translateAttention(lang, g.bucket)} ({g.orders.length})</div>
             {g.orders.map(o => <OrderRow key={`${g.bucket}-${o.id}`} o={o} emergency={g.bucket === 'emergency'} />)}
           </div>
         ))}
