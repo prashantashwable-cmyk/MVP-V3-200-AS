@@ -168,9 +168,10 @@ export async function rejectPaymentProof(ctx: MvpCtx, actor: MvpActor, milestone
   const repo = paymentMilestoneRepository(ctx);
   const m = await repo.get(milestoneIdValue);
   if (!m) throw new MvpError('not_found', 'Payment milestone not found.');
+  if (isSettled(m)) throw new MvpError('invalid', 'This payment is already settled; its proof cannot be rejected.');
   const updated = await repo.update(m.id, { rejectedReason: reason, proof: null as any, updatedAt: nowOf(ctx).toISOString() }, m.version ?? 0);
   await audit(ctx, actor, 'PAYMENT_PROOF_REJECTED', m, { proof: m.proof?.reference }, { proof: null }, reason);
   const order = await projectRepository(ctx).get(m.orderId);
-  if (order) await notify(ctx, customerToken(order.customerId), 'mvp_payment_due', m.orderId, `${m.id}:rejected:${Date.now()}`);
+  if (order) await notify(ctx, customerToken(order.customerId), 'mvp_payment_due', m.orderId, `${m.id}:rejected:${nowOf(ctx).getTime()}`);
   return updated;
 }

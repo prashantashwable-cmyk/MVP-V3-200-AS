@@ -10,6 +10,7 @@ import {
   approvalRequestRepository, projectRepository, quoteCostRepository, quoteRepository, quoteVersionRepository,
 } from '../../repository/entities';
 import { recordAuditEvent, newCorrelationId } from '../../lib/audit';
+import { createIfAbsent } from '../../repository/transactions';
 import { runIdempotent } from '../../lib/idempotency';
 import { GST_RATE_CONFIRMED } from '../config';
 import { computeQuote, validateQuoteInput, type QuoteLines } from '../quoteMath';
@@ -92,7 +93,10 @@ export async function saveQuote(ctx: MvpCtx, actor: MvpActor, orderId: string, i
     taxRateConfirmed: GST_RATE_CONFIRMED, taxAmount: fig.taxAmount, sellingPrice: fig.sellingPrice,
     createdAt: now, createdBy: actor.userId as QuoteVersion['createdBy'],
   };
-  await quoteVersionRepository(ctx).create(JSON.parse(JSON.stringify(version)));
+  // createIfAbsent: a double-tap computes the same version id and must not overwrite or duplicate it.
+  if (!(await createIfAbsent(ctx, 'quote_versions', JSON.parse(JSON.stringify(version))))) {
+    throw new MvpError('invalid', 'This quote version was just saved. Reload to see it.');
+  }
   const cost: QuoteCost = {
     id: versionId, orderId: orderId as QuoteCost['orderId'], quoteId: quoteIdFor(orderId) as QuoteCost['quoteId'],
     estimatedCost: input.estimatedCost, markupPct: fig.markupPct, grossMarginPct: fig.grossMarginPct, belowMinimum: fig.belowMinimum, createdAt: now,
@@ -102,15 +106,15 @@ export async function saveQuote(ctx: MvpCtx, actor: MvpActor, orderId: string, i
       id: `apr_${versionId}` as ApprovalRequest['id'], projectId: orderId as ApprovalRequest['projectId'], entityType: 'QuoteVersion', entityId: versionId,
       requestedBy: actor.userId as ApprovalRequest['requestedBy'], requiredPermission: 'quote.approve', status: 'pending', createdAt: now,
     };
-    await approvalRequestRepository(ctx).create(apr);
+    await createIfAbsent(ctx, 'approval_requests', apr);
     cost.approvalRequestId = apr.id;
   }
-  await quoteCostRepository(ctx).create(JSON.parse(JSON.stringify(cost)));
+  await createIfAbsent(ctx, 'quote_costs', JSON.parse(JSON.stringify(cost)));
 
   const status: Quote['status'] = fig.belowMinimum ? 'pending_approval' : 'approved';
   if (!quote) {
     quote = { id: quoteIdFor(orderId) as Quote['id'], projectId: orderId as Quote['projectId'], status, currentVersionId: version.id, createdBy: actor.userId as Quote['createdBy'], createdAt: now, updatedAt: now };
-    await qRepo.create(quote);
+    await createIfAbsent(ctx, 'quotes', quote);
   } else {
     await qRepo.update(quote.id, { status, currentVersionId: version.id, updatedAt: now });
   }

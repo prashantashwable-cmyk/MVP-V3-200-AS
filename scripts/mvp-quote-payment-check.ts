@@ -99,6 +99,7 @@ async function main() {
   check(['PAYMENT_PROOF_SUBMITTED', 'PAYMENT_PROOF_REJECTED', 'PAYMENT_STATUS_CHANGED'].every(a => payAudit.some(e => e.action === a)), 'every payment change writes an audit event');
   check(payAudit.filter(e => e.action === 'PAYMENT_STATUS_CHANGED').length === 1, 'verifying twice records one status change (idempotent)');
   await assertInvariants(ctx, s.orderId, 'S1.7');
+  await expectError(rejectPaymentProof(ctx, USERS.admin, tokenId, 'late'), 'invalid', 'a settled payment\'s proof cannot be rejected');
 
   // Soft gate helper (D-14).
   check((await checkGate(ctx, s.orderId, 'SITE_READY_ENTRY')).allowed, 'gate: token paid → SITE_READY entry allowed');

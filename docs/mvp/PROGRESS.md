@@ -194,4 +194,5 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Rules:** the customer's quote read now queries `quote_versions` by `projectId`, the field the rule checks. Emulator 69/69 (new: customer lists own quote versions and milestones; another customer cannot).
 - **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-quote-payment-check`: fixture ₹11,80,000 / 25% / 20%, low-margin block + approval, milestones 10,000 / 10,52,000 / 1,18,000 and the sum rule, S1 5–7, double-accept and double-verify idempotency, S6, the S5 AT_RISK set-up, I-5, the payment audit trail, gates and override) · 42/42 legacy.
 - **Screenshots:** `docs/mvp/screenshots/step-06/`.
+- **Scope guard:** PASS with warnings, all applied: no reject on a settled payment, deterministic notification keys, and `saveQuote` writes through `createIfAbsent` (a double-tap can't clash). Quote status updates have no optimistic lock (single Admin writer); accepted for the pilot.
 
