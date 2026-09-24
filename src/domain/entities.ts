@@ -46,6 +46,10 @@ import type {
   AuditEventId,
   WorkflowInstanceId,
   WorkflowExecutionId,
+  TaskId,
+  BlockerId,
+  PaymentMilestoneId,
+  SiteSurveyId,
 } from './ids';
 
 // ---------------------------------------------------------------------------
@@ -74,13 +78,16 @@ export type ProjectStage =
   | 'handover'
   | 'warranty_amc'
   | 'service'
-  | 'closed_lost';
+  | 'closed_lost'
+  // MVP additions (D-03). Additive: existing values stay valid for old data.
+  | 'survey'
+  | 'site_ready';
 
 // ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
 
-export type CanonicalUserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier';
+export type CanonicalUserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier' | 'owner' | 'sales' | 'qc';
 
 export interface CanonicalUser {
   id: UserId;
@@ -89,6 +96,8 @@ export interface CanonicalUser {
   email?: string;
   phone?: string;
   status: 'active' | 'pending' | 'inactive';
+  /** MVP: set for customer users from their invite (D-13). */
+  customerId?: CustomerId;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +172,28 @@ export interface Project {
     customerName: string;
     siteAddress: string;
   };
+  // --- MVP additions (D-02, D-05, D-12; all optional so old documents stay valid) ---
+  /** Human display code `AE-####`, generated once in a transaction, never changed. */
+  displayCode?: string;
+  /** Missing means ACTIVE (D-05). Independent of `stage`. */
+  status?: OrderStatus;
+  statusReason?: string;
+  holdReviewDate?: string;
+  /** uids + `customer:<customerId>`; recomputed by the MVP order service. Drives the rules. */
+  participantIds?: string[];
+  /** Installation checklist items done, 0–11 (D-10). */
+  checklistDone?: number;
+  qcPassedAt?: string;
+  completedAt?: string;
+  liftSummary?: string;
+  sellingPrice?: number;
+  /** QC inspector the Admin picked for this order (used by INSTALLATION_COMPLETED). */
+  qcUserId?: string;
+  version?: number;
+  updatedBy?: string;
 }
+
+export type OrderStatus = 'ACTIVE' | 'ON_HOLD' | 'CANCELLED' | 'COMPLETED';
 
 // ---------------------------------------------------------------------------
 // Quote / QuoteVersion / Contract
@@ -184,6 +214,8 @@ export interface Quote {
   projectId: ProjectId;
   status: QuoteStatus;
   currentVersionId?: QuoteVersionId;
+  decisionNote?: string;
+  decidedAt?: string;
   createdBy: UserId;
   createdAt: string;
   updatedAt: string;
@@ -198,6 +230,13 @@ export interface QuoteVersion {
   lineItems: { description: string; qty: number; unitPrice: number }[];
   totalAmount: number;
   marginPercent?: number;
+  // MVP (spec §16): customer-visible price build-up. Cost lives only in `quote_costs`.
+  lines?: { base: number; installation: number; freight: number; other: number };
+  subtotalExclTax?: number;
+  taxRatePct?: number;
+  taxRateConfirmed?: boolean;
+  taxAmount?: number;
+  sellingPrice?: number;
   approvedBy?: UserId;
   approvedAt?: string;
   createdAt: string;
@@ -281,6 +320,8 @@ export interface Supplier {
   name: string;
   gstin?: string;
   status: 'active' | 'suspended';
+  contactName?: string;
+  phone?: string;
 }
 
 export type PurchaseOrderStatus =
@@ -306,6 +347,12 @@ export interface PurchaseOrder {
   approvedAt?: string;
   /** Required for PO creation idempotency — see Phase 06. */
   idempotencyKey: string;
+  // MVP (spec §24)
+  items?: string;
+  expectedDeliveryDate?: string;
+  materialStatus?: 'ORDERED' | 'DISPATCHED' | 'DELIVERED' | 'DELAYED';
+  delayReason?: string;
+  version?: number;
 }
 
 export type ProductionOrderStatus = 'queued' | 'in_progress' | 'qc_hold' | 'completed';
@@ -335,7 +382,10 @@ export type DeliveryReceiptStatus = 'ok' | 'damaged' | 'missing_items' | 'disput
 export interface DeliveryReceipt {
   id: DeliveryReceiptId;
   projectId: ProjectId;
-  shipmentId: ShipmentId;
+  /** Optional since the MVP: material can be received against a PO without a Shipment record. */
+  shipmentId?: ShipmentId;
+  note?: string;
+  documentIds?: string[];
   status: DeliveryReceiptStatus;
   receivedBy: UserId;
   receivedAt: string;
@@ -363,6 +413,11 @@ export interface InstallationJob {
   siteReadinessConfirmed?: boolean;
   checkedInAt?: string;
   completedAt?: string;
+  // MVP (spec §18)
+  startedAt?: string;
+  checklist?: Record<string, { done: boolean; by?: string; at?: string; note?: string; documentId?: string }>;
+  checkInLocation?: { lat: number; lng: number; accuracyM?: number };
+  version?: number;
 }
 
 export type QCResult = 'pending' | 'pass' | 'fail';
@@ -375,6 +430,11 @@ export interface QCInspection {
   result: QCResult;
   discipline?: 'mechanical' | 'electrical' | 'safety' | 'general';
   inspectedAt?: string;
+  // MVP (spec §19)
+  decision?: 'PASS' | 'REWORK' | 'FAIL';
+  tests?: Record<string, boolean>;
+  remarks?: string;
+  documentIds?: string[];
 }
 
 export type SnagStatus = 'open' | 'assigned' | 'reworked' | 'reinspection_pending' | 'closed';
@@ -405,6 +465,16 @@ export interface Handover {
   status: HandoverStatus;
   customerAcceptedAt?: string;
   certificateDocumentId?: DocumentId;
+  // MVP (spec §20)
+  customerConfirmedBy?: string;
+  customerConfirmedName?: string;
+  customerConfirmedDevice?: string;
+  completedAt?: string;
+  completedBy?: string;
+  finalTestConfirmed?: boolean;
+  documentIds?: string[];
+  overrides?: { gate: string; reason: string; by: string; at: string }[];
+  version?: number;
 }
 
 export interface Warranty {
@@ -423,6 +493,13 @@ export interface AMC {
   status: AMCStatus;
   startDate: string;
   endDate: string;
+  // MVP (D-26). AMC_DUE is computed from warrantyEnd, never stored.
+  mvpAmcStatus?: 'WARRANTY' | 'AMC_OFFERED' | 'AMC_ACTIVE' | 'AMC_LOST';
+  warrantyEnd?: string;
+  reminderDate?: string;
+  lastServiceDate?: string;
+  nextServiceDate?: string;
+  version?: number;
 }
 
 export type ServiceCaseStatus = 'open' | 'assigned' | 'resolved' | 'closed';
@@ -434,6 +511,15 @@ export interface ServiceCase {
   reportedBy: UserId;
   assignedTo?: UserId;
   createdAt: string;
+  // MVP (D-28 emergency; complaints)
+  kind?: 'EMERGENCY' | 'COMPLAINT';
+  priority?: 'P0' | 'P1' | 'P2';
+  description?: string;
+  acknowledgedAt?: string;
+  resolvedAt?: string;
+  resolutionNote?: string;
+  documentIds?: string[];
+  version?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +537,11 @@ export interface DocumentRecord {
   uploadedBy: UserId;
   uploadedAt: string;
   version: number;
+  // MVP (D-16 as changed in Step 02): evidence bytes stored inline, ≤ 900 KB.
+  dataUrl?: string;
+  caption?: string;
+  taskId?: string;
+  kind?: 'photo' | 'document';
 }
 
 export type NotificationChannel = 'email' | 'whatsapp' | 'sms' | 'in_app';
@@ -465,6 +556,8 @@ export interface NotificationRecord {
   status: NotificationStatus;
   idempotencyKey: string;
   createdAt: string;
+  /** MVP: set by the audience when opened in the bell. */
+  readAt?: string;
 }
 
 export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -550,3 +643,161 @@ export interface ReconciliationRecord {
   resolvedBy?: string;
   resolutionNote?: string;
 }
+
+// ---------------------------------------------------------------------------
+// MVP (Phase 1) entities — docs/mvp/MVP_REFACTOR_PLAN.md §2. Additive.
+// ---------------------------------------------------------------------------
+
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED';
+
+export type TaskType =
+  | 'QUALIFY_LEAD' | 'ASSIGN_SURVEYOR' | 'COLLECT_SURVEY_FEE' | 'SURVEY' | 'SITE_CORRECTION'
+  | 'REVIEW_NOT_FEASIBLE' | 'PREPARE_QUOTE' | 'APPROVE_MARGIN' | 'QUOTE_DECISION'
+  | 'COLLECT_BOOKING_TOKEN' | 'SITE_READINESS' | 'RAISE_PO' | 'VERIFY_SITE_READY'
+  | 'TRACK_DELIVERY' | 'COLLECT_DELIVERY_PAYMENT' | 'INSTALLATION' | 'QC_INSPECTION'
+  | 'REWORK' | 'HANDOVER' | 'COLLECT_FINAL_PAYMENT' | 'STATUTORY_LICENCE'
+  | 'AMC_FOLLOW_UP' | 'REVIEW_HOLD' | 'EMERGENCY_RESPONSE' | 'REVIEW_ORDER';
+
+export type MvpStage =
+  | 'LEAD' | 'QUALIFIED' | 'SURVEY' | 'QUOTE' | 'BOOKED'
+  | 'SITE_READY' | 'DELIVERY' | 'INSTALLATION' | 'QC_HANDOVER' | 'AMC';
+
+/** D-06. `assigneeId` is a uid, `customer:<customerId>` or `role:<role>` (e.g. `role:admin`). */
+export interface Task {
+  id: TaskId;
+  /** Set for order tasks. Lead-stage tasks (QUALIFY_LEAD) carry `leadId` instead. */
+  orderId?: ProjectId;
+  leadId?: LeadId;
+  type: TaskType;
+  title: string;
+  stage: MvpStage;
+  assigneeId: string;
+  assigneeRole: CanonicalUserRole;
+  status: TaskStatus;
+  /** True for the task that represents "the next action" of the event that created it. */
+  primary?: boolean;
+  dueDate: string;
+  completedAt?: string;
+  notes?: string;
+  evidenceIds?: string[];
+  /** Status to return to when a blocker is resolved (D-07). */
+  previousStatus?: TaskStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type BlockerReason =
+  | 'CUSTOMER_NOT_READY' | 'MATERIAL_MISSING' | 'POWER_UNAVAILABLE' | 'SITE_UNSAFE'
+  | 'WRONG_MEASUREMENT' | 'PAYMENT_PENDING' | 'SUPPLIER_DELAY' | 'OTHER';
+
+/** D-07. */
+export interface Blocker {
+  id: BlockerId;
+  orderId: ProjectId;
+  taskId?: TaskId;
+  reason: BlockerReason;
+  description: string;
+  evidence: string[];
+  ownerUserId: string;
+  status: 'OPEN' | 'RESOLVED';
+  dueDate: string;
+  resolutionNote?: string;
+  createdAt: string;
+  createdBy: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  version: number;
+}
+
+export type MilestoneKind = 'SURVEY_FEE' | 'BOOKING_TOKEN' | 'DELIVERY' | 'FINAL';
+export type MvpPaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID' | 'FAILED' | 'REFUNDED';
+
+/** D-14 / spec §17. */
+export interface PaymentMilestone {
+  id: PaymentMilestoneId;
+  orderId: ProjectId;
+  kind: MilestoneKind;
+  label: string;
+  amount: number;
+  dueDate?: string;
+  status: MvpPaymentStatus;
+  amountReceived: number;
+  method?: string;
+  reference?: string;
+  notes?: string;
+  proof?: { reference: string; documentId?: string; submittedAt: string; submittedBy: string };
+  verifiedBy?: string;
+  verifiedAt?: string;
+  rejectedReason?: string;
+  waived?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type SurveyResult = 'FEASIBLE' | 'REQUIRES_CORRECTION' | 'NOT_FEASIBLE';
+
+/** Spec §15. Measurements in millimetres. */
+export interface SiteSurvey {
+  id: SiteSurveyId;
+  orderId: ProjectId;
+  surveyorId: string;
+  floors: number;
+  stops: number;
+  capacityPersons: number;
+  shaftWidthMm: number;
+  shaftDepthMm: number;
+  pitMm: number;
+  headroomMm: number;
+  power: string;
+  access: string;
+  siteReadiness: string;
+  remarks: string;
+  photoIds: string[];
+  result: SurveyResult;
+  submittedAt: string;
+}
+
+/** D-15. Admin/owner only — id is the QuoteVersion id. Never shown to other roles (I-5). */
+export interface QuoteCost {
+  id: string;
+  orderId: ProjectId;
+  quoteId: QuoteId;
+  estimatedCost: number;
+  markupPct: number;
+  grossMarginPct: number;
+  belowMinimum: boolean;
+  approvalRequestId?: ApprovalRequestId;
+  createdAt: string;
+}
+
+export type ComplianceType =
+  | 'LIFT_LICENSE' | 'STATUTORY_INSPECTION' | 'CONTRACTOR_RESPONSIBILITY' | 'INSURANCE'
+  | 'GST_INVOICE' | 'TDS' | 'CUSTOMER_AGREEMENT' | 'PARTNER_AGREEMENT';
+
+/** D-27 ⚖ VERIFY — the software records compliance, it does not guarantee it. */
+export interface ComplianceItem {
+  id: string;
+  orderId: ProjectId;
+  type: ComplianceType;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE' | 'NOT_APPLICABLE';
+  documentId?: string;
+  note?: string;
+  updatedBy: string;
+  updatedAt: string;
+  version: number;
+}
+
+/** D-13 as changed in Step 02: the Admin's invite list. id = lower-case email. */
+export interface Invite {
+  id: string;
+  email: string;
+  role: CanonicalUserRole;
+  name: string;
+  customerId?: CustomerId;
+  createdBy: string;
+  createdAt: string;
+}
+

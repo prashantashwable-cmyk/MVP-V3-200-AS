@@ -52,6 +52,9 @@ export const NEXT_ACTION_BY_STAGE: Record<ProjectStage, string> = {
   warranty_amc: 'Project complete — monitor warranty and offer AMC',
   service: 'Resolve the open service case',
   closed_lost: 'None — this project was lost',
+  // MVP stages (D-03). The MVP Order View shows the current task instead; these are fallbacks.
+  survey: 'Complete the site survey',
+  site_ready: 'Customer to prepare the site; Admin to confirm readiness',
 };
 
 export interface ProjectOperatingView {

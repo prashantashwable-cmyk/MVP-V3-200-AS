@@ -46,7 +46,25 @@ const TEMPLATES: Record<string, NotificationTemplate> = {
   quote_accepted_ops: { id: 'quote_accepted_ops', subject: 'Quote accepted', body: 'A quote was accepted — project entering contract stage.' },
   qc_failed_rework_assigned: { id: 'qc_failed_rework_assigned', subject: 'Rework assigned', body: 'A QC inspection failed and rework has been assigned to you.' },
   payment_overdue_escalation: { id: 'payment_overdue_escalation', subject: 'Payment overdue', body: 'A scheduled payment is overdue and has been escalated.' },
+  // MVP notifications (spec §25), in-app only (D-17).
+  mvp_task_assigned: { id: 'mvp_task_assigned', subject: 'New task assigned', body: 'A task has been assigned to you.' },
+  mvp_task_due: { id: 'mvp_task_due', subject: 'Task due soon', body: 'One of your tasks is due within 24 hours.' },
+  mvp_task_overdue: { id: 'mvp_task_overdue', subject: 'Task overdue', body: 'One of your tasks is overdue.' },
+  mvp_survey_scheduled: { id: 'mvp_survey_scheduled', subject: 'Survey scheduled', body: 'A site survey has been scheduled.' },
+  mvp_quote_ready: { id: 'mvp_quote_ready', subject: 'Quote ready', body: 'Your quote is ready to review.' },
+  mvp_payment_due: { id: 'mvp_payment_due', subject: 'Payment due', body: 'A payment milestone is due.' },
+  mvp_installation_scheduled: { id: 'mvp_installation_scheduled', subject: 'Installation scheduled', body: 'Material has arrived; installation is scheduled.' },
+  mvp_qc_required: { id: 'mvp_qc_required', subject: 'QC required', body: 'An installation is ready for QC inspection.' },
+  mvp_handover_ready: { id: 'mvp_handover_ready', subject: 'Handover ready', body: 'QC has passed; the lift is ready for handover.' },
+  mvp_amc_reminder: { id: 'mvp_amc_reminder', subject: 'AMC reminder', body: 'The warranty ends soon; offer the AMC.' },
+  mvp_blocker_raised: { id: 'mvp_blocker_raised', subject: 'Blocker raised', body: 'A blocker was raised on an order.' },
+  mvp_emergency: { id: 'mvp_emergency', subject: 'EMERGENCY', body: 'A lift emergency was reported. Respond now.' },
 };
+
+/** MVP: lets the notification bell show a template's text without duplicating it. */
+export function getNotificationTemplate(templateId: string): NotificationTemplate | undefined {
+  return TEMPLATES[templateId];
+}
 
 export interface DeliveryResult {
   channel: NotificationChannel;

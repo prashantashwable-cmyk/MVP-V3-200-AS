@@ -49,6 +49,11 @@ export type ApprovalRequestId = Id<'ApprovalRequest'>;
 export type AuditEventId = Id<'AuditEvent'>;
 export type WorkflowInstanceId = Id<'WorkflowInstance'>;
 export type WorkflowExecutionId = Id<'WorkflowExecution'>;
+// MVP (Phase 1) additions — additive, see docs/mvp/MVP_REFACTOR_PLAN.md §2.
+export type TaskId = Id<'Task'>;
+export type BlockerId = Id<'Blocker'>;
+export type PaymentMilestoneId = Id<'PaymentMilestone'>;
+export type SiteSurveyId = Id<'SiteSurvey'>;
 
 /** Every canonical entity that is meaningfully project-scoped carries this. */
 export interface ProjectScoped {
