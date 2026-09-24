@@ -16,7 +16,7 @@ import type { AuthMethod } from '../../types';
 import type { RepositoryContext } from '../../repository/types';
 import { getRepository } from '../../repository';
 import {
-  blockerRepository, customerRepository, paymentMilestoneRepository, projectRepository, siteRepository, siteSurveyRepository, taskRepository,
+  blockerRepository, customerRepository, installationJobRepository, paymentMilestoneRepository, projectRepository, siteRepository, siteSurveyRepository, taskRepository,
 } from '../../repository/entities';
 import { createIfAbsent, nextSequence } from '../../repository/transactions';
 import { recordAuditEvent, newCorrelationId } from '../../lib/audit';
@@ -416,7 +416,7 @@ export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, 
       const order: OrderRecord = {
         id: orderId as Project['id'], customerId: customer.id, siteId: site.id, sourceLeadId: leadId as Project['sourceLeadId'],
         stage: 'lead', ownerUserId: owner as Project['ownerUserId'], title: `${lead.contactInfo.name} — ${lead.buildingInfo.address}`,
-        createdAt: now, updatedAt: now, displaySummary: { customerName: lead.contactInfo.name, siteAddress: lead.buildingInfo.address },
+        createdAt: now, updatedAt: now, displaySummary: { customerName: lead.contactInfo.name, siteAddress: lead.buildingInfo.address, customerPhone: lead.contactInfo.phone },
         displayCode: code, status: 'ACTIVE', participantIds: computeParticipants({ ownerUserId: owner as any, customerId: customer.id }, []),
         checklistDone: 0, liftSummary: opts.liftSummary ?? lead.liftRequirement, version: 0, updatedBy: actor.userId,
       };
@@ -572,9 +572,26 @@ export async function reassignTask(ctx: MvpCtx, actor: MvpActor, taskId: string,
     assigneeId: assignee.id, assigneeRole: assignee.role, updatedAt: nowOf(ctx).toISOString(),
   }, task.version ?? 0);
   await audit(ctx, actor, 'TASK_REASSIGNED', 'Task', taskId, task.orderId, { assigneeId: task.assigneeId }, { assigneeId: assignee.id }, reason);
+  if (task.orderId && task.type === 'INSTALLATION' && assignee.role === 'technician') {
+    await syncInstallationJob(ctx, task.orderId, assignee.id);
+  }
   await notify(ctx, assignee.id, 'mvp_task_assigned', task.orderId, `${taskId}:reassign:${assignee.id}`);
   if (task.orderId) await refreshParticipants(ctx, actor, task.orderId);
   return updated;
+}
+
+/** The InstallationJob follows the INSTALLATION task's technician (created on first assignment). */
+export async function syncInstallationJob(ctx: MvpCtx, orderId: string, technicianId: string): Promise<void> {
+  const repo = installationJobRepository(ctx);
+  const id = `job_${orderId}`;
+  const job = await repo.get(id);
+  if (!job) {
+    await createIfAbsent(ctx, 'installation_jobs', {
+      id, projectId: orderId, technicianId, status: 'assigned', siteReadinessConfirmed: true, checklist: {}, version: 0,
+    });
+  } else if (job.technicianId !== technicianId) {
+    await repo.update(id, { technicianId: technicianId as any }, job.version ?? 0);
+  }
 }
 
 export async function changeDueDate(ctx: MvpCtx, actor: MvpActor, taskId: string, dueDate: string, reason?: string): Promise<Task> {

@@ -105,6 +105,7 @@ async function main() {
   await seed('leads/lead1', { id: 'lead1', stage: 'assigned', ownerUserId: uid.sales, contactInfo: { name: 'ABC', phone: '9876543210', email: '' }, buildingInfo: { address: 'Baner', floors: 8, type: 'commercial' } });
   await seed('tasks/ord1__INSTALLATION__1', { id: 'ord1__INSTALLATION__1', orderId: 'ord1', type: 'INSTALLATION', stage: 'INSTALLATION', assigneeId: uid.tech1, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-22', version: 0 });
   await seed('tasks/ord1__QUOTE_DECISION__1', { id: 'ord1__QUOTE_DECISION__1', orderId: 'ord1', type: 'QUOTE_DECISION', stage: 'QUOTE', assigneeId: 'customer:C1', assigneeRole: 'customer', status: 'COMPLETED', dueDate: '2026-10-08', version: 1 });
+  await seed('installation_jobs/job_ord1', { id: 'job_ord1', projectId: 'ord1', technicianId: uid.tech1, status: 'assigned', checklist: {}, version: 0 });
   await seed('quotes/q1', { id: 'q1', projectId: 'ord1', status: 'sent', createdBy: uid.admin });
   await seed('quote_versions/qv1', { id: 'qv1', quoteId: 'q1', projectId: 'ord1', totalAmount: 1180000, createdBy: uid.admin });
   await seed('quote_costs/qv1', { id: 'qv1', orderId: 'ord1', estimatedCost: 800000, markupPct: 25 });
@@ -167,6 +168,12 @@ async function main() {
   ok(!(await allowed(setDoc(doc(db.tech2, 'tasks/ord1__REWORK__1'), { id: 'ord1__REWORK__1', orderId: 'ord1', type: 'REWORK', assigneeId: uid.tech2, status: 'TODO' }))), 'a non-participant cannot create tasks on the order');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__1'), { assigneeId: uid.tech2 }))), 'only the Admin can reassign a task');
   ok(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__1'), { status: 'IN_PROGRESS', version: 1 })), 'the assignee can progress their task');
+  // Step 08: the technician's own job, checklist count and the QC task their COMPLETE creates.
+  ok(await allowed(updateDoc(doc(db.tech1, 'installation_jobs/job_ord1'), { checkedInAt: '2026-10-20T10:00:00Z', checklist: { materialReceived: { done: true } }, version: 1 })), 'tech1 updates their installation job');
+  ok(!(await allowed(updateDoc(doc(db.tech2, 'installation_jobs/job_ord1'), { checklist: {} }))), 'another technician cannot touch the job');
+  ok(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { checklistDone: 1, updatedAt: '2026-10-20T10:00:00Z', updatedBy: uid.tech1 })), 'tech1 mirrors the checklist count onto the order');
+  ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { checklistDone: 11 }))), 'a customer cannot set the checklist count');
+  ok(await allowed(setDoc(doc(db.tech1, 'tasks/ord1__QC_INSPECTION__1'), { id: 'ord1__QC_INSPECTION__1', orderId: 'ord1', type: 'QC_INSPECTION', assigneeId: uid.qc, assigneeRole: 'qc', status: 'TODO', dueDate: '2026-10-23', version: 0 })), 'tech1 creates the QC task their COMPLETE causes');
 
   // Customer writes are limited to their own decisions (scope-guard fix, Step 03).
   ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { sellingPrice: 1 }))), 'a customer cannot set sellingPrice');

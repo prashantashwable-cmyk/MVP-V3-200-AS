@@ -6,12 +6,13 @@
 
 import type { CanonicalUserRole } from '../domain/entities';
 import type { MvpActor, MvpCtx } from './services/orderService';
-import { assignSurveyor, createLead, qualifyLead, raiseBlocker, submitSurvey } from './services/orderService';
+import { assignSurveyor, createLead, listOrderTasks, qualifyLead, raiseBlocker, submitSurvey } from './services/orderService';
 import { usersRepository } from './services/people';
 import { decideQuote, saveQuote, sendQuote } from './services/quoteService';
 import { milestoneId, verifyPayment } from './services/paymentService';
 import { confirmSiteReady, createSupplier, markMaterialReceived, raisePo, READINESS_ITEMS, submitReadiness } from './services/supplyService';
 import { saveEvidence } from './services/evidenceService';
+import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, setChecklistItem, startWork } from './services/installationService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -94,6 +95,13 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   await confirmSiteReady(ctx, admin, o3.id);
   await verifyPayment(ctx, admin, milestoneId(o3.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: 'DEMO-UTR-2' });
   await markMaterialReceived(ctx, admin, o3.id, { note: 'All 14 boxes received', photoIds: [await pic(admin, 'Material at site')], technicianId: DEMO_PEOPLE.technician.userId });
+  // The technician has started: checked in and 6 of 11 checklist items done (S1 step 13a).
+  const tech: MvpActor = { userId: DEMO_PEOPLE.technician.userId, role: 'technician' };
+  await assignQcInspector(ctx, admin, o3.id, DEMO_PEOPLE.qc.userId);
+  const install = (await listOrderTasks(ctx, o3.id)).find(t => t.type === 'INSTALLATION')!;
+  await startWork(ctx, tech, install.id);
+  await checkInAtSite(ctx, tech, install.id);
+  for (const item of CHECKLIST_ITEMS.slice(0, 6)) await setChecklistItem(ctx, tech, install.id, item.key, { done: true, documentId: await pic(tech, item.label) });
 
   // Order waiting for the customer's quote decision.
   const l4 = await lead('Kale Towers', '9822000004', 'Hinjewadi, Pune');

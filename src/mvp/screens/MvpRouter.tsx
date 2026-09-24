@@ -18,6 +18,7 @@ import { LeadDetailScreen } from './LeadDetail';
 import { SurveyForm, SurveyList } from './SurveyScreens';
 import { OrderExtras } from './OrderExtras';
 import { SuppliersScreen } from './SupplyPanels';
+import { TechToday } from './InstallationPanels';
 
 export interface MvpRouterProps {
   user: User;
@@ -74,6 +75,8 @@ export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActive
       return <LeadForm user={user} onSaved={openLead} onOpenLead={openLead} />;
     case 'MvpLead':
       return <LeadDetailScreen user={user} leadId={selection.leadId} onOpenOrder={openOrder} onBack={() => setActiveTab('MvpLeads')} />;
+    case 'MvpToday':
+      return <TechToday user={user} onOpenOrder={openOrder} />;
     case 'MvpSuppliers':
       return <SuppliersScreen user={user} />;
     case 'MvpSurveys':

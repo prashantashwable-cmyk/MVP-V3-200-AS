@@ -20,7 +20,7 @@
 | 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
 | 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
 | 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
-| 08 | Technician, Installation and Blockers | TODO | | | |
+| 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 76/76, 42/42 legacy |
 | 09 | QC, Handover and AMC | TODO | | | |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
 | 11 | Security, Compliance and Production hardening | TODO | | | |
@@ -215,4 +215,36 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - One delivery receipt per order (`rcpt_<orderId>`); partial deliveries are noted in the count note.
   - A double-tap on "Add supplier" can create a duplicate supplier (the button is disabled while busy).
   - The customer's own-task `data` could be written directly without photos. The Admin verifies the photos before confirming.
+
+### Step 08: Technician, Installation and Blockers (2026-09-24), DONE
+- **`installationService.ts`** (reuses the canonical InstallationJob):
+  - START: the INSTALLATION_START soft gate ("Waiting for delivery payment"; Admin override, audited).
+  - CHECK IN: GPS is saved only if the phone gives it; it is never required.
+  - The 11-item checklist (spec §18). Every item needs a stored photo except "Site cleaned". The count is mirrored to `project.checklistDone` (D-10) and each tick is audited.
+  - COMPLETE needs 11/11 → QC_HANDOVER + QC_INSPECTION → the order's QC inspector, or the Admin if none is set; "QC required" goes to QC and the customer.
+  - REWORK needs a photo of the fixed work → the snags assigned to the technician move to `reinspection_pending` → a new QC_INSPECTION.
+  - Admin: `assignTechnician`, and `assignQcInspector` (an open QC task waiting on the Admin moves to the inspector).
+  - `reassignTask` now also moves the InstallationJob to the new technician (`syncInstallationJob`).
+  - `displaySummary.customerPhone` (additive) so the technician can call the customer.
+- **UI:** `InstallationPanels.tsx`
+  - Technician "Today" tab: today, then upcoming; call button. Earnings show "—" because no partner rate exists, so no made-up figure is shown.
+  - The job runner in the Order View: START / CHECK IN / the checklist with photos / COMPLETE, plus a BLOCKED dialog with the 8 reasons, a description and an optional photo. REWORK shows the QC remarks.
+  - The Admin's "Installation team" panel: technician, QC inspector, and the start-gate override.
+  - Why not reuse TechnicianMobileApp or InstallationProgressTracker: they use legacy DbManager records and gamified earnings.
+- **Demo seed:** AE-1003 is now at 6/11 (71 %), with QC Meera set as its inspector.
+- **Scenario driver:** `runS1` 13a (13.5) and 13b (13.9) now go through the real services; the `checklistDone` shortcut is removed.
+- **Checks:**
+  - lint PASS · build PASS · 42/42 legacy.
+  - `mvp:checks` PASS. The new `mvp-installation-check` (57 assertions) covers:
+    - S1 13a (71 %) and 13b (QC_INSPECTION → qc, 90 %, notification)
+    - S3 (blocker → BLOCKED, Admin notified, buckets; resolve → IN_PROGRESS / ON_TRACK)
+    - S5 (START refused "Waiting for delivery payment" → audited override → START)
+    - S7 (2 audits with before/after; tech2 notified; tech1 loses the task and participation; the job follows)
+    - the guards: order of steps, photos, another technician, a BLOCKED job
+    - the rework path
+  - `mvp:rules` 76/76. New assertions: a technician updates their own job and `checklistDone`, and creates the QC task; another technician and the customer cannot.
+- **Screenshots:** `docs/mvp/screenshots/step-08/`.
+- **Known limits:**
+  - The Admin sees the job runner too, so they can act for a technician without a phone. Those actions are audited under the Admin.
+  - The QC remarks on REWORK are the task notes. Step 09's QC service writes them.
 
