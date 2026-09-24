@@ -56,6 +56,14 @@ if (process.env.GEMINI_API_KEY) {
 // ==========================================
 
 // Health Check
+// MVP (D-22, audit R-8): hidden features' server routes are switched off in MVP_MODE.
+// None of them verify the caller (audit F-12), and no MVP screen uses them.
+const MVP_MODE_ON = process.env.MVP_MODE !== 'off';
+app.use(['/api/gemini', '/api/maps', '/api/db'], (req, res, next) => {
+  if (MVP_MODE_ON) return res.status(404).json({ error: 'Not available in MVP mode' });
+  next();
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });

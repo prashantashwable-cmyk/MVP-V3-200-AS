@@ -97,6 +97,13 @@ import { SurveyorRouter } from './routers/SurveyorRouter';
 import { CustomerRouter } from './routers/CustomerRouter';
 import { SupplierRouter } from './routers/SupplierRouter';
 import { SharedRoutes } from './routers/SharedRoutes';
+// MVP (Step 04): one allow-listed router, MVP login pieces, and the MVP_MODE switch (D-22).
+import { isMvpMode, mvpTabsFor, homeTabFor } from './mvp/mvpMode';
+import { MvpRouter } from './mvp/screens/MvpRouter';
+import { MvpDemoLogin, MvpAwaitingInvite, buildDemoUser } from './mvp/screens/MvpLogin';
+import { MVP_NAV_ICONS } from './mvp/screens/navIcons';
+
+const mvpMode = isMvpMode();
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -131,7 +138,8 @@ export default function App() {
   const [selectedTrainingModuleId, setSelectedTrainingModuleId] = useState<string>('tm_001');
   const [selectedTrainingLessonId, setSelectedTrainingLessonId] = useState<string>('les_101');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('assess_001');
-  const [activeAuthTab, setActiveAuthTab] = useState<'phone' | 'demo'>('demo');
+  // R-5: the demo ("Try as Role") tab is not offered at all in a production build.
+  const [activeAuthTab, setActiveAuthTab] = useState<'phone' | 'demo'>(isProductionDeploy() ? 'phone' : 'demo');
   const [errorMsg, setErrorMsg] = useState('');
   const [showForgotReset, setShowForgotReset] = useState(false);
 
@@ -256,6 +264,9 @@ export default function App() {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.25 }}
         >
+          {mvpMode ? (
+            <MvpRouter user={currentUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} languageSection={renderPreferencesSection()} />
+          ) : (<>
           {currentUser.role === 'admin' && (
             <AdminRouter {...routerProps} googleMapsApiKey={googleMapsApiKey} hasValidGoogleMapsKey={hasValidGoogleMapsKey} />
           )}
@@ -289,6 +300,7 @@ export default function App() {
           {activeTab === 'WorkQueue' && (
             <WorkQueueScreen user={currentUser} />
           )}
+          </>)}
         </motion.div>
       </AnimatePresence>
     );
@@ -664,6 +676,29 @@ export default function App() {
     }
   };
 
+  // MVP demo login (D-20): 8 roles, sample data made by the real services in the in-memory store.
+  const handleMvpDemoLogin = (demoUser: User) => {
+    setCurrentUser(demoUser);
+    setShowCarousel(false);
+    localStorage.setItem('aiec_first_launch_flag', 'false');
+    logLaunchAnalytics(`${demoUser.role}_demo`);
+    setActiveTab(homeTabFor(demoUser.role));
+  };
+
+  // MVP: every sign-in lands on the role's MVP home instead of the legacy surfaces grid.
+  useEffect(() => {
+    if (mvpMode && currentUser) setActiveTab(homeTabFor(currentUser.role));
+  }, [currentUser?.id, currentUser?.role]);
+
+  // Screenshots/training: `?demoRole=<role>` signs straight into demo mode — only in a build
+  // where demo auth is enabled (never in a production build) and only in MVP_MODE.
+  useEffect(() => {
+    if (!mvpMode || !isDemoAuthBuild() || showSplash || currentUser) return;
+    const role = new URLSearchParams(window.location.search).get('demoRole');
+    if (!role) return;
+    buildDemoUser(role as any).then(handleMvpDemoLogin).catch(err => console.error('demoRole login failed:', err));
+  }, [showSplash]);
+
   const handleDemoBypass = (role: UserRole) => {
     const list = DbManager.getUsers();
     const found = list.find(u => u.role === role) || list[0];
@@ -802,6 +837,9 @@ export default function App() {
 
   // Sidebar / bottom tab items per role
   const getTabsByRole = (role: UserRole) => {
+    if (mvpMode) {
+      return mvpTabsFor(role).map(t => ({ id: t.id, label: t.label, icon: MVP_NAV_ICONS[t.icon] ?? LayoutDashboard }));
+    }
     switch (role) {
       case 'admin':
         return [
@@ -1431,7 +1469,7 @@ export default function App() {
                             setActiveAuthTab('demo');
                             setErrorMsg('');
                           }}
-                          className={`flex-1 py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                          className={`${isProductionDeploy() ? 'hidden' : ''} flex-1 py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
                             activeAuthTab === 'demo'
                               ? 'bg-white text-[#B8873D] shadow-xs border border-[rgba(184,135,61,0.12)]'
                               : 'text-warmgray hover:text-charcoal'
@@ -1456,7 +1494,9 @@ export default function App() {
                       </div>
 
                       {/* Display Mode content */}
-                      {activeAuthTab === 'demo' ? (
+                      {activeAuthTab === 'demo' ? (mvpMode ? (
+                        <MvpDemoLogin onLogin={handleMvpDemoLogin} />
+                      ) : (
                         <div className="space-y-4">
                           <div>
                             <h3 className="font-serif text-lg font-bold text-charcoal">{appTranslations[appLanguage].aggregatorSandboxes}</h3>
@@ -1605,10 +1645,10 @@ export default function App() {
                             💡 <strong>Demo Protection:</strong> Demo Mode triggers a transient sandbox. Irreversible financial actions (releasing real payments or payouts) are completely disabled.
                           </div>
                         </div>
-                      ) : (
+                      )) : (
                         <div className="space-y-4">
                           {/* Secure login sub-tabs */}
-                          <div className="flex border-b border-[#e6dfd4]">
+                          <div className={`${mvpMode ? 'hidden' : ''} flex border-b border-[#e6dfd4]`}>
                             <button
                               type="button"
                               onClick={() => {
@@ -1641,7 +1681,7 @@ export default function App() {
                             </div>
                           )}
 
-                          {loginMethod === 'phone' ? (
+                          {mvpMode ? null : loginMethod === 'phone' ? (
                             /* PHONE OTP FLOW */
                             <div>
                               {/* Simulated Incoming SMS Push Alert — Phase 32:
@@ -2023,6 +2063,11 @@ export default function App() {
                 </div>
               )}
             </div>
+            ) : mvpMode && !currentUser.isDemo && (currentUser.role === ('pending_selection' as any) || currentUser.status === 'pending') ? (
+              /* MVP (D-13 as changed): no self-selected roles; the Admin invites people. */
+              <div className="flex-1 flex items-center justify-center p-4 bg-[#F8F6F1]">
+                <MvpAwaitingInvite user={currentUser} onSignOut={handleLogout} />
+              </div>
             ) : currentUser.role === ('pending_selection' as any) && !currentUser.isDemo ? (
               /* =========================================================
                  ROLE SELECTION & ONBOARDING WIZARD SCREEN
@@ -2037,7 +2082,7 @@ export default function App() {
                   onSignOut={handleLogout}
                 />
               </div>
-            ) : (currentUser.role === 'surveyor' || currentUser.role === 'technician' || currentUser.role === 'customer') && !currentUser.primer_shown_flag && !currentUser.isDemo ? (
+            ) : (currentUser.role === 'surveyor' || currentUser.role === 'technician' || currentUser.role === 'customer') && !currentUser.primer_shown_flag && !currentUser.isDemo && !mvpMode ? (
               /* =========================================================
                  PERMISSIONS PRIMER SCREEN — MOBILE PRIVACY CONJECTURES
                  ========================================================= */
@@ -2060,7 +2105,7 @@ export default function App() {
                   }}
                 />
               </div>
-            ) : currentUser.role === 'surveyor' && !currentUser.onboardingCompleted && !currentUser.isDemo ? (
+            ) : currentUser.role === 'surveyor' && !currentUser.onboardingCompleted && !currentUser.isDemo && !mvpMode ? (
               /* =========================================================
                  SURVEYOR ONBOARDING — PROFILE & DOCUMENT UPLOAD SCREEN
                  ========================================================= */
@@ -2074,7 +2119,7 @@ export default function App() {
                   onSignOut={handleLogout}
                 />
               </div>
-            ) : currentUser.role === 'technician' && !currentUser.onboardingCompleted && !currentUser.isDemo ? (
+            ) : currentUser.role === 'technician' && !currentUser.onboardingCompleted && !currentUser.isDemo && !mvpMode ? (
               /* =========================================================
                  TECHNICIAN ONBOARDING — PROFILE & SKILL CERTIFICATION SCREEN
                  ========================================================= */
@@ -2088,7 +2133,7 @@ export default function App() {
                   onSignOut={handleLogout}
                 />
               </div>
-            ) : currentUser.role === 'supplier' && !currentUser.onboardingCompleted && !currentUser.isDemo ? (
+            ) : currentUser.role === 'supplier' && !currentUser.onboardingCompleted && !currentUser.isDemo && !mvpMode ? (
               /* =========================================================
                  SUPPLIER ONBOARDING — COMPANY KYC SCREEN
                  ========================================================= */
@@ -2102,7 +2147,7 @@ export default function App() {
                   onSignOut={handleLogout}
                 />
               </div>
-            ) : currentUser.role === 'customer' && !currentUser.onboardingCompleted && !currentUser.isDemo ? (
+            ) : currentUser.role === 'customer' && !currentUser.onboardingCompleted && !currentUser.isDemo && !mvpMode ? (
               /* =========================================================
                  CUSTOMER QUICK SIGNUP (lead-conversion auto-created)
                  ========================================================= */

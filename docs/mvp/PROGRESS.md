@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 03 Data foundation (PRs 03a + 03b)
-- **Next step:** 04 Order View, Admin dashboard, MVP_MODE
+- **Last completed step:** 04 Order View, Admin dashboard, MVP_MODE (PRs 04a + 04b)
+- **Next step:** 05 Leads, Sales and Survey
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
@@ -16,7 +16,7 @@
 | 01 | Audit (Phase A) | DONE | #3 | 2026-09-24 | Owner approved with no changes; §8 defaults accepted |
 | 02 | Plan (Phase B) | DONE | MVP Step 02 draft PR | 2026-09-24 | Self-approved per the Owner's autonomous instruction |
 | 03 | Data foundation | DONE | 03a + 03b draft PRs | 2026-09-24 | Split in two (size rule). mvp:checks 3/3, mvp:rules 51/51, 42/42 legacy |
-| 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
+| 04 | Order View, Admin dashboard, MVP_MODE | DONE | 04a + 04b draft PRs | 2026-09-24 | Split in two (file-count rule). mvp:checks 5/5 + backfill, 42/42 legacy |
 | 05 | Leads, Sales and Survey | TODO | | | |
 | 06 | Quote, Booking and Payments | TODO | | | |
 | 07 | Site-ready, Supplier and Delivery | TODO | | | |
@@ -134,4 +134,25 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - `customers`/`sites` reads are tightened (surveyors no longer read every customer). Legacy screens relying on that are hidden by MVP_MODE (Step 04).
 - **Scope guard:** first run FAILED on rules breadth (customers could change money/QC fields, participants and stages, or complete others' tasks). Fixed in 03b (per-role stage map, QC-only hold, own-task writes, surveyor-only survey create, 11 new negative emulator tests → 62/62). Re-run: PASS with warnings (accepted residual risk = open issue 14; Step 03 size ≈ 3,000 lines across 03a+03b; QC-role stage move to add with a test in Step 09).
 - **Data:** additive only. Backfill dry-run output (demo): 2 sample legacy projects → status ACTIVE, AE-1001/1002, participants, REVIEW_ORDER task; re-plan after apply = 0 changes.
+
+### Step 04: Order View, Admin dashboard, MVP_MODE (2026-09-24), DONE
+- **Split** (30 code files > ~25): **04a** read models + allow-list + queries + checks; **04b** UI, App wiring, server lockdown, invites on sign-in, screenshots.
+- **Built:**
+  - `src/mvp/services/readModels.ts`: `buildOrderView` (spec §8, role-filtered) and `buildDashboard` (spec §9: TODAY, NEEDS ATTENTION, PIPELINE); `listOrdersFor` uses rule-provable queries (new additive `Repository.queryContains`).
+  - `workQueue.getMvpTaskQueue` (D-06: persisted tasks).
+  - `src/mvp/mvpMode.ts` (allow-list per role).
+  - Screens: `MvpRouter`, `AdminDashboard`, `OrdersList`, `MvpOrderView` (rendered by the extended `ProjectOperatingView`), `AdminActions` (reassign, due date, hold/resume, cancel, override, create next task, raise/resolve blocker, assign surveyor), `MvpSettings`, `MvpLogin` (8-role demo login + "ask the Admin to invite you").
+  - `src/mvp/demoSeed.ts` (demo-only sample orders, made through the real services).
+- **App.tsx:**
+  - MVP_MODE mounts only `MvpRouter`; navigation and the command palette use the allow-list.
+  - The login shows Google only; the demo tab is hidden in production builds (R-5).
+  - Pending users see "ask the Admin to invite you"; onboarding wizards are skipped.
+  - `?demoRole=` for screenshots works in demo-auth builds only.
+- **Invites (D-13):** `firestoreUsers.getOrCreateFirestoreUser` applies the Admin's invite on first sign-in (never an admin invite).
+- **Server (R-8):** `/api/gemini`, `/api/maps`, `/api/db` return 404 in MVP_MODE.
+- **Checks:** lint PASS · build PASS · `mvp:checks` PASS (added `mvp-mode-check`: allow-list vs the 140 legacy tab ids, legacy navigation unchanged when off; `mvp-readmodels-check`: S1 1–13a including 71% at 13a, role filtering, S2/S3/S5/supplier-delay/NO NEXT ACTION buckets) · `production-demo-gate:check` extended for R-5 · all 42 non-live legacy checks PASS.
+- **Bugs found and fixed:**
+  - App.tsx remounts routed content on every tab change, which lost the selected order (fixed with a module-level selection).
+  - D-11's "within 24 h" made a task due in exactly 24 h at risk from the moment it was created; the window is now strict.
+- **Screenshots:** `docs/mvp/screenshots/step-04/` (dashboard phone + desktop, Order View phone, technician tasks phone), taken with headless Chromium over the DevTools protocol (`scripts/mvp/screenshot.mjs`, no new dependency).
 

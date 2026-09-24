@@ -92,6 +92,21 @@ function main() {
     'vite.config.ts derives the build-time flag from VITE_APP_ENV, the same variable isProductionDeploy() reads at runtime',
   );
 
+  // --- 3b. MVP (audit R-5): the "Try as Role" tab is hidden in a production build ---
+  const APP_SRC = fs.readFileSync(path.join(REPO_ROOT, 'src', 'App.tsx'), 'utf8');
+  assert(
+    APP_SRC.includes("useState<'phone' | 'demo'>(isProductionDeploy() ? 'phone' : 'demo')"),
+    'App.tsx never opens on the demo tab in a production build (R-5)',
+  );
+  assert(
+    APP_SRC.includes("${isProductionDeploy() ? 'hidden' : ''} flex-1 py-3"),
+    'App.tsx hides the demo tab button in a production build (R-5)',
+  );
+  assert(
+    APP_SRC.includes("if (!mvpMode || !isDemoAuthBuild() || showSplash || currentUser) return;"),
+    'the ?demoRole= shortcut only works in a demo-auth build (never in production)',
+  );
+
   // --- 4. Build: a real VITE_APP_ENV=production build succeeds ---
   const outDir = 'dist-production-gate-check-tmp';
   const outPath = path.join(REPO_ROOT, outDir);
