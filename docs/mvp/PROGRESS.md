@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 05 Leads, Sales and Survey
-- **Next step:** 06 Quote, Booking and Payments
+- **Last completed step:** 06 Quote, Booking and Payments
+- **Next step:** 07 Site-ready, Supplier and Delivery
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
@@ -18,7 +18,7 @@
 | 03 | Data foundation | DONE | 03a + 03b draft PRs | 2026-09-24 | Split in two (size rule). mvp:checks 3/3, mvp:rules 51/51, 42/42 legacy |
 | 04 | Order View, Admin dashboard, MVP_MODE | DONE | 04a + 04b draft PRs | 2026-09-24 | Split in two (file-count rule). mvp:checks 5/5 + backfill, 42/42 legacy |
 | 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
-| 06 | Quote, Booking and Payments | TODO | | | |
+| 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
 | 07 | Site-ready, Supplier and Delivery | TODO | | | |
 | 08 | Technician, Installation and Blockers | TODO | | | |
 | 09 | QC, Handover and AMC | TODO | | | |
@@ -175,4 +175,24 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - Lead site photos are saved before the lead exists (`ownerEntityId` is empty; the lead keeps the ids in `photoIds`). An abandoned form leaves those documents unlinked, and only the uploader, Admin and Owner can read them.
 - **Scope guard:** PASS with warnings. Applied: the waive guard, the demo-only fee override, and the timezone from config. Carried to Step 06: a waived milestone must count as settled in the payment totals and the D-30 token credit.
 - **Screenshots:** `docs/mvp/screenshots/step-05/`.
+
+### Step 06: Quote, Booking and Payments (2026-09-24), DONE
+- **`src/mvp/quoteMath.ts`** (pure): spec §16 price build-up, markup and gross margin (D-15), and the D-14 default milestones with the D-30 survey-fee credit.
+- **`quoteService.ts`:**
+  - Versioned quotes on the canonical Quote/QuoteVersion; each save is a new immutable version.
+  - Cost goes to `quote_costs` (Admin/Owner only, I-5).
+  - Below MIN_MARKUP_PCT: an ApprovalRequest plus an APPROVE_MARGIN task. Send stays blocked until the Admin approves with a reason (audited).
+  - Send sets the selling price, prepares the milestones and notifies the customer.
+  - The customer can accept or request changes (idempotent).
+- **`paymentService.ts`:**
+  - Customer proof: UTR plus an optional screenshot.
+  - Admin: verify (PAID / PARTIAL / REFUNDED), reject proof with a reason, edit amounts (they must add up to the selling price), set due dates.
+  - All of it is audited and idempotent. A token marked PAID moves the order to SITE_READY and the lead to WON.
+- **`src/mvp/gates.ts`:** D-14 soft gates (SITE_READY entry, INSTALLATION START, handover final payment, handover licence) with an audited Admin override. Reused by Steps 08 and 09.
+- **UI:** `QuotePanels.tsx` (Admin builder with an internal cost panel and a ⚖ "tax rate not confirmed" warning; customer quote with Accept / Request changes) and `PaymentsPanel.tsx`, both inside the Order View. The demo seed now uses the real quote and payment services.
+- **Deviation:** the three milestones are created when the Admin **sends** the quote (still all PENDING when the customer accepts), not at acceptance. The rules make milestones Admin-created, so a customer's acceptance cannot write payment records. Re-sending after changes re-prices unpaid milestones.
+- **Rules:** the customer's quote read now queries `quote_versions` by `projectId`, the field the rule checks. Emulator 69/69 (new: customer lists own quote versions and milestones; another customer cannot).
+- **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-quote-payment-check`: fixture ₹11,80,000 / 25% / 20%, low-margin block + approval, milestones 10,000 / 10,52,000 / 1,18,000 and the sum rule, S1 5–7, double-accept and double-verify idempotency, S6, the S5 AT_RISK set-up, I-5, the payment audit trail, gates and override) · 42/42 legacy.
+- **Screenshots:** `docs/mvp/screenshots/step-06/`.
+- **Scope guard:** PASS with warnings, all applied: no reject on a settled payment, deterministic notification keys, and `saveQuote` writes through `createIfAbsent` (a double-tap can't clash). Quote status updates have no optimistic lock (single Admin writer); accepted for the pilot.
 

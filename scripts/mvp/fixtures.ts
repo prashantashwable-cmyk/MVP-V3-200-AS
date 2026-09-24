@@ -73,6 +73,13 @@ export const FIXTURE_SURVEY = {
   remarks: 'Standard shaft', photoIds: ['doc_fixture_1', 'doc_fixture_2'], result: 'FEASIBLE' as const,
 };
 
+/** ACCEPTANCE_SCENARIOS fixture order. GST 18 is a TEST FIXTURE value only (⚖ VERIFY the real rate with a CA). */
+export const FIXTURE_QUOTE = {
+  lines: { base: 780000, installation: 140000, freight: 50000, other: 30000 },
+  taxRatePct: 18,
+  estimatedCost: 800000,
+};
+
 /** Tracks stage history per order so I-4 can be asserted across steps. */
 const stageHistory = new Map<string, number>();
 

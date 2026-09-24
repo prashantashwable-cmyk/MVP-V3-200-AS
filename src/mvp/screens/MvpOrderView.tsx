@@ -122,20 +122,6 @@ export const MvpOrderView: React.FC<{
 
       <AdminActions view={view} ctx={ctx} actor={actor} people={people.data ?? []} onDone={reload} />
 
-      {view.payments && view.payments.milestones.length > 0 && (
-        <Card className="p-4">
-          <SectionTitle>Payment milestones</SectionTitle>
-          <ul className="divide-y divide-[#f0ebe2]">
-            {view.payments.milestones.map(m => (
-              <li key={m.id} className="py-2 flex justify-between text-sm">
-                <span>{m.label}</span>
-                <span className="text-xs">{formatInr(m.amount)} · {m.status}{m.dueDate ? ` · due ${formatDate(m.dueDate)}` : ''}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
       <Card className="p-4">
         <SectionTitle right={<ImageIcon className="w-4 h-4 text-warmgray" />}>Evidence</SectionTitle>
         {view.evidence.length === 0 ? <p className="text-xs text-warmgray">No photos or documents yet.</p> : (
