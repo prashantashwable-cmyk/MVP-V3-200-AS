@@ -204,6 +204,13 @@ async function main() {
   await seed('tasks/ord1__INSTALLATION__1', { id: 'ord1__INSTALLATION__1', orderId: 'ord1', type: 'INSTALLATION', stage: 'INSTALLATION', assigneeId: uid.tech2, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-19', version: 2 });
   ok(!(await allowed(getDoc(doc(db.tech1, 'projects/ord1')))), 'S7: tech1 loses access after reassignment');
   ok(await allowed(getDoc(doc(db.tech2, 'projects/ord1'))), 'S7: tech2 gains access after reassignment');
+  await seed('installation_jobs/job_ord1', { id: 'job_ord1', projectId: 'ord1', technicianId: uid.tech2, status: 'assigned', checklist: {}, version: 2 });
+  ok(!(await allowed(getDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__1')))), 'S7: tech1 can no longer read the reassigned task');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'installation_jobs/job_ord1'), { checklist: {} }))), 'S7: tech1 can no longer update the job');
+  // Rework: the technician moves a snag assigned to them to re-inspection; others cannot.
+  await seed('snags/sn1', { id: 'sn1', projectId: 'ord1', assignedTo: uid.tech2, status: 'assigned' });
+  ok(await allowed(updateDoc(doc(db.tech2, 'snags/sn1'), { status: 'reinspection_pending' })), 'the snag assignee sends it to re-inspection');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'snags/sn1'), { status: 'reinspection_pending' }))), 'another technician cannot update the snag');
 
   // ---- Notifications, counters, idempotency ----
   ok(await allowed(getDoc(doc(db.tech1, 'notifications/n1'))), 'the audience reads their notification');

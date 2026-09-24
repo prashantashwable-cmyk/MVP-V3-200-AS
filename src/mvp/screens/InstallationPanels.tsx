@@ -2,9 +2,10 @@
  * Technician app (spec §18, §22): "Today" list and the job runner inside the Order View
  * (START → CHECK IN → 11-item checklist with photos → COMPLETE, plus BLOCKED), and the
  * Admin's installation panel (assign technician / QC inspector, override the start gate).
- * Why not reuse TechnicianMobileApp/InstallationProgressTracker: legacy DbManager records
- * and gamified earnings (out of scope); these reuse PhotoInput, AdminActions' blocker
- * reasons and installationService on canonical data.
+ * Why not reuse TechnicianMobileApp/InstallationProgressTracker/TechnicianCheckInCheckOutScreen/
+ * PhotoVideoEvidenceCaptureScreen (★): each reads and writes DbManager job/check-in records
+ * throughout (311–391 lines, not just a read switch) and the first two show gamified earnings;
+ * these reuse PhotoInput (CameraCapture), the 8 blocker reasons and installationService.
  */
 
 import React, { useState } from 'react';
@@ -201,7 +202,7 @@ export const AdminInstallationPanel: React.FC<{ user: User } & OrderViewExtraPro
   if (!show) return null;
   const act = (fn: () => Promise<unknown>) => run(fn).then(ok => ok && (gate.reload(), reload()));
   const techs = (people.data ?? []).filter(p => p.role === 'technician');
-  const qcs = (people.data ?? []).filter(p => p.role === 'qc' || (p.role as string) === 'qc_inspector');
+  const qcs = (people.data ?? []).filter(p => p.role === 'qc');
   return (
     <Card className="p-4 space-y-3">
       <SectionTitle>Installation team</SectionTitle>

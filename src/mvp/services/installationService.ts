@@ -13,7 +13,7 @@ import { checkGate } from '../gates';
 import { isOpenTask } from '../health';
 import { notify } from './notify';
 import {
-  applyEvent, customerToken, isAssignee, listOrderTasks, MvpError, nowOf, reassignTask, syncInstallationJob, type MvpActor, type MvpCtx,
+  applyEvent, customerToken, isAssignee, listOrderTasks, MvpError, nowOf, reassignTask, setTaskInProgress, syncInstallationJob, type MvpActor, type MvpCtx,
 } from './orderService';
 
 /** Spec §18, in order. A photo is required for every item except "Site cleaned". */
@@ -68,13 +68,11 @@ export async function startWork(ctx: MvpCtx, actor: MvpActor, taskId: string): P
     if (!gate.allowed) throw new MvpError('gate', gate.reason);
   }
   if (task.status === 'IN_PROGRESS') return task;
-  const now = nowOf(ctx).toISOString();
-  const updated = await taskRepository(ctx).update(task.id, { status: 'IN_PROGRESS', updatedAt: now }, task.version ?? 0);
+  const updated = await setTaskInProgress(ctx, actor, task.id); // audited as TASK_STARTED
   if (task.type === 'INSTALLATION') {
     const job = await getJob(ctx, task.orderId!);
-    if (job && !job.startedAt) await installationJobRepository(ctx).update(job.id, { startedAt: now, status: 'in_progress' } as any, job.version ?? 0);
+    if (job && !job.startedAt) await installationJobRepository(ctx).update(job.id, { startedAt: nowOf(ctx).toISOString(), status: 'in_progress' } as any, job.version ?? 0);
   }
-  await audit(ctx, actor, 'TASK_STARTED', 'Task', task.id, task.orderId, { status: task.status }, { status: 'IN_PROGRESS' });
   return updated;
 }
 
@@ -132,15 +130,19 @@ export async function completeWork(ctx: MvpCtx, actor: MvpActor, taskId: string,
     const job = await getJob(ctx, orderId);
     const done = checklistDoneCount(job);
     if (done < CHECKLIST_ITEM_COUNT) throw new MvpError('invalid', `Complete all ${CHECKLIST_ITEM_COUNT} checklist items first (${done} done).`);
-    if (job) await installationJobRepository(ctx).update(job.id, { completedAt: nowOf(ctx).toISOString(), status: 'completed' } as any, job.version ?? 0);
     await applyEvent(ctx, actor, orderId, { type: 'INSTALLATION_COMPLETED', qcUserId: order.qcUserId }, { reason: input.note });
+    // After the event, so a failed event never leaves the job marked completed.
+    if (job) await installationJobRepository(ctx).update(job.id, { completedAt: nowOf(ctx).toISOString(), status: 'completed' } as any, job.version ?? 0);
   } else {
     if (!input.documentId) throw new MvpError('invalid', 'Add a photo of the fixed work before completing the rework.');
     await taskRepository(ctx).update(task.id, { evidenceIds: [...(task.evidenceIds ?? []), input.documentId], notes: input.note ?? task.notes, updatedAt: nowOf(ctx).toISOString() }, task.version ?? 0);
     // Rules: only the Admin or the snag's assignee may update a snag.
     const snags = (await snagRepository(ctx).query({ projectId: orderId } as Partial<Snag>))
       .filter(s => (s.status === 'open' || s.status === 'assigned') && (actor.role === 'admin' || s.assignedTo === actor.userId));
-    for (const s of snags) await snagRepository(ctx).update(s.id, { status: 'reinspection_pending' });
+    for (const s of snags) {
+      await snagRepository(ctx).update(s.id, { status: 'reinspection_pending' });
+      await audit(ctx, actor, 'SNAG_STATUS_CHANGED', 'Snag', s.id, orderId, { status: s.status }, { status: 'reinspection_pending' });
+    }
     await applyEvent(ctx, actor, orderId, { type: 'REWORK_COMPLETED', qcUserId: order.qcUserId }, { reason: input.note });
   }
   if (order.qcUserId) await notify(ctx, order.qcUserId, 'mvp_qc_required', orderId, `${task.id}:qc`);

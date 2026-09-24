@@ -20,7 +20,7 @@
 | 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
 | 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
 | 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
-| 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 76/76, 42/42 legacy |
+| 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 80/80, 42/42 legacy |
 | 09 | QC, Handover and AMC | TODO | | | |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
 | 11 | Security, Compliance and Production hardening | TODO | | | |
@@ -242,7 +242,20 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
     - S7 (2 audits with before/after; tech2 notified; tech1 loses the task and participation; the job follows)
     - the guards: order of steps, photos, another technician, a BLOCKED job
     - the rework path
-  - `mvp:rules` 76/76. New assertions: a technician updates their own job and `checklistDone`, and creates the QC task; another technician and the customer cannot.
+  - `mvp:rules` 80/80. New assertions:
+    - a technician updates their own job and `checklistDone`, and creates the QC task; another technician and the customer cannot
+    - S7: after reassignment, tech1 can no longer read the task or update the job
+    - only the snag's assignee moves it to re-inspection
+- **Scope guard:** PASS with warnings. Applied:
+  - the snag status change is audited
+  - the job is marked completed only after the INSTALLATION_COMPLETED event succeeds
+  - `startWork` reuses `orderService.setTaskInProgress`
+  - the why-not-reuse note now covers the ★ screens `TechnicianCheckInCheckOutScreen` and `PhotoVideoEvidenceCaptureScreen`, which read and write DbManager throughout
+  - the emulator assertions above
+- **Open issue for Step 11 (rules hardening):**
+  - `installation_jobs` updates by the assigned technician are not key-limited
+  - `checklistDone` has no 0–11 bound
+  - the checklist photo and order rules are enforced in the service only
 - **Screenshots:** `docs/mvp/screenshots/step-08/`.
 - **Known limits:**
   - The Admin sees the job runner too, so they can act for a technician without a phone. Those actions are audited under the Admin.
