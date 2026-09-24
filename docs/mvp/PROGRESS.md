@@ -4,7 +4,7 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 11 Security, Compliance and Production hardening (draft PR pending — see Handoff notes for the number once opened). **This is the last step in the approved plan's breakdown (§8, Steps 03–11).**
+- **Last completed step:** 11 Security, Compliance and Production hardening (draft PR #15). **This is the last step in the approved plan's breakdown (§8, Steps 03–11).**
 - **Next step:** none currently approved. The "Do autonomously" mandate (2026-09-24) was scoped to Steps 02–11; that run is now complete. Any further work (a Step 12, go-live hardening, Phase 2 items from `docs/mvp/future/`) needs a fresh Owner instruction before a session should start it.
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude ran Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as 12 stacked draft PRs (#3–#14, plus this step's). It stopped for nothing on CLAUDE.md's "stop and ask" list — no such item came up across the whole run.
 - **Owner standing instructions (2026-09-24):**
@@ -35,6 +35,7 @@
   | #12 | 08 |
   | #13 | 09 |
   | #14 | 10 |
+  | #15 | 11 |
 
   Each PR's base is the previous step's branch. Start a new step's branch from the latest step branch, not from `main`.
 - **Where things are:**
