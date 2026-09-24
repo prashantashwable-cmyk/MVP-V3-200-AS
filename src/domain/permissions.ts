@@ -32,7 +32,11 @@ export type Permission =
   | 'automation.publish'
   | 'user.manage'
   | 'security.manage'
-  | 'document.delete';
+  | 'document.delete'
+  // MVP additions (D-12)
+  | 'lead.manage'
+  | 'order.manage'
+  | 'report.read';
 
 /**
  * High-risk permissions per Phase 05's explicit list: "refunds, payouts,
@@ -60,6 +64,7 @@ const ADMIN_ALL: Permission[] = [
   'job.execute', 'qc.approve', 'handover.approve',
   'automation.publish',
   'user.manage', 'security.manage', 'document.delete',
+  'lead.manage', 'order.manage', 'report.read',
 ];
 
 /** Base role → permission mapping. Admin gets everything (still subject
@@ -94,6 +99,10 @@ export const ROLE_PERMISSIONS: Record<CanonicalUserRole, Permission[]> = {
     'payment.read',
     'payment.create', // initiating their own payment only — see PaymentAttemptStatus flow
   ],
+  // MVP roles (D-12). Owner is read-only; money approvals stay with the Admin.
+  owner: ['project.read', 'payment.read', 'report.read'],
+  sales: ['project.read', 'lead.manage'],
+  qc: ['project.read', 'qc.approve'],
 };
 
 export function permissionsForRole(role: CanonicalUserRole): Permission[] {

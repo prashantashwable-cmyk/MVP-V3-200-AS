@@ -1,4 +1,5 @@
-export type UserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier';export interface InternalNotificationTemplate {
+export type UserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier' | 'owner' | 'sales' | 'qc'; // owner/sales/qc: MVP additions (D-12)
+export interface InternalNotificationTemplate {
   id: string;
   notificationTypeId: string;
   title: string;

@@ -17,6 +17,10 @@ import type { RepositoryContext } from './types';
 import type { Customer, Site, Project, Quote, QuoteVersion, Contract, PaymentSchedule, Payment } from '../domain/entities';
 import type { PurchaseOrder, Snag, NotificationRecord, Handover, QCInspection } from '../domain/entities';
 import type { Shipment, DeliveryReceipt, InstallationJob, Warranty } from '../domain/entities';
+import type {
+  Task, Blocker, PaymentMilestone, SiteSurvey, QuoteCost, ApprovalRequest, Supplier, AMC, ServiceCase,
+  ComplianceItem, DocumentRecord, Invite,
+} from '../domain/entities';
 import { recordAuditEvent, newCorrelationId } from '../lib/audit';
 import { runIdempotent } from '../lib/idempotency';
 
@@ -37,6 +41,22 @@ export const shipmentRepository = (ctx: RepositoryContext) => getRepository<Ship
 export const deliveryReceiptRepository = (ctx: RepositoryContext) => getRepository<DeliveryReceipt>('delivery_receipts', ctx);
 export const installationJobRepository = (ctx: RepositoryContext) => getRepository<InstallationJob>('installation_jobs', ctx);
 export const warrantyRepository = (ctx: RepositoryContext) => getRepository<Warranty>('warranties', ctx);
+
+// MVP (Phase 1) repositories — docs/mvp/MVP_REFACTOR_PLAN.md §2.1. Same pattern as above.
+export const taskRepository = (ctx: RepositoryContext) => getRepository<Task>('tasks', ctx);
+export const blockerRepository = (ctx: RepositoryContext) => getRepository<Blocker>('blockers', ctx);
+export const paymentMilestoneRepository = (ctx: RepositoryContext) => getRepository<PaymentMilestone>('payment_milestones', ctx);
+export const siteSurveyRepository = (ctx: RepositoryContext) => getRepository<SiteSurvey>('surveys', ctx);
+export const quoteCostRepository = (ctx: RepositoryContext) => getRepository<QuoteCost>('quote_costs', ctx);
+export const approvalRequestRepository = (ctx: RepositoryContext) => getRepository<ApprovalRequest>('approval_requests', ctx);
+export const supplierRepository = (ctx: RepositoryContext) => getRepository<Supplier>('suppliers', ctx);
+export const amcRepository = (ctx: RepositoryContext) => getRepository<AMC>('amcs', ctx);
+export const serviceCaseRepository = (ctx: RepositoryContext) => getRepository<ServiceCase>('service_cases', ctx);
+export const complianceItemRepository = (ctx: RepositoryContext) => getRepository<ComplianceItem>('compliance_items', ctx);
+export const documentRepository = (ctx: RepositoryContext) => getRepository<DocumentRecord>('documents', ctx);
+export const inviteRepository = (ctx: RepositoryContext) => getRepository<Invite>('invites', ctx);
+export const mvpSettingsRepository = (ctx: RepositoryContext) =>
+  getRepository<{ id: string; date?: string; technicianId?: string; version?: number }>('mvp_settings', ctx);
 
 /**
  * `contracts_v2` (not `contracts`): the repo already has a real `contracts`
