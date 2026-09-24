@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 04 Order View, Admin dashboard, MVP_MODE (PRs 04a + 04b)
-- **Next step:** 05 Leads, Sales and Survey
+- **Last completed step:** 05 Leads, Sales and Survey
+- **Next step:** 06 Quote, Booking and Payments
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
@@ -17,7 +17,7 @@
 | 02 | Plan (Phase B) | DONE | MVP Step 02 draft PR | 2026-09-24 | Self-approved per the Owner's autonomous instruction |
 | 03 | Data foundation | DONE | 03a + 03b draft PRs | 2026-09-24 | Split in two (size rule). mvp:checks 3/3, mvp:rules 51/51, 42/42 legacy |
 | 04 | Order View, Admin dashboard, MVP_MODE | DONE | 04a + 04b draft PRs | 2026-09-24 | Split in two (file-count rule). mvp:checks 5/5 + backfill, 42/42 legacy |
-| 05 | Leads, Sales and Survey | TODO | | | |
+| 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
 | 06 | Quote, Booking and Payments | TODO | | | |
 | 07 | Site-ready, Supplier and Delivery | TODO | | | |
 | 08 | Technician, Installation and Blockers | TODO | | | |
@@ -155,4 +155,21 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - App.tsx remounts routed content on every tab change, which lost the selected order (fixed with a module-level selection).
   - D-11's "within 24 h" made a task due in exactly 24 h at risk from the moment it was created; the window is now strict.
 - **Screenshots:** `docs/mvp/screenshots/step-04/` (dashboard phone + desktop, Order View phone, technician tasks phone), taken with headless Chromium over the DevTools protocol (`scripts/mvp/screenshot.mjs`, no new dependency).
+
+### Step 05: Leads, Sales and Survey (2026-09-24), DONE
+- **Services:**
+  - `evidenceService.ts`: D-16 as changed; images/PDF only; ≤ 900 KB; audited.
+  - `leadService.ts`: lists per role; tabs My leads / Follow-ups / Won / Lost; exact-phone duplicate warning; follow-up date, audited.
+  - `orderService`: `phoneNormalized` and `photoIds` on leads; D-30 survey fee (a SURVEY_FEE milestone when the fee is above 0, and an audited `waiveSurveyFee`).
+- **Screens:**
+  - `LeadForm` (spec §13/§23 fields, GPS, site photo, consent ⚖) and `LeadsList`.
+  - `LeadDetail` (contacted, follow-up, qualify → Order, lost with reason).
+  - `SurveyList` (today, then upcoming) and `SurveyForm` (spec §15 fields in mm, 2+ photos, result).
+  - `PhotoInput` reuses `CameraCapture` and compresses on the device.
+  - `OrderExtras` (survey summary, survey-fee waive, "Start the survey").
+- **Allow-list:** sales get Leads / New lead / My tasks / Orders; the surveyor gets Surveys / My tasks.
+- **Offline:** the forms refuse to submit when `navigator.onLine` is false and keep the entries ("No network — not saved"). The outbox is not used: it has no canonical Firestore write transport.
+- **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-leads-survey-check`: lists and ownership, follow-up sort, duplicates, lost + reason, validation, survey fee assign-gate + waive audit, survey assigned to another surveyor, evidence type/size) · `mvp:rules` 66/66 (new: survey and lead scoping) · 42/42 legacy.
+- **Known limit:** the duplicate warning only sees the leads the user may read (sales: their own), because of the rules. The Admin sees all.
+- **Screenshots:** `docs/mvp/screenshots/step-05/`.
 

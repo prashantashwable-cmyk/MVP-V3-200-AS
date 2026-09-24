@@ -178,6 +178,14 @@ async function main() {
   ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { qcPassedAt: '2026-10-01' }))), 'a technician cannot mark QC passed');
   ok(!(await allowed(setDoc(doc(db.tech1, 'surveys/sv1'), { id: 'sv1', orderId: 'ord1', surveyorId: uid.tech1 }))), 'only a surveyor can create a survey');
 
+  // Step 05: surveys and leads are scoped.
+  await seed('surveys/sv_ord2', { id: 'sv_ord2', orderId: 'ord2', surveyorId: 'someone', result: 'FEASIBLE' });
+  ok(!(await allowed(getDoc(doc(db.surveyor, 'surveys/sv_ord2')))), 'a surveyor cannot open a survey on an order they are not part of');
+  await seed('leads/lead_other', { id: 'lead_other', stage: 'captured', ownerUserId: 'another_sales', contactInfo: { name: 'X', phone: '9', email: '' }, buildingInfo: { address: 'Y', floors: 1, type: 'residential' } });
+  ok(await allowed(getDocs(query(collection(db.sales, 'leads'), where('ownerUserId', '==', uid.sales)))), 'sales lists their own leads');
+  ok(!(await allowed(getDoc(doc(db.sales, 'leads/lead_other')))), "sales cannot read another salesperson's lead");
+  ok(!(await allowed(setDoc(doc(db.sales, 'leads/lead_spoof'), { id: 'lead_spoof', stage: 'captured', ownerUserId: 'another_sales' }))), 'sales cannot create a lead owned by someone else');
+
   // S7: reassign removes tech1 from participants → tech1 loses access.
   await seed('projects/ord1', { id: 'ord1', customerId: 'C1', siteId: 'S1', stage: 'installation', status: 'ACTIVE', ownerUserId: uid.sales, title: 'ABC', participantIds: [uid.sales, 'customer:C1', uid.tech2].sort(), version: 5 });
   await seed('tasks/ord1__INSTALLATION__1', { id: 'ord1__INSTALLATION__1', orderId: 'ord1', type: 'INSTALLATION', stage: 'INSTALLATION', assigneeId: uid.tech2, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-19', version: 2 });
