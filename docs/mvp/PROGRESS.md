@@ -5,14 +5,15 @@
 
 ## Current position
 - **Last completed step:** 00 Bootstrap and baseline
-- **Next step:** 01 AUDIT (paste `docs/mvp/prompts/01_AUDIT.md` into a new session after the Step 00 PR is merged)
-- **Blocked on Owner:** —
+- **In review:** 01 AUDIT. `docs/mvp/MVP_SIMPLIFICATION_AUDIT.md` is written; waiting for the Owner's "APPROVED"
+- **Next step:** 02 PLAN (after Step 01 is approved and marked DONE)
+- **Blocked on Owner:** Step 01 approval + the 10 questions in audit §8 (logins, pilot deployment, Firebase access, existing data, payments, survey fee, emergency number, licence, GST, staging)
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
 |---|---|---|---|---|---|
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
-| 01 | Audit (Phase A) | TODO | | | Needs Owner approval |
+| 01 | Audit (Phase A) | IN REVIEW | MVP Step 01 draft PR | 2026-09-24 | Audit written; awaiting Owner approval |
 | 02 | Plan (Phase B) | TODO | | | Needs Owner approval |
 | 03 | Data foundation | TODO | | | |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
@@ -77,7 +78,14 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 1 | Emulator tooling (Java, firebase-tools, emulator JARs) is not cached in the image. Each fresh session downloads firebase-tools (~27 s) and the JARs (~10 s) on first use | 00 | Low | Optional: add the setup-script lines from the kit README to the environment to preinstall them |
 | 2 | `emulator/storage.rules` is an emulator-only placeholder (signed-in users can read and write). The repo has no real `storage.rules` | 00 | Medium | Step 11 designs real Storage rules |
 | 3 | Some legacy checks rewrite "Regenerated:" dates in tracked docs | 00 | Low | Revert after running; Step 01 can decide whether to keep these generators |
-| 4 | Both `bun.lock` and `package-lock.json` exist. npm was chosen (package-lock updated most recently in phase 57; `bun.lock` was last touched in phase 17; the earlier pack's logs use npm) | 00 | Low | Step 01 audit decides whether to delete `bun.lock` |
+| 4 | Both `bun.lock` and `package-lock.json` exist. npm was chosen (package-lock updated most recently in phase 57; `bun.lock` was last touched in phase 17; the earlier pack's logs use npm) | 00 | Low | Audit decision: delete `bun.lock` in Step 03 |
+| 5 | F-1: `users` create rule lets a signed-in user self-assign any non-admin role and status (e.g. surveyor, which can read all customers and sites) | 01 | **High** | Step 03/11 rules fix, with emulator tests |
+| 6 | F-3/F-4: "Try as Role" is not build-gated, and the live Vercel build probably lacks `VITE_APP_ENV=production` (env vars unreadable: Vercel connector 403) | 01 | High | Owner sets the env var; Step 04 hides the demo tab in production; Step 11 verifies |
+| 7 | F-8: non-admin whole-collection `list()`/`subscribe()` are denied by the rules | 01 | High | MVP queries filter by assignee/participant (audit R-6) |
+| 8 | F-9: no Firebase Storage integration and no `storage.rules`; lead photos are base64 inside Firestore docs | 01 | High | Build the Storage transport + rules (Steps 03/08/11); Owner enables the bucket |
+| 9 | F-12: `/api/gemini/*` and `/api/db/*` have no auth | 01 | Medium | Disable them under `MVP_MODE` (audit R-8) |
+| 10 | F-5: the localStorage session token restores any local user without Firebase verification | 01 | Medium | Step 04/11 |
+| 11 | F-11: GST 18% hard-coded in 26 components ⚖ | 01 | Medium | Config value + warning (D-15); legacy screens hidden |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -87,4 +95,12 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Added the SessionStart hook: `.claude/hooks/session-start.sh` and `.claude/settings.json`. It runs only when `CLAUDE_CODE_REMOTE=true`, runs `npm ci` when `node_modules` is missing or older than `package-lock.json`, and skips otherwise. Tested cold (13 s) and warm (0 s).
 - Added emulator-only config (D-19): `firebase.emulator.json` (Auth 9099, Firestore 8080, Storage 9199, UI off, uses the existing `firestore.rules`) and `emulator/storage.rules`. These always run under the `demo-aie-mvp` project ID, so they cannot reach a real project. There is no `firebase.json` or `.firebaserc`, and no production Firebase setting was changed.
 - No application code changed. No `live-*` script was run.
+
+### Step 01: Audit, Phase A (2026-09-24), IN REVIEW
+- Read-only on application code. Created `docs/mvp/MVP_SIMPLIFICATION_AUDIT.md`. Corrected `docs/mvp/REUSE_MAP.md` in place, as the step prompt's item 8 asks ("Step 01:" notes; new mark ◐). REPO_FACTS differences are recorded in audit §10 and the file itself was left as the pre-inspection snapshot.
+- Key findings: only `leads` and `users` are really shared today. The 16 ★ bridges are soft-fail shadow writes. There is no Storage integration. The payment gateway is simulated. Customers have no rules access to canonical data. There is a self-role-claim hole in the `users` rules. "Try as Role" is not build-gated.
+- Classification of 194 screens: KEEP 8, SIMPLIFY 35, DISABLE 150, DELETE 1 (`CustomReportBuilder`, proven dead). Marks: ◆ 2, ★ 16, ○ 137, □ 39.
+- Live deployment: Vercel project `v3-200-ai-studio` confirmed to exist (read-only Vercel connector). Its deployments and env vars returned 403 (scope), so `VITE_APP_ENV` on the live build is unverified.
+- Proposed DECISIONS changes R-1 to R-8 (audit §6). **Not applied**; they wait for Owner approval.
+- Commands run (no code changed): `npm run lint` PASS; `npm run build` PASS; `project-operating-view:check`, `work-queue:check`, `production-demo-gate:check`, `authz:check`, `e2e:check`, `simulation:full-company` all PASS. No `live-*` script run. `git status` clean after the checks (no doc-date rewrites).
 
