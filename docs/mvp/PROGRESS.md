@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 06 Quote, Booking and Payments
-- **Next step:** 07 Site-ready, Supplier and Delivery
+- **Last completed step:** 07 Site-ready, Supplier and Delivery
+- **Next step:** 08 Technician, Installation and Blockers
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
@@ -19,7 +19,7 @@
 | 04 | Order View, Admin dashboard, MVP_MODE | DONE | 04a + 04b draft PRs | 2026-09-24 | Split in two (file-count rule). mvp:checks 5/5 + backfill, 42/42 legacy |
 | 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
 | 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
-| 07 | Site-ready, Supplier and Delivery | TODO | | | |
+| 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
 | 08 | Technician, Installation and Blockers | TODO | | | |
 | 09 | QC, Handover and AMC | TODO | | | |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
@@ -195,4 +195,19 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-quote-payment-check`: fixture ₹11,80,000 / 25% / 20%, low-margin block + approval, milestones 10,000 / 10,52,000 / 1,18,000 and the sum rule, S1 5–7, double-accept and double-verify idempotency, S6, the S5 AT_RISK set-up, I-5, the payment audit trail, gates and override) · 42/42 legacy.
 - **Screenshots:** `docs/mvp/screenshots/step-06/`.
 - **Scope guard:** PASS with warnings, all applied: no reject on a settled payment, deterministic notification keys, and `saveQuote` writes through `createIfAbsent` (a double-tap can't clash). Quote status updates have no optimistic lock (single Admin writer); accepted for the pilot.
+
+### Step 07: Site-ready, Supplier and Delivery (2026-09-24), DONE
+- **`supplyService.ts`:**
+  - Customer site-readiness checklist: 5 items, each with a photo (power may give a date instead). It is recorded on the customer's own SITE_READINESS task (additive `Task.data`; the own-task update rule gains the `data` key).
+  - Admin: return with a reason (the customer task reopens, +7 days), or confirm (soft gate: token paid, D-14) → DELIVERY. The delivery-payment due date is set to the delivery date + 2.
+  - Suppliers (Admin-managed, D-12).
+  - POs reuse `createPurchaseOrderIdempotent`. Material status is ORDERED / DISPATCHED / DELAYED (DELAYED needs a reason). A change to the expected date moves TRACK_DELIVERY and the delivery milestone; both changes are audited.
+  - Material received (photo + count note + condition; technician optional) → DeliveryReceipt, InstallationJob, PO DELIVERED, INSTALLATION task; the technician and the customer are notified.
+- **UI:** `SupplyPanels.tsx`
+  - Customer: "Get the site ready" with a "complete by" date.
+  - Admin: verify readiness with photos, gate override, confirm or return; PO raise and update; material received.
+  - Admin/Owner: a Suppliers tab (directory + open POs, delays in red).
+- **Demo seed:** now goes through the real supply services.
+- **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-supply-check`: S1 8–12; readiness validation, return and resubmit; supplier delay → date follows and is audited, supplier-delay bucket; S2 overdue → hold → resume + extend, audited; S5 material received without the delivery payment; the customer never sees PO amounts) · `mvp:rules` 71/71 (the customer writes `data` on their own task; another customer cannot) · 42/42 legacy.
+- **Screenshots:** `docs/mvp/screenshots/step-07/`.
 

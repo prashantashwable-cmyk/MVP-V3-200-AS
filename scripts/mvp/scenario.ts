@@ -7,11 +7,15 @@ import { applyEvent, assignSurveyor, createLead, qualifyLead, submitSurvey } fro
 import { projectRepository } from '../../src/repository/entities';
 import { saveQuote, sendQuote, decideQuote } from '../../src/mvp/services/quoteService';
 import { submitPaymentProof, verifyPayment, milestoneId } from '../../src/mvp/services/paymentService';
+import { createSupplier, raisePo, submitReadiness, confirmSiteReady, markMaterialReceived, READINESS_ITEMS } from '../../src/mvp/services/supplyService';
+import { saveEvidence } from '../../src/mvp/services/evidenceService';
 import { Clock, FIXTURE_LEAD, FIXTURE_SURVEY, FIXTURE_QUOTE, USERS, customerActor } from './fixtures';
 
 export interface S1State { orderId: string; customerId: string; leadId: string }
 
 let phoneSeq = 0;
+
+export const TINY_JPEG = 'data:image/jpeg;base64,' + Buffer.from('fixture-jpeg-bytes').toString('base64');
 
 /** Runs S1 up to and including `step` (1–13a expressed as 13.5). */
 export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1State> {
@@ -32,11 +36,19 @@ export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1
     await submitPaymentProof(ctx, cust, milestoneId(order.id, 'BOOKING_TOKEN'), 'TEST123');
     await verifyPayment(ctx, USERS.admin, milestoneId(order.id, 'BOOKING_TOKEN'), { status: 'PAID', method: 'UPI', reference: 'TEST123' });
   }
-  if (step >= 8) await ev({ type: 'PO_RAISED' });
-  if (step >= 9) await ev({ type: 'READINESS_SUBMITTED' });
-  if (step >= 10) await ev({ type: 'SITE_READY_CONFIRMED', poExpectedDate: at(10) });
+  const photo = async (who: any, caption: string) => (await saveEvidence(ctx, who, { dataUrl: TINY_JPEG, contentType: 'image/jpeg', orderId: order.id, caption })).id;
+  if (step >= 8) {
+    const sup = await createSupplier(ctx, USERS.admin, { name: 'Sahyadri Lift Components', contactName: 'Mr. Joshi', phone: '9822012345' });
+    await raisePo(ctx, USERS.admin, order.id, { supplierId: sup.id, items: 'G+7 lift kit, 8 stops', amount: 700000, expectedDeliveryDate: at(10) });
+  }
+  if (step >= 9) {
+    const items: any = {};
+    for (const i of READINESS_ITEMS) items[i.key] = { ok: true, photoId: await photo(cust, i.label) };
+    await submitReadiness(ctx, cust, order.id, { items, note: 'Site ready' });
+  }
+  if (step >= 10) await confirmSiteReady(ctx, USERS.admin, order.id);
   if (step >= 11) await verifyPayment(ctx, USERS.admin, milestoneId(order.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: 'DEL-TEST' });
-  if (step >= 12) await ev({ type: 'MATERIAL_RECEIVED', technicianId: USERS.tech1.userId });
+  if (step >= 12) await markMaterialReceived(ctx, USERS.admin, order.id, { note: 'All 14 boxes received', photoIds: [await photo(USERS.admin, 'Material at site')], technicianId: USERS.tech1.userId });
   if (step >= 13.5) {
     const p = await projectRepository(ctx).get(order.id);
     await projectRepository(ctx).update(order.id, { checklistDone: 6 } as any, (p as any).version);

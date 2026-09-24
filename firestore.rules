@@ -365,7 +365,7 @@ service cloud.firestore {
       // on their order to its previous status when its blocker is resolved (D-07).
       allow update: if isAdmin() || (
         (resource.data.assigneeId == request.auth.uid || resource.data.assigneeId == myCustomerToken()) &&
-        onlyKeys(['status', 'updatedAt', 'completedAt', 'notes', 'evidenceIds', 'previousStatus', 'version']) &&
+        onlyKeys(['status', 'updatedAt', 'completedAt', 'notes', 'evidenceIds', 'previousStatus', 'data', 'version']) &&
         request.resource.data.status in ['TODO', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED']) || (
         canWriteTaskScope(resource.data) && resource.data.status == 'BLOCKED' &&
         request.resource.data.status == resource.data.get('previousStatus', 'TODO') &&
