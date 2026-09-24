@@ -81,7 +81,7 @@ Existing features on this list are **disabled or hidden, not deleted**.
    - Flag any deviation from the approved plan.
    - If a deviation is large or destructive, **stop and ask**.
 3. **Implement** in small commits: `mvp(step-NN): <what>`.
-4. **Verify.** Run the commands listed in PROGRESS.md: type check, build, `mvp:checks`, and the relevant existing checks.
+4. **Verify.** Run the commands listed in PROGRESS.md: type check, build, `mvp:checks`, and the relevant existing checks. **`npm run build` must pass on the final commit of every step, and its result goes in the report (Owner instruction).**
    - Fix anything you broke.
    - Log pre-existing failures; don't fix them unless the fix is trivial and in scope.
 5. **Guard.** Run the `mvp-scope-guard` subagent on your diff, or its checklist yourself if it's unavailable. Fix any FAIL.
@@ -91,6 +91,7 @@ Existing features on this list are **disabled or hidden, not deleted**.
    - Open a **draft PR** titled `MVP Step NN: <title>`.
    - The PR body covers: summary, files, data changes, checks with results, manual test steps, screenshots for UI steps, risks.
 8. **Report and stop.** Use the report format in the step prompt. **Don't start the next step.**
+   - **Screenshots every step (Owner instruction).** Save them under `docs/mvp/screenshots/step-NN/` and send them to the Owner in the chat with the report. For a step with no UI change, screenshot the main screen it affects, to show nothing broke. PROGRESS.md "Handoff notes" gives the command.
 
 ## Stop and ask the Owner before
 - dropping or renaming any collection or field, or deleting any data

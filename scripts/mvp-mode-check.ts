@@ -26,6 +26,7 @@ for (const role of roles) {
 }
 check(!isAllowedTab('customer', 'MvpDashboard') && !isAllowedTab('technician', 'MvpDashboard'), 'the dashboard is admin/owner only');
 check(isAllowedTab('customer', 'MvpOrder') && isAllowedTab('technician', 'MvpOrder'), 'the Order View is reachable from lists');
+check(isAllowedTab('technician', 'MvpToday') && !isAllowedTab('customer', 'MvpToday') && homeTabFor('technician') === 'MvpToday', 'technicians land on Today; others cannot open it');
 check(mvpTabsFor('pending_selection').every(t => t.id === 'MvpSettings'), 'an unknown role sees only Settings');
 
 // MVP_MODE off: App.tsx keeps every legacy tab id exactly as at baseline.

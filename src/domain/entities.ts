@@ -171,6 +171,8 @@ export interface Project {
   displaySummary?: {
     customerName: string;
     siteAddress: string;
+    /** MVP: so the assigned technician can call the customer from the site. */
+    customerPhone?: string;
   };
   // --- MVP additions (D-02, D-05, D-12; all optional so old documents stay valid) ---
   /** Human display code `AE-####`, generated once in a transaction, never changed. */

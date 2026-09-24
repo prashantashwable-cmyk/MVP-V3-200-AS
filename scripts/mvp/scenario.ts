@@ -3,8 +3,8 @@
  * shortcuts below with the real service call it builds (quote, payment, supply, install…).
  */
 import type { MvpCtx } from '../../src/mvp/services/orderService';
-import { applyEvent, assignSurveyor, createLead, qualifyLead, submitSurvey } from '../../src/mvp/services/orderService';
-import { projectRepository } from '../../src/repository/entities';
+import { assignSurveyor, createLead, listOrderTasks, qualifyLead, submitSurvey } from '../../src/mvp/services/orderService';
+import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from '../../src/mvp/services/installationService';
 import { saveQuote, sendQuote, decideQuote } from '../../src/mvp/services/quoteService';
 import { submitPaymentProof, verifyPayment, milestoneId } from '../../src/mvp/services/paymentService';
 import { createSupplier, raisePo, submitReadiness, confirmSiteReady, markMaterialReceived, READINESS_ITEMS } from '../../src/mvp/services/supplyService';
@@ -17,7 +17,7 @@ let phoneSeq = 0;
 
 export const TINY_JPEG = 'data:image/jpeg;base64,' + Buffer.from('fixture-jpeg-bytes').toString('base64');
 
-/** Runs S1 up to and including `step` (1–13a expressed as 13.5). */
+/** Runs S1 up to and including `step` (13a is 13.5, 13b is 13.9). */
 export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1State> {
   const phone = `98${String(76500000 + ++phoneSeq).padStart(8, '0')}`;
   const lead = await createLead(ctx, USERS.sales, { ...FIXTURE_LEAD, phone });
@@ -25,7 +25,6 @@ export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1
   if (step < 2) return state;
   const order = await qualifyLead(ctx, USERS.sales, lead.id);
   state.orderId = order.id; state.customerId = order.customerId;
-  const ev = (e: any) => applyEvent(ctx, USERS.admin, order.id, e);
   const at = (days: number) => new Date(clock.now().getTime() + days * 86_400_000).toISOString();
   if (step >= 3) await assignSurveyor(ctx, USERS.admin, order.id, USERS.surveyor.userId, at(2));
   if (step >= 4) await submitSurvey(ctx, USERS.surveyor, order.id, FIXTURE_SURVEY);
@@ -49,9 +48,20 @@ export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1
   if (step >= 10) await confirmSiteReady(ctx, USERS.admin, order.id);
   if (step >= 11) await verifyPayment(ctx, USERS.admin, milestoneId(order.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: 'DEL-TEST' });
   if (step >= 12) await markMaterialReceived(ctx, USERS.admin, order.id, { note: 'All 14 boxes received', photoIds: [await photo(USERS.admin, 'Material at site')], technicianId: USERS.tech1.userId });
+  const installTask = async () => (await listOrderTasks(ctx, order.id)).find(t => t.type === 'INSTALLATION' && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')!;
   if (step >= 13.5) {
-    const p = await projectRepository(ctx).get(order.id);
-    await projectRepository(ctx).update(order.id, { checklistDone: 6 } as any, (p as any).version);
+    // 13a: START, CHECK IN, 6 of 11 checklist items with photos.
+    const t = await installTask();
+    await startWork(ctx, USERS.tech1, t.id);
+    await checkInAtSite(ctx, USERS.tech1, t.id);
+    for (const item of CHECKLIST_ITEMS.slice(0, 6)) await setChecklistItem(ctx, USERS.tech1, t.id, item.key, { done: true, documentId: await photo(USERS.tech1, item.label) });
+  }
+  if (step >= 13.9) {
+    // 13b: the remaining 5 items, the QC inspector set, then COMPLETE.
+    const t = await installTask();
+    for (const item of CHECKLIST_ITEMS.slice(6)) await setChecklistItem(ctx, USERS.tech1, t.id, item.key, { done: true, documentId: await photo(USERS.tech1, item.label) });
+    await assignQcInspector(ctx, USERS.admin, order.id, USERS.qc.userId);
+    await completeWork(ctx, USERS.tech1, t.id, { note: 'Ready for QC' });
   }
   return state;
 }

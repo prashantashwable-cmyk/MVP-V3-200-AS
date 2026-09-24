@@ -4,10 +4,53 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 07 Site-ready, Supplier and Delivery
-- **Next step:** 08 Technician, Installation and Blockers
-- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
-- **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
+- **Last completed step:** 08 Technician, Installation and Blockers (draft PR #12)
+- **Next step:** 09 QC, Handover and AMC. Branch `claude/mvp-step-09-qc-handover-amc` from `claude/mvp-step-08-technician-installation`; PR base = that branch.
+- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover.
+- **Owner standing instructions (2026-09-24):**
+  - Every step must include screenshots, sent to the Owner in chat.
+  - Every step must include a verified `npm run build`.
+  - See CLAUDE.md step protocol items 4 and 8.
+- **Blocked on Owner:** still needed before go-live:
+  - the emergency phone number (audit §8 Q7)
+  - `VITE_APP_ENV=production` set in Vercel
+  - Firebase Storage and backups enabled (Q3)
+  - the GST rate (⚖ VERIFY with the CA)
+
+## Handoff notes (for any model or session picking this up)
+- **Stacked draft PRs, none merged:**
+
+  | PR | Step |
+  |---|---|
+  | #3 | 01 |
+  | #4 | 02 |
+  | #5 | 03a |
+  | #6 | 03b |
+  | #7 | 04a |
+  | #8 | 04b |
+  | #9 | 05 |
+  | #10 | 06 |
+  | #11 | 07 |
+  | #12 | 08 |
+
+  Each PR's base is the previous step's branch. Start a new step's branch from the latest step branch, not from `main`.
+- **Where things are:**
+  - Services: `src/mvp/services/*`
+  - Screens: `src/mvp/screens/*`. Add stage panels to `OrderExtras.tsx`, and new tabs to `mvpMode.ts` and `MvpRouter.tsx`.
+  - Scenario driver: `scripts/mvp/scenario.ts` `runS1(ctx, clock, step)`. Step 13a = 13.5, 13b = 13.9. Extend it for steps 14+.
+  - Fixtures: `scripts/mvp/fixtures.ts`.
+  - Each step adds `scripts/mvp-<name>-check.ts` and wires it into `mvp:checks` in package.json.
+  - Rules tests: `scripts/mvp-rules-emulator-check.ts`, run with `npm run mvp:rules`.
+- **Screenshots:**
+  1. Start the dev server in the background with `npm run dev`.
+  2. Run `node scripts/mvp/screenshot.mjs "http://localhost:3000/?demoRole=<role>" docs/mvp/screenshots/step-NN/<name>.png 390 <height> ["button text to click" ...]`.
+  3. Stop the server with `ps -eo pid,args | grep "[t]sx server" | awk '{print $1}' | xargs -r kill`. Don't use `pkill -f`, which kills its own shell.
+  4. Send the PNGs to the Owner.
+- **Step 09 must add:**
+  - a QC stage move to `stageMoveOk` in firestore.rules (qc → handover), with emulator tests
+  - QC writes the REWORK remarks into the task `notes`, which the technician UI shows
+  - snags assigned to the technician
+- **Step 11 must add:** `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone`.
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
@@ -20,7 +63,7 @@
 | 05 | Leads, Sales and Survey | DONE | MVP Step 05 draft PR | 2026-09-24 | mvp:checks 6/6 + backfill, mvp:rules 66/66, 42/42 legacy |
 | 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
 | 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
-| 08 | Technician, Installation and Blockers | TODO | | | |
+| 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 80/80, 42/42 legacy |
 | 09 | QC, Handover and AMC | TODO | | | |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
 | 11 | Security, Compliance and Production hardening | TODO | | | |
@@ -215,4 +258,49 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - One delivery receipt per order (`rcpt_<orderId>`); partial deliveries are noted in the count note.
   - A double-tap on "Add supplier" can create a duplicate supplier (the button is disabled while busy).
   - The customer's own-task `data` could be written directly without photos. The Admin verifies the photos before confirming.
+
+### Step 08: Technician, Installation and Blockers (2026-09-24), DONE
+- **`installationService.ts`** (reuses the canonical InstallationJob):
+  - START: the INSTALLATION_START soft gate ("Waiting for delivery payment"; Admin override, audited).
+  - CHECK IN: GPS is saved only if the phone gives it; it is never required.
+  - The 11-item checklist (spec §18). Every item needs a stored photo except "Site cleaned". The count is mirrored to `project.checklistDone` (D-10) and each tick is audited.
+  - COMPLETE needs 11/11 → QC_HANDOVER + QC_INSPECTION → the order's QC inspector, or the Admin if none is set; "QC required" goes to QC and the customer.
+  - REWORK needs a photo of the fixed work → the snags assigned to the technician move to `reinspection_pending` → a new QC_INSPECTION.
+  - Admin: `assignTechnician`, and `assignQcInspector` (an open QC task waiting on the Admin moves to the inspector).
+  - `reassignTask` now also moves the InstallationJob to the new technician (`syncInstallationJob`).
+  - `displaySummary.customerPhone` (additive) so the technician can call the customer.
+- **UI:** `InstallationPanels.tsx`
+  - Technician "Today" tab: today, then upcoming; call button. Earnings show "—" because no partner rate exists, so no made-up figure is shown.
+  - The job runner in the Order View: START / CHECK IN / the checklist with photos / COMPLETE, plus a BLOCKED dialog with the 8 reasons, a description and an optional photo. REWORK shows the QC remarks.
+  - The Admin's "Installation team" panel: technician, QC inspector, and the start-gate override.
+  - Why not reuse TechnicianMobileApp or InstallationProgressTracker: they use legacy DbManager records and gamified earnings.
+- **Demo seed:** AE-1003 is now at 6/11 (71 %), with QC Meera set as its inspector.
+- **Scenario driver:** `runS1` 13a (13.5) and 13b (13.9) now go through the real services; the `checklistDone` shortcut is removed.
+- **Checks:**
+  - lint PASS · build PASS · 42/42 legacy.
+  - `mvp:checks` PASS. The new `mvp-installation-check` (57 assertions) covers:
+    - S1 13a (71 %) and 13b (QC_INSPECTION → qc, 90 %, notification)
+    - S3 (blocker → BLOCKED, Admin notified, buckets; resolve → IN_PROGRESS / ON_TRACK)
+    - S5 (START refused "Waiting for delivery payment" → audited override → START)
+    - S7 (2 audits with before/after; tech2 notified; tech1 loses the task and participation; the job follows)
+    - the guards: order of steps, photos, another technician, a BLOCKED job
+    - the rework path
+  - `mvp:rules` 80/80. New assertions:
+    - a technician updates their own job and `checklistDone`, and creates the QC task; another technician and the customer cannot
+    - S7: after reassignment, tech1 can no longer read the task or update the job
+    - only the snag's assignee moves it to re-inspection
+- **Scope guard:** PASS with warnings. Applied:
+  - the snag status change is audited
+  - the job is marked completed only after the INSTALLATION_COMPLETED event succeeds
+  - `startWork` reuses `orderService.setTaskInProgress`
+  - the why-not-reuse note now covers the ★ screens `TechnicianCheckInCheckOutScreen` and `PhotoVideoEvidenceCaptureScreen`, which read and write DbManager throughout
+  - the emulator assertions above
+- **Open issue for Step 11 (rules hardening):**
+  - `installation_jobs` updates by the assigned technician are not key-limited
+  - `checklistDone` has no 0–11 bound
+  - the checklist photo and order rules are enforced in the service only
+- **Screenshots:** `docs/mvp/screenshots/step-08/`.
+- **Known limits:**
+  - The Admin sees the job runner too, so they can act for a technician without a phone. Those actions are audited under the Admin.
+  - The QC remarks on REWORK are the task notes. Step 09's QC service writes them.
 

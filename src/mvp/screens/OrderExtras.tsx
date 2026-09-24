@@ -12,6 +12,7 @@ import { ErrorNote, inputCls, SectionTitle, useAction, useLoad, useMvpCtx } from
 import { QuotePanel } from './QuotePanels';
 import { PaymentsPanel } from './PaymentsPanel';
 import { ReadinessPanel, SupplyPanel } from './SupplyPanels';
+import { AdminInstallationPanel, InstallationPanel } from './InstallationPanels';
 
 const SurveyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view }) => {
   const { ctx } = useMvpCtx(user);
@@ -53,9 +54,11 @@ export const OrderExtras: React.FC<{ user: User; onOpenSurvey?: (orderId: string
       {surveyTask && props.onOpenSurvey && (
         <Button variant="primary" fullWidth onClick={() => props.onOpenSurvey!(props.view.order.id)}>Start the survey</Button>
       )}
+      <InstallationPanel {...props} />
       <SurveyFeePanel {...props} />
       <ReadinessPanel {...props} />
       <SupplyPanel {...props} />
+      <AdminInstallationPanel {...props} />
       <QuotePanel {...props} />
       <PaymentsPanel {...props} />
       <SurveyPanel {...props} />
