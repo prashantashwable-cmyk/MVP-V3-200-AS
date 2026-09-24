@@ -37,6 +37,13 @@ export const DUE_DAYS: Record<TaskType, number> = {
   REVIEW_ORDER: 1,
 };
 
+/** Extra time the customer gets when the Admin returns the site-readiness photos. */
+export const READINESS_RETURN_DAYS = 7;
+/** Review due date for an order put on hold by a QC FAIL. */
+export const QC_FAIL_REVIEW_DAYS = 1;
+/** D-11: a TODO current task due within this many hours makes the order AT_RISK. */
+export const AT_RISK_WINDOW_HOURS = 24;
+
 export const EMERGENCY_RESPONSE_MINUTES = 45; // ⚖ VERIFY the right response target (D-28)
 export const BLOCKER_DUE_DAYS = 2; // D-07
 

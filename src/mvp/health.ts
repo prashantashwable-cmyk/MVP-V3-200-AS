@@ -1,6 +1,7 @@
 /** Deterministic order health (D-11) and the current-task rule (D-06). Pure; `now` is injected. */
 
 import type { MvpStage, OrderStatus, PaymentMilestone, Task } from '../domain/entities';
+import { AT_RISK_WINDOW_HOURS } from './config';
 
 export type Health = 'ON_TRACK' | 'AT_RISK' | 'OVERDUE' | 'BLOCKED' | 'ON_HOLD';
 
@@ -46,6 +47,6 @@ export function computeHealth(input: HealthInput): Health {
   const due = new Date(task.dueDate).getTime();
   const now = input.now.getTime();
   if (due < now) return 'OVERDUE';
-  if ((due - now <= 24 * HOUR && task.status === 'TODO') || hasOverdueMilestone(input.milestones, input.now)) return 'AT_RISK';
+  if ((due - now <= AT_RISK_WINDOW_HOURS * HOUR && task.status === 'TODO') || hasOverdueMilestone(input.milestones, input.now)) return 'AT_RISK';
   return 'ON_TRACK';
 }

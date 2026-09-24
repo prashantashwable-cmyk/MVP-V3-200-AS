@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 02 Plan (Phase B), approved 2026-09-24 under the Owner's "Do autonomously" instruction
-- **Next step:** 03 Data foundation
+- **Last completed step:** 03 Data foundation (PRs 03a + 03b)
+- **Next step:** 04 Order View, Admin dashboard, MVP_MODE
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
@@ -15,7 +15,7 @@
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
 | 01 | Audit (Phase A) | DONE | #3 | 2026-09-24 | Owner approved with no changes; §8 defaults accepted |
 | 02 | Plan (Phase B) | DONE | MVP Step 02 draft PR | 2026-09-24 | Self-approved per the Owner's autonomous instruction |
-| 03 | Data foundation | TODO | | | |
+| 03 | Data foundation | DONE | 03a + 03b draft PRs | 2026-09-24 | Split in two (size rule). mvp:checks 3/3, mvp:rules 51/51, 42/42 legacy |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
 | 05 | Leads, Sales and Survey | TODO | | | |
 | 06 | Quote, Booking and Payments | TODO | | | |
@@ -38,7 +38,7 @@ Package manager: **npm** (`package-lock.json`). `bun.lock` is kept for now; Step
 | Dev server | `npm run dev` (Express + Vite middleware on port 3000) | Yes, HTTP 200 within ~3 s. Warns that `GEMINI_API_KEY` is unset and falls back to demo mode |
 | Type check / lint | `npm run lint` (`tsc --noEmit`) | Yes, pass, ~9 s |
 | Build | `npm run build` (vite build + esbuild server bundle) | Yes, pass, ~19 s |
-| MVP checks | `npm run mvp:checks` (Step 03 creates it) | Not yet |
+| MVP checks | `npm run mvp:checks` (demo repository) and `npm run mvp:rules` (Firestore emulator, ~40 s) | Yes |
 | Legacy checks | run each non-`live-*` script from `npm run checks` individually (loop below). **Never** run `npm run checks` as a whole: it includes `live-*` scripts | Yes, 42/42 pass, ~104 s total |
 | Emulator | `npx -y firebase-tools@15.31.0 emulators:exec --config firebase.emulator.json --project demo-aie-mvp --only firestore,auth,storage "<cmd>"` | Yes, starts in ~19 s (first run downloads the emulator JARs) |
 | E2E | Playwright is not installed as a dependency. Chromium is at `$PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`. Do not run `playwright install` | Browser available; no E2E harness yet |
@@ -76,6 +76,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 2026-09-24 | D-16 | Evidence inline in Firestore `documents` (≤ 900 KB) instead of Storage | Storage rules can't check participants here (plan §10) |
 | 2026-09-24 | D-12 (addition) | Participant model via `Project.participantIds` | Needed for rules-based per-order access |
 | 2026-09-24 | D-21 | Pilot = Vercel | Audit default; live today |
+| 2026-09-24 | D-08 (row "Survey REQUIRES_CORRECTION") | When the customer completes the correction, create ASSIGN_SURVEYOR → Admin (one-click re-assign) instead of SURVEY directly | A customer's action must not grant a surveyor access to the order (firestore.rules, Step 03 scope-guard fix) |
 
 ## Open issues / known gaps
 | # | Issue | Found in step | Severity | Plan |
@@ -91,6 +92,9 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 9 | F-12: `/api/gemini/*` and `/api/db/*` have no auth | 01 | Medium | Disable them under `MVP_MODE` (audit R-8) |
 | 10 | F-5: the localStorage session token restores any local user without Firebase verification | 01 | Medium | Step 04/11 |
 | 11 | F-11: GST 18% hard-coded in 26 components ⚖ | 01 | Medium | Config value + warning (D-15); legacy screens hidden |
+| 12 | `firestore.rules` changes only take effect when deployed. Deploying rules is an Owner action (Firebase console or `firebase deploy --only firestore:rules`) | 03 | High | Add to the go-live checklist (Step 14). Deploy them together with the MVP build, not before: legacy surveyors lose read access to all customers/sites (F-1 fix) |
+| 13 | Pre-existing rules bug: `request.auth.token.role` threw for tokens without a role claim, so `getUserRole()` errored and admins other than the owner email were always denied | 03 | High (fixed) | Fixed in 03b with safe `.get()` lookups; the emulator check covers it |
+| 14 | Participants can write limited workflow fields client-side (rules restrict keys and forward-only stages); no server-side API | 03 | Medium | Accepted for invited-only users (plan §11); Phase 2 option: verified server API |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -118,4 +122,16 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Updated DECISIONS.md with the changes above (amendment lines under D-04, D-12, D-13, D-16, D-21).
 - Docs only; no application code changed.
 - Approval: the Owner's standing instruction "Do autonomously" (2026-09-24). The plan is binding from here.
+
+### Step 03: Data foundation (2026-09-24), DONE
+- **Split** into two PRs because the step exceeded the ~1,500-line guideline (CLAUDE.md):
+  - **03a backbone:** `src/mvp/{config,stage,progress,health,rules,format,leadModel}.ts`, `src/mvp/services/{orderService,notify}.ts`, `src/repository/transactions.ts`; additive entities (Task, Blocker, PaymentMilestone, SiteSurvey, QuoteCost, ComplianceItem, Invite; stages `survey`/`site_ready`; roles owner/sales/qc; Project `displayCode`/`status`/`participantIds`/…); new repositories; MVP notification templates; `mvp:checks`; `checks:legacy`; deleted the stale `bun.lock`.
+  - **03b rules and backfill:** `firestore.rules` (participant model, F-1 fix, cost hiding, forward-only stages, the pre-existing `token.role` bug fixed); `scripts/mvp-rules-emulator-check.ts` (51 assertions incl. S8); idempotency `ownerUid` (additive); `src/mvp/backfill.ts` + `scripts/mvp-backfill-projects.ts` (dry-run default; demo only; idempotent).
+- **Checks:** `npm run lint` PASS · `npm run build` PASS · `npm run mvp:checks` PASS (pure 38, rules table 150+, order service 81 assertions, backfill idempotent) · `npm run mvp:rules` PASS (51/51 on the emulator) · all 42 non-live legacy checks PASS.
+- **Deviations from the plan:**
+  - `qualifyLead` is *convergent* rather than one transaction: deterministic ids (`cust_/site_/ord_<leadId>`) + `createIfAbsent` + `runIdempotent` per lead, so a retry after a partial failure completes the same records instead of duplicating them.
+  - A bug found by the check: `applyEvent` wrote tasks before rejecting a backward stage move. It now validates before any write.
+  - `customers`/`sites` reads are tightened (surveyors no longer read every customer). Legacy screens relying on that are hidden by MVP_MODE (Step 04).
+- **Scope guard:** first run FAILED on rules breadth (customers could change money/QC fields, participants and stages, or complete others' tasks). Fixed in 03b (per-role stage map, QC-only hold, own-task writes, surveyor-only survey create, 11 new negative emulator tests → 62/62). Re-run: PASS with warnings (accepted residual risk = open issue 14; Step 03 size ≈ 3,000 lines across 03a+03b; QC-role stage move to add with a test in Step 09).
+- **Data:** additive only. Backfill dry-run output (demo): 2 sample legacy projects → status ACTIVE, AE-1001/1002, participants, REVIEW_ORDER task; re-plan after apply = 0 changes.
 

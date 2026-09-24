@@ -21,7 +21,7 @@ const rows: Row[] = [
   { event: { type: 'SURVEY_RESULT', result: 'FEASIBLE' }, stage: 'SURVEY', nextStage: 'QUOTE', tasks: [['PREPARE_QUOTE', 'role:admin', days(2)]] },
   { event: { type: 'SURVEY_RESULT', result: 'REQUIRES_CORRECTION' }, stage: 'SURVEY', tasks: [['SITE_CORRECTION', 'customer:c1', days(14)]] },
   { event: { type: 'SURVEY_RESULT', result: 'NOT_FEASIBLE' }, stage: 'SURVEY', tasks: [['REVIEW_NOT_FEASIBLE', 'role:admin', days(1)]] },
-  { event: { type: 'CORRECTION_COMPLETED', surveyorId: 'u_surveyor' }, stage: 'SURVEY', tasks: [['SURVEY', 'u_surveyor', days(3)]], completes: ['SITE_CORRECTION'] },
+  { event: { type: 'CORRECTION_COMPLETED' }, stage: 'SURVEY', tasks: [['ASSIGN_SURVEYOR', 'role:admin', days(1)]], completes: ['SITE_CORRECTION'] },
   { event: { type: 'QUOTE_PREPARED', belowMinimum: true }, stage: 'QUOTE', tasks: [['APPROVE_MARGIN', 'role:admin', days(1)]] },
   { event: { type: 'QUOTE_PREPARED', belowMinimum: false }, stage: 'QUOTE', tasks: [] },
   { event: { type: 'QUOTE_SENT' }, stage: 'QUOTE', tasks: [['QUOTE_DECISION', 'customer:c1', days(7)]], completes: ['PREPARE_QUOTE', 'APPROVE_MARGIN'] },
