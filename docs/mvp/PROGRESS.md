@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 08 Technician, Installation and Blockers (draft PR #12)
-- **Next step:** 09 QC, Handover and AMC. Branch `claude/mvp-step-09-qc-handover-amc` from `claude/mvp-step-08-technician-installation`; PR base = that branch.
+- **Last completed step:** 09 QC, Handover and AMC (draft PR #13)
+- **Next step:** 10 Customer portal, Owner view, Notifications, Reports, Languages. Branch `claude/mvp-step-10-customer-owner-i18n` from `claude/mvp-step-09-qc-handover-amc`; PR base = that branch.
 - **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover.
 - **Owner standing instructions (2026-09-24):**
   - Every step must include screenshots, sent to the Owner in chat.
@@ -32,6 +32,7 @@
   | #10 | 06 |
   | #11 | 07 |
   | #12 | 08 |
+  | #13 | 09 |
 
   Each PR's base is the previous step's branch. Start a new step's branch from the latest step branch, not from `main`.
 - **Where things are:**
@@ -46,11 +47,11 @@
   2. Run `node scripts/mvp/screenshot.mjs "http://localhost:3000/?demoRole=<role>" docs/mvp/screenshots/step-NN/<name>.png 390 <height> ["button text to click" ...]`.
   3. Stop the server with `ps -eo pid,args | grep "[t]sx server" | awk '{print $1}' | xargs -r kill`. Don't use `pkill -f`, which kills its own shell.
   4. Send the PNGs to the Owner.
-- **Step 09 must add:**
-  - a QC stage move to `stageMoveOk` in firestore.rules (qc → handover), with emulator tests
-  - QC writes the REWORK remarks into the task `notes`, which the technician UI shows
-  - snags assigned to the technician
-- **Step 11 must add:** `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone`.
+- **Step 10 should add:** a demo order at AMC bound to a second demo customer, so EmergencyButton/AmcPanel are screenshot-able via `?demoRole=customer` (open issue 17); decouple `language.ts` from DbManager; the overdue/digest notification scan.
+- **Step 11 must add:**
+  - `onlyKeys` limits on technician `installation_jobs` updates, and a 0–11 bound on `checklistDone` (open issue from Step 08)
+  - scope `qc_inspections` create to `isParticipantOf(projectId)` (open issue 15, Step 09)
+  - the final S8 rules suite and `mvp-audit-coverage-check.ts`
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
@@ -64,7 +65,7 @@
 | 06 | Quote, Booking and Payments | DONE | MVP Step 06 draft PR | 2026-09-24 | mvp:checks 7/7 + backfill, mvp:rules 69/69, 42/42 legacy |
 | 07 | Site-ready, Supplier and Delivery | DONE | MVP Step 07 draft PR | 2026-09-24 | mvp:checks 8/8 + backfill, mvp:rules 71/71, 42/42 legacy |
 | 08 | Technician, Installation and Blockers | DONE | MVP Step 08 draft PR | 2026-09-24 | mvp:checks 9/9 + backfill, mvp:rules 80/80, 42/42 legacy |
-| 09 | QC, Handover and AMC | TODO | | | |
+| 09 | QC, Handover and AMC | DONE | MVP Step 09 draft PR | 2026-09-24 | mvp:checks 10/10 + backfill, mvp:rules 102/102, 42/42 legacy |
 | 10 | Customer portal, Owner view, Notifications, Reports, Languages | TODO | | | |
 | 11 | Security, Compliance and Production hardening | TODO | | | |
 | 12 | Test and Verify (Phases D and E) | TODO | | | |
@@ -138,6 +139,9 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 12 | `firestore.rules` changes only take effect when deployed. Deploying rules is an Owner action (Firebase console or `firebase deploy --only firestore:rules`) | 03 | High | Add to the go-live checklist (Step 14). Deploy them together with the MVP build, not before: legacy surveyors lose read access to all customers/sites (F-1 fix) |
 | 13 | Pre-existing rules bug: `request.auth.token.role` threw for tokens without a role claim, so `getUserRole()` errored and admins other than the owner email were always denied | 03 | High (fixed) | Fixed in 03b with safe `.get()` lookups; the emulator check covers it |
 | 14 | Participants can write limited workflow fields client-side (rules restrict keys and forward-only stages); no server-side API | 03 | Medium | Accepted for invited-only users (plan §11); Phase 2 option: verified server API |
+| 15 | `qc_inspections` create has no order-scoping (`isTechnician()`, a legacy Phase 35 rule predating the MVP participant model): any technician/QC/admin can create an inspection record for any order, not just their own | 09 | Medium | Step 11: scope it to `isParticipantOf(projectId)` |
+| 16 | AMC status transitions (WARRANTY→AMC_OFFERED→AMC_ACTIVE/AMC_LOST) are not sequence-enforced; the Admin can set any of the three non-WARRANTY values at any time | 09 | Low | Acceptable for a manual, rarely-used Admin action; revisit if AMC volume grows |
+| 17 | No customer-facing demo order reaches AMC (the demo customer login stays bound to AE-1003, mid-installation, to keep Step 08's screenshots valid), so EmergencyButton/AmcPanel aren't reachable via the demo "Try as customer" flow. Fully covered by `mvp-qc-handover-check.ts` instead | 09 | Low | Optional in Step 10: add a demo order at AMC bound to a second demo customer |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -303,4 +307,31 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Known limits:**
   - The Admin sees the job runner too, so they can act for a technician without a phone. Those actions are audited under the Admin.
   - The QC remarks on REWORK are the task notes. Step 09's QC service writes them.
+
+### Step 09: QC, Handover and AMC (2026-09-24), DONE
+- **Orient finding:** the D-08 rules table (`rules.ts`), the handover gates (`gates.ts`), the read models' `licencePending`/`amcDisplayStatus`-shaped fields, the `emergency`/`qc_failure`/`licence_pending` dashboard buckets, and the `qc_inspections`/`handovers`/`warranties`/`amcs`/`service_cases`/`compliance_items`/`mvp_settings` collections in `firestore.rules` were **all already built in Step 03**, anticipating this step. Step 09 is almost entirely the service layer and screens that call them; no rules changes were needed except adding emulator tests for those collections, which had none yet.
+- **`qcHandoverService.ts`:**
+  - `submitQcDecision`: writes a `QCInspection` (a 4-item checklist + remarks, no large catalog), then the D-08 `QC_DECISION` event.
+    - PASS sets `project.qcPassedAt` (→ 95%) and notifies the customer "Handover ready".
+    - REWORK creates a `Snag` and carries the remarks onto the new REWORK task's `notes` (additive `TaskSpec.notes` in `rules.ts`, written at task creation so it needs no extra permission beyond creating the task itself).
+    - FAIL puts the order ON_HOLD (existing D-08 logic; no new code).
+  - `completeHandover` (Admin only): refused until the final payment is in and the lift licence is DONE, listing every closed gate's message — unless the Admin has overridden it (the existing generic `gates.ts` override, reused as-is). Records the `Handover`, then `HANDOVER_COMPLETED` creates the `Warranty` (`WARRANTY_MONTHS` = 12) and the `AMC` record (`mvpAmcStatus: 'WARRANTY'`).
+  - `setComplianceItem` (Admin only, D-27 ⚖ record, not a guarantee): the 8 fixed compliance types; marking `LIFT_LICENSE` DONE with a document completes `STATUTORY_LICENCE` if it's still open (D-29).
+  - `amcDisplayStatus` (pure): derives `AMC_DUE` from `warrantyEnd − AMC_REMINDER_DAYS` — never stored (D-26). `setAmcStatus`/`recordAmcService` (Admin only).
+- **`emergencyService.ts`** (D-28, life safety):
+  - `raiseEmergency`: any actor (in practice the customer) looks up today's on-call technician (`mvp_settings/oncall_<date>`, Admin-set), creates a `ServiceCase` (P0) and the `EMERGENCY_RESPONSE` task (the existing D-08 event; rules already special-case this task type for a customer creator). Notifies the Admin, the Owner and the technician immediately, in-app (D-17 FROZEN — no WhatsApp/SMS gateway exists, so `notify()`'s priority stays `low` on purpose).
+  - `acknowledgeEmergency` / `resolveEmergency` reuse `setTaskInProgress`/`completeTask` from `orderService.ts` and record `acknowledgedAt`/`resolvedAt`/`resolutionNote` on the case.
+  - `setOnCallTechnician` (Admin only, a global per-day setting, not per-order).
+  - **Safety fix to `health.ts` (D-11):** `computeHealth` returned `ON_TRACK` for every COMPLETED/CANCELLED order unconditionally, so an emergency raised after handover (a normal case — AMC-stage lifts break down too) could never show OVERDUE. Now it only short-circuits to `ON_TRACK` when there is no open `EMERGENCY_RESPONSE` task, so an unacknowledged emergency still escalates on a completed order. Minimal, additive to `HealthInput.tasks`'s type (`+'type'`); every existing check still passes.
+- **UI:** `QcHandoverPanels.tsx` — `QcPanel`, `HandoverPanel` (with the per-gate override prompt), `CompliancePanel`, `AmcPanel`, `EmergencyButton` (customer, shown once the lift is installed) + `EmergencyPanel` (technician/admin ack/resolve), `OnCallSetting` (added to `MvpSettings.tsx`, Admin only). All wired into `OrderExtras.tsx`. **Payments (including the final handover payment) needed no new UI** — `PaymentsPanel.tsx` already renders every milestone generically.
+- **Why not reuse:** `QcInspectorAssignmentScreen`/`QualityChecklistMechanicalScreen`(+Electrical)/`FinalHandoverChecklistScreen`/`HandoverCompletionCertificateScreen`/`CustomerHandoverWalkthroughScreen`/`WarrantyAmcRegistrationScreen` all read/write DbManager, and the QC checklist is legacy-split into two 600-line screens; `EmergencyEscalationAlert` (1,135 lines) is a legacy DbManager screen, only its UI parts (the button, the "call 112" line) were carried over.
+- **Demo seed:** two new orders — AE-1005 (QC_HANDOVER, `QC_INSPECTION` open for QC Meera) and AE-1006 (just past a QC PASS: `HANDOVER`/`COLLECT_FINAL_PAYMENT`/`STATUTORY_LICENCE` open, both handover gates closed, for the override screenshot). AE-1003 (the demo customer's own lift) is left mid-installation, unchanged from Step 08.
+- **Scenario driver:** `runS1` extended to steps 14 (QC PASS), 15 (final payment), 15.5 (=15b, licence DONE) and 16 (handover, via the real services).
+- **Checks:**
+  - `npm run lint` PASS · `npm run build` PASS (same pre-existing bundle-size warning as before) · 42/42 legacy.
+  - `npm run mvp:checks` 10/10 + backfill PASS. New `mvp-qc-handover-check` (61 assertions): S1 14–16 (95% → both gates refused in turn → 100%, Warranty 12 months, AMC WARRANTY, `AMC_FOLLOW_UP` due = warranty end − 90 days), S4 rework + FAIL variant (rework count = 1 via the `Snag` record), S9 emergency + the no-on-call variant (46 minutes on, unacknowledged → OVERDUE — exercises the `health.ts` fix), S10 licence-pending-at-handover (override → completes → "Licence pending" → clears once the licence is later marked DONE).
+  - `npm run mvp:rules` 102/102 (up from 80). New: `qc_inspections` create/update ownership, Admin-only `handovers`/`warranties`/`amcs`/`compliance_items`, `mvp_settings` Admin-only, `service_cases` create (participant + `reportedBy == self`) and update (assignee-only, key-limited), the customer's `EMERGENCY_RESPONSE` task create.
+- **Scope guard:** self-reviewed against the checklist (subagent unavailable this run): no legacy-store use, additive schema only (`TaskSpec.notes`, `HealthInput.tasks` type widening), no new dependency, no destructive change, ⚖ marks kept on GST/warranty/licence-timeline text, catalogs stay small (4 QC test items, 8 compliance types — both fixed, matching D-27's own cap).
+- **Screenshots:** `docs/mvp/screenshots/step-09/` (QC's task list and decision panel on a phone; the Admin's handover panel with both gates refused, on desktop).
+- **Open issues:** logged as 15 (rules), 16 (AMC sequencing) and 17 (demo reach) above.
 

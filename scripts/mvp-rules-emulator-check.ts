@@ -212,6 +212,37 @@ async function main() {
   ok(await allowed(updateDoc(doc(db.tech2, 'snags/sn1'), { status: 'reinspection_pending' })), 'the snag assignee sends it to re-inspection');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'snags/sn1'), { status: 'reinspection_pending' }))), 'another technician cannot update the snag');
 
+  // ---- Step 09: QC, handover, compliance, AMC, emergency ----
+  const partsOrd3 = [uid.sales, 'customer:C1', uid.qc].sort();
+  await seed('projects/ord3', { id: 'ord3', customerId: 'C1', siteId: 'S3', stage: 'qc', status: 'ACTIVE', ownerUserId: uid.sales, title: 'DEF', participantIds: partsOrd3, version: 0 });
+  await seed('tasks/ord3__QC_INSPECTION__1', { id: 'ord3__QC_INSPECTION__1', orderId: 'ord3', type: 'QC_INSPECTION', stage: 'QC_HANDOVER', assigneeId: uid.qc, assigneeRole: 'qc', status: 'TODO', dueDate: '2026-10-22', version: 0 });
+  ok(await allowed(setDoc(doc(db.qc, 'qc_inspections/qci1'), { id: 'qci1', projectId: 'ord3', inspectorId: uid.qc, decision: 'PASS', result: 'pass' })), 'qc creates their own inspection record');
+  ok(await allowed(getDoc(doc(db.qc, 'qc_inspections/qci1'))), 'the inspector reads their own inspection');
+  ok(!(await allowed(getDoc(doc(db.tech1, 'qc_inspections/qci1')))), 'a non-participant technician cannot read the inspection');
+  ok(await allowed(updateDoc(doc(db.qc, 'qc_inspections/qci1'), { remarks: 'edited' })), 'the inspector updates their own inspection');
+  ok(!(await allowed(updateDoc(doc(db.tech2, 'qc_inspections/qci1'), { remarks: 'x' }))), "another technician cannot update someone else's inspection");
+  ok(!(await allowed(setDoc(doc(db.cust, 'handovers/ho1'), { id: 'ho1', projectId: 'ord3', qcPassed: true }))), 'a customer cannot create a handover');
+  ok(await allowed(setDoc(doc(db.admin, 'handovers/ho1'), { id: 'ho1', projectId: 'ord3', qcPassed: true })), 'only the Admin creates the handover');
+  ok(!(await allowed(setDoc(doc(db.qc, 'warranties/w1'), { id: 'w1', projectId: 'ord3' }))), 'a QC user cannot create a warranty');
+  ok(await allowed(setDoc(doc(db.admin, 'warranties/w1'), { id: 'w1', projectId: 'ord3' })), 'only the Admin creates the warranty');
+  ok(!(await allowed(setDoc(doc(db.cust, 'amcs/amc1'), { id: 'amc1', projectId: 'ord3', mvpAmcStatus: 'WARRANTY' }))), 'a customer cannot create the AMC record');
+  ok(await allowed(setDoc(doc(db.admin, 'amcs/amc1'), { id: 'amc1', projectId: 'ord3', mvpAmcStatus: 'WARRANTY' })), 'only the Admin creates the AMC record');
+  ok(await allowed(getDoc(doc(db.cust, 'amcs/amc1'))), 'a participant customer reads the AMC record');
+  ok(!(await allowed(setDoc(doc(db.sales, 'compliance_items/ord3_LIFT_LICENSE'), { id: 'ord3_LIFT_LICENSE', orderId: 'ord3', type: 'LIFT_LICENSE', status: 'DONE' }))), 'sales cannot write a compliance record');
+  ok(await allowed(setDoc(doc(db.admin, 'compliance_items/ord3_LIFT_LICENSE'), { id: 'ord3_LIFT_LICENSE', orderId: 'ord3', type: 'LIFT_LICENSE', status: 'DONE' })), 'only the Admin writes compliance records');
+  ok(!(await allowed(setDoc(doc(db.tech1, 'mvp_settings/oncall_2026-10-05'), { id: 'oncall_2026-10-05', date: '2026-10-05', technicianId: uid.tech1 }))), 'a technician cannot set the on-call setting');
+  ok(await allowed(setDoc(doc(db.admin, 'mvp_settings/oncall_2026-10-05'), { id: 'oncall_2026-10-05', date: '2026-10-05', technicianId: uid.tech1 })), 'only the Admin sets who is on call');
+
+  // Emergency: the customer on ord3 raises a case and the task; another customer cannot.
+  ok(await allowed(setDoc(doc(db.cust, 'tasks/ord3__EMERGENCY_RESPONSE__1'), {
+    id: 'ord3__EMERGENCY_RESPONSE__1', orderId: 'ord3', type: 'EMERGENCY_RESPONSE', stage: 'QC_HANDOVER', assigneeId: uid.tech2, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-01T05:15:00Z', version: 0,
+  })), 'the customer creates the EMERGENCY_RESPONSE task for the on-call technician');
+  ok(await allowed(setDoc(doc(db.cust, 'service_cases/case1'), { id: 'case1', projectId: 'ord3', reportedBy: uid.cust, assignedTo: uid.tech2, kind: 'EMERGENCY', priority: 'P0', status: 'open' })), 'the customer raises the emergency case');
+  ok(!(await allowed(setDoc(doc(db.cust2, 'service_cases/case2'), { id: 'case2', projectId: 'ord3', reportedBy: uid.cust2, kind: 'EMERGENCY', priority: 'P0', status: 'open' }))), 'a non-participant customer cannot raise a case on this order');
+  ok(await allowed(updateDoc(doc(db.tech2, 'service_cases/case1'), { status: 'assigned', acknowledgedAt: '2026-10-01T05:10:00Z' })), 'the assigned technician acknowledges the case');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'service_cases/case1'), { status: 'resolved' }))), 'another technician cannot update the case');
+  ok(!(await allowed(updateDoc(doc(db.tech2, 'service_cases/case1'), { reportedBy: uid.tech2 }))), 'the assignee cannot rewrite who reported the case');
+
   // ---- Notifications, counters, idempotency ----
   ok(await allowed(getDoc(doc(db.tech1, 'notifications/n1'))), 'the audience reads their notification');
   ok(!(await allowed(getDoc(doc(db.tech2, 'notifications/n1')))), 'another user cannot read it');
