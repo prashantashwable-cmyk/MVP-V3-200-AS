@@ -175,6 +175,9 @@ async function main() {
   ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { status: 'ON_HOLD' }))), 'a customer cannot put the order on hold');
   ok(!(await allowed(updateDoc(doc(db.cust, 'projects/ord1'), { participantIds: [uid.sales, 'customer:C1', uid.tech1, uid.cust2] }))), 'a customer cannot add participants');
   ok(!(await allowed(updateDoc(doc(db.cust, 'tasks/ord1__INSTALLATION__1'), { status: 'COMPLETED' }))), "a customer cannot complete a technician's task");
+  await seed('tasks/ord1__SITE_READINESS__1', { id: 'ord1__SITE_READINESS__1', orderId: 'ord1', type: 'SITE_READINESS', stage: 'SITE_READY', assigneeId: 'customer:C1', assigneeRole: 'customer', status: 'TODO', dueDate: '2026-10-15', version: 0 });
+  ok(await allowed(updateDoc(doc(db.cust, 'tasks/ord1__SITE_READINESS__1'), { data: { readiness: { pitDry: { ok: true } } }, evidenceIds: ['d1'], version: 1 })), 'the customer records their readiness checklist on their own task');
+  ok(!(await allowed(updateDoc(doc(db.cust2, 'tasks/ord1__SITE_READINESS__1'), { data: {} }))), 'another customer cannot');
   ok(!(await allowed(setDoc(doc(db.cust, 'tasks/ord1__REWORK__9'), { id: 'ord1__REWORK__9', orderId: 'ord1', type: 'REWORK', assigneeId: uid.tech1, status: 'TODO' }))), 'a customer cannot create tasks for staff');
   ok(await allowed(setDoc(doc(db.cust, 'tasks/ord1__VERIFY_SITE_READY__1'), { id: 'ord1__VERIFY_SITE_READY__1', orderId: 'ord1', type: 'VERIFY_SITE_READY', assigneeId: 'role:admin', status: 'TODO' })), 'a customer event can create an Admin task');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'projects/ord1'), { status: 'ON_HOLD' }))), 'a technician cannot put the order on hold');

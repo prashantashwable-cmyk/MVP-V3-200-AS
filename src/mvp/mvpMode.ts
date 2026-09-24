@@ -34,7 +34,7 @@ export function setLocalMvpMode(on: boolean): void {
 
 export type MvpTabId =
   | 'MvpDashboard' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings'
-  | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey';
+  | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey' | 'MvpSuppliers';
 
 export interface MvpTab { id: MvpTabId; label: string; icon: string }
 
@@ -45,11 +45,12 @@ const SETTINGS: MvpTab = { id: 'MvpSettings', label: 'Settings', icon: 'settings
 const LEADS: MvpTab = { id: 'MvpLeads', label: 'Leads', icon: 'leads' };
 const NEW_LEAD: MvpTab = { id: 'MvpNewLead', label: 'New lead', icon: 'leads' };
 const SURVEYS: MvpTab = { id: 'MvpSurveys', label: 'Surveys', icon: 'survey' };
+const SUPPLIERS: MvpTab = { id: 'MvpSuppliers', label: 'Suppliers', icon: 'supply' };
 
 /** The allow-list per role. Later steps add their screens here (plan §5). */
 export const MVP_TABS: Record<CanonicalUserRole, MvpTab[]> = {
-  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SETTINGS],
-  owner: [DASHBOARD, ORDERS, LEADS, SETTINGS],
+  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SUPPLIERS, SETTINGS],
+  owner: [DASHBOARD, ORDERS, LEADS, SUPPLIERS, SETTINGS],
   sales: [LEADS, NEW_LEAD, TASKS, ORDERS, SETTINGS],
   surveyor: [SURVEYS, TASKS, SETTINGS],
   technician: [TASKS, SETTINGS],

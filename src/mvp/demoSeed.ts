@@ -6,10 +6,15 @@
 
 import type { CanonicalUserRole } from '../domain/entities';
 import type { MvpActor, MvpCtx } from './services/orderService';
-import { applyEvent, assignSurveyor, createLead, qualifyLead, raiseBlocker, submitSurvey } from './services/orderService';
+import { assignSurveyor, createLead, qualifyLead, raiseBlocker, submitSurvey } from './services/orderService';
 import { usersRepository } from './services/people';
 import { decideQuote, saveQuote, sendQuote } from './services/quoteService';
 import { milestoneId, verifyPayment } from './services/paymentService';
+import { confirmSiteReady, createSupplier, markMaterialReceived, raisePo, READINESS_ITEMS, submitReadiness } from './services/supplyService';
+import { saveEvidence } from './services/evidenceService';
+
+/** A 1×1 PNG so demo evidence renders; demo data only. */
+const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 import { addDays } from './format';
 
 export interface DemoPerson { userId: string; role: CanonicalUserRole; name: string; customerId?: string }
@@ -80,11 +85,15 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   await sendQuote(ctx, admin, o3.id);
   await decideQuote(ctx, customer, o3.id, 'accept');
   await verifyPayment(ctx, admin, milestoneId(o3.id, 'BOOKING_TOKEN'), { status: 'PAID', method: 'UPI', reference: 'DEMO-UTR-1' });
-  for (const e of [{ type: 'PO_RAISED' }, { type: 'READINESS_SUBMITTED' }, { type: 'SITE_READY_CONFIRMED' }] as const) {
-    await applyEvent(ctx, admin, o3.id, e as any);
-  }
+  const sup = await createSupplier(ctx, admin, { name: 'Sahyadri Lift Components', contactName: 'Mr. Joshi', phone: '9822012345' });
+  await raisePo(ctx, admin, o3.id, { supplierId: sup.id, items: 'G+7 lift kit, 8 stops', amount: 700000, expectedDeliveryDate: addDays(new Date(), 5).toISOString() });
+  const pic = async (who: MvpActor, caption: string) => (await saveEvidence(ctx, who, { dataUrl: DEMO_PNG, contentType: 'image/png', orderId: o3.id, caption })).id;
+  const items: any = {};
+  for (const i of READINESS_ITEMS) items[i.key] = { ok: true, photoId: await pic(customer, i.label) };
+  await submitReadiness(ctx, customer, o3.id, { items, note: 'Site is ready' });
+  await confirmSiteReady(ctx, admin, o3.id);
   await verifyPayment(ctx, admin, milestoneId(o3.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: 'DEMO-UTR-2' });
-  await applyEvent(ctx, admin, o3.id, { type: 'MATERIAL_RECEIVED', technicianId: DEMO_PEOPLE.technician.userId });
+  await markMaterialReceived(ctx, admin, o3.id, { note: 'All 14 boxes received', photoIds: [await pic(admin, 'Material at site')], technicianId: DEMO_PEOPLE.technician.userId });
 
   // Order waiting for the customer's quote decision.
   const l4 = await lead('Kale Towers', '9822000004', 'Hinjewadi, Pune');

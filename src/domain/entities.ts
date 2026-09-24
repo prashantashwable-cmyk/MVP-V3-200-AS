@@ -684,6 +684,8 @@ export interface Task {
   evidenceIds?: string[];
   /** Status to return to when a blocker is resolved (D-07). */
   previousStatus?: TaskStatus;
+  /** Small structured result the assignee records (e.g. the customer's site-readiness checklist). */
+  data?: Record<string, unknown>;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

@@ -11,6 +11,7 @@ import type { OrderViewExtraProps } from './MvpOrderView';
 import { ErrorNote, inputCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
 import { QuotePanel } from './QuotePanels';
 import { PaymentsPanel } from './PaymentsPanel';
+import { ReadinessPanel, SupplyPanel } from './SupplyPanels';
 
 const SurveyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view }) => {
   const { ctx } = useMvpCtx(user);
@@ -53,6 +54,8 @@ export const OrderExtras: React.FC<{ user: User; onOpenSurvey?: (orderId: string
         <Button variant="primary" fullWidth onClick={() => props.onOpenSurvey!(props.view.order.id)}>Start the survey</Button>
       )}
       <SurveyFeePanel {...props} />
+      <ReadinessPanel {...props} />
+      <SupplyPanel {...props} />
       <QuotePanel {...props} />
       <PaymentsPanel {...props} />
       <SurveyPanel {...props} />
