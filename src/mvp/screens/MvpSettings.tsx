@@ -7,6 +7,7 @@ import { Button, Card } from '../../components/Common';
 import { setLocalMvpMode } from '../mvpMode';
 import { environmentLabel, resolveEnvironment } from '../../lib/environment';
 import { SectionTitle } from './ui';
+import { OnCallSetting } from './QcHandoverPanels';
 
 export const MvpSettings: React.FC<{ user: User; onLogout: () => void; languageSection?: React.ReactNode }> = ({ user, onLogout, languageSection }) => (
   <div className="space-y-4 max-w-xl mx-auto pb-24">
@@ -16,6 +17,7 @@ export const MvpSettings: React.FC<{ user: User; onLogout: () => void; languageS
       <div className="text-xs text-warmgray">{user.role} · {environmentLabel(resolveEnvironment(user))}</div>
     </Card>
     {languageSection && <Card className="p-4">{languageSection}</Card>}
+    <OnCallSetting user={user} />
     {user.role === 'admin' && (
       <Card className="p-4 space-y-2">
         <SectionTitle>Full (legacy) app</SectionTitle>

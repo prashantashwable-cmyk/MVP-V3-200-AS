@@ -145,6 +145,7 @@ async function createTaskFromSpec(
       primary: spec.primary,
       dueDate: spec.dueDate,
       evidenceIds: [],
+      ...(spec.notes ? { notes: spec.notes } : {}),
       createdBy: actor.userId,
       createdAt: now,
       updatedAt: now,

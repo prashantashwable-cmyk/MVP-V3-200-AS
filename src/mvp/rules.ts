@@ -29,7 +29,7 @@ export type MvpEvent =
   | { type: 'SITE_READY_CONFIRMED'; poExpectedDate?: string }
   | { type: 'MATERIAL_RECEIVED'; technicianId?: string }
   | { type: 'INSTALLATION_COMPLETED'; qcUserId?: string }
-  | { type: 'QC_DECISION'; decision: QcDecision; technicianId?: string }
+  | { type: 'QC_DECISION'; decision: QcDecision; technicianId?: string; remarks?: string }
   | { type: 'REWORK_COMPLETED'; qcUserId?: string }
   | { type: 'LICENCE_DONE' }
   | { type: 'HANDOVER_COMPLETED'; warrantyEnd: string }
@@ -60,6 +60,8 @@ export interface TaskSpec {
   dueDate: string;
   stage: MvpStage;
   primary: boolean;
+  /** Carried onto the created task's own `notes` (e.g. the QC remarks on a REWORK task). */
+  notes?: string;
 }
 
 export interface RuleOutcome {
@@ -106,8 +108,8 @@ function due(now: Date, days: number): string {
   return addDays(now, days).toISOString();
 }
 
-function spec(type: TaskType, assignee: Assignee, dueDate: string, stage: MvpStage, primary = false, title?: string): TaskSpec {
-  return { type, title: title ?? TASK_TITLES[type], assignee, dueDate, stage, primary };
+function spec(type: TaskType, assignee: Assignee, dueDate: string, stage: MvpStage, primary = false, title?: string, notes?: string): TaskSpec {
+  return { type, title: title ?? TASK_TITLES[type], assignee, dueDate, stage, primary, notes };
 }
 
 const EMPTY: RuleOutcome = { create: [], completeTypes: [] };
@@ -243,7 +245,10 @@ export function outcomeFor(event: MvpEvent, order: OrderSnapshot, now: Date): Ru
       }
       if (event.decision === 'REWORK') {
         const tech: Assignee = event.technicianId ? { id: event.technicianId, role: 'technician' } : ADMIN;
-        return { create: [spec('REWORK', tech, due(now, DUE_DAYS.REWORK), 'QC_HANDOVER', true)], completeTypes: ['QC_INSPECTION'] };
+        return {
+          create: [spec('REWORK', tech, due(now, DUE_DAYS.REWORK), 'QC_HANDOVER', true, undefined, event.remarks)],
+          completeTypes: ['QC_INSPECTION'],
+        };
       }
       return {
         nextStatus: 'ON_HOLD',

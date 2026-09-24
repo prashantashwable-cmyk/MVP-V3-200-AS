@@ -9,6 +9,7 @@ import { saveQuote, sendQuote, decideQuote } from '../../src/mvp/services/quoteS
 import { submitPaymentProof, verifyPayment, milestoneId } from '../../src/mvp/services/paymentService';
 import { createSupplier, raisePo, submitReadiness, confirmSiteReady, markMaterialReceived, READINESS_ITEMS } from '../../src/mvp/services/supplyService';
 import { saveEvidence } from '../../src/mvp/services/evidenceService';
+import { completeHandover, setComplianceItem, submitQcDecision } from '../../src/mvp/services/qcHandoverService';
 import { Clock, FIXTURE_LEAD, FIXTURE_SURVEY, FIXTURE_QUOTE, USERS, customerActor } from './fixtures';
 
 export interface S1State { orderId: string; customerId: string; leadId: string }
@@ -17,7 +18,7 @@ let phoneSeq = 0;
 
 export const TINY_JPEG = 'data:image/jpeg;base64,' + Buffer.from('fixture-jpeg-bytes').toString('base64');
 
-/** Runs S1 up to and including `step` (13a is 13.5, 13b is 13.9). */
+/** Runs S1 up to and including `step` (13a is 13.5, 13b is 13.9, 15b is 15.5). */
 export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1State> {
   const phone = `98${String(76500000 + ++phoneSeq).padStart(8, '0')}`;
   const lead = await createLead(ctx, USERS.sales, { ...FIXTURE_LEAD, phone });
@@ -62,6 +63,20 @@ export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1
     for (const item of CHECKLIST_ITEMS.slice(6)) await setChecklistItem(ctx, USERS.tech1, t.id, item.key, { done: true, documentId: await photo(USERS.tech1, item.label) });
     await assignQcInspector(ctx, USERS.admin, order.id, USERS.qc.userId);
     await completeWork(ctx, USERS.tech1, t.id, { note: 'Ready for QC' });
+  }
+  if (step >= 14) {
+    await submitQcDecision(ctx, USERS.qc, order.id, {
+      decision: 'PASS', tests: { mechanical: true, electrical: true, safety: true, testRun: true }, remarks: 'All systems tested OK.',
+    });
+  }
+  if (step >= 15) await verifyPayment(ctx, USERS.admin, milestoneId(order.id, 'FINAL'), { status: 'PAID', method: 'NEFT', reference: 'FINAL-TEST' });
+  if (step >= 15.5) {
+    await setComplianceItem(ctx, USERS.admin, order.id, 'LIFT_LICENSE', { status: 'DONE', documentId: await photo(USERS.admin, 'Lift licence') });
+  }
+  if (step >= 16) {
+    await completeHandover(ctx, USERS.admin, order.id, {
+      customerConfirmedName: 'Mr. Kulkarni', finalTestConfirmed: true, documentIds: [await photo(USERS.admin, 'Handover photo')],
+    });
   }
   return state;
 }

@@ -12,7 +12,8 @@ import { decideQuote, saveQuote, sendQuote } from './services/quoteService';
 import { milestoneId, verifyPayment } from './services/paymentService';
 import { confirmSiteReady, createSupplier, markMaterialReceived, raisePo, READINESS_ITEMS, submitReadiness } from './services/supplyService';
 import { saveEvidence } from './services/evidenceService';
-import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, setChecklistItem, startWork } from './services/installationService';
+import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from './services/installationService';
+import { submitQcDecision } from './services/qcHandoverService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -109,5 +110,47 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   await assignSurveyor(ctx, admin, o4.id, surveyor.userId);
   await submitSurvey(ctx, surveyor, o4.id, survey);
   await saveQuote(ctx, admin, o4.id, { ...demoQuote, estimatedCost: 850000 });
+
+  // Runs a fresh order through to a completed 11-item installation (S1 steps 1–13b), for
+  // the Step 09 QC/handover demo orders below. Its own technician avoids clashing with
+  // tech1's in-progress checklist on o3.
+  const tech2: MvpActor = { userId: 'demo_tech2', role: 'technician' };
+  async function runToInstalled(name: string, phone: string, location: string) {
+    const l = await lead(name, phone, location);
+    const o = await qualifyLead(ctx, sales, l.id);
+    await assignSurveyor(ctx, admin, o.id, surveyor.userId);
+    await submitSurvey(ctx, surveyor, o.id, survey);
+    const cust: MvpActor = { userId: DEMO_PEOPLE.customer.userId, role: 'customer', customerId: o.customerId };
+    await saveQuote(ctx, admin, o.id, demoQuote);
+    await sendQuote(ctx, admin, o.id);
+    await decideQuote(ctx, cust, o.id, 'accept');
+    await verifyPayment(ctx, admin, milestoneId(o.id, 'BOOKING_TOKEN'), { status: 'PAID', method: 'UPI', reference: `DEMO-${o.id}-1` });
+    await raisePo(ctx, admin, o.id, { supplierId: sup.id, items: 'G+7 lift kit, 8 stops', amount: 700000, expectedDeliveryDate: addDays(new Date(), 5).toISOString() });
+    const its: any = {};
+    for (const i of READINESS_ITEMS) its[i.key] = { ok: true, photoId: await pic(cust, i.label) };
+    await submitReadiness(ctx, cust, o.id, { items: its, note: 'Site is ready' });
+    await confirmSiteReady(ctx, admin, o.id);
+    await verifyPayment(ctx, admin, milestoneId(o.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: `DEMO-${o.id}-2` });
+    await markMaterialReceived(ctx, admin, o.id, { note: 'All 14 boxes received', photoIds: [await pic(admin, 'Material at site')], technicianId: tech2.userId });
+    await assignQcInspector(ctx, admin, o.id, DEMO_PEOPLE.qc.userId);
+    const install = (await listOrderTasks(ctx, o.id)).find(t => t.type === 'INSTALLATION')!;
+    await startWork(ctx, tech2, install.id);
+    await checkInAtSite(ctx, tech2, install.id);
+    for (const item of CHECKLIST_ITEMS) await setChecklistItem(ctx, tech2, install.id, item.key, { done: true, documentId: await pic(tech2, item.label) });
+    await completeWork(ctx, tech2, install.id, { note: 'Ready for QC' });
+    return o;
+  }
+
+  // Order at QC_HANDOVER, QC_INSPECTION open for QC Meera (the QC decision panel).
+  await runToInstalled('Deshmukh Enclave', '9822000005', 'Viman Nagar, Pune');
+
+  // Order just past a QC PASS: HANDOVER + COLLECT_FINAL_PAYMENT + STATUTORY_LICENCE open,
+  // both handover gates still closed (the Admin's override affordance).
+  const o6 = await runToInstalled('Sane Guruji Society', '9822000006', 'Kothrud, Pune');
+  const qc: MvpActor = { userId: DEMO_PEOPLE.qc.userId, role: 'qc' };
+  await submitQcDecision(ctx, qc, o6.id, {
+    decision: 'PASS', tests: { mechanical: true, electrical: true, safety: true, testRun: true }, remarks: 'All systems tested OK.',
+  });
+
   return { customerId: o3.customerId };
 }

@@ -26,7 +26,7 @@ export function currentTask<T extends Pick<Task, 'status' | 'stage' | 'dueDate' 
 export interface HealthInput {
   status?: OrderStatus;
   stage: MvpStage;
-  tasks: Pick<Task, 'status' | 'stage' | 'dueDate' | 'primary'>[];
+  tasks: Pick<Task, 'status' | 'stage' | 'dueDate' | 'primary' | 'type'>[];
   openBlockerCount: number;
   milestones: Pick<PaymentMilestone, 'status' | 'dueDate' | 'waived'>[];
   now: Date;
@@ -41,7 +41,10 @@ export function computeHealth(input: HealthInput): Health {
   const status = input.status ?? 'ACTIVE';
   if (status === 'ON_HOLD') return 'ON_HOLD';
   if (input.openBlockerCount > 0) return 'BLOCKED';
-  if (status !== 'ACTIVE') return 'ON_TRACK'; // COMPLETED / CANCELLED are not "at risk"
+  // COMPLETED / CANCELLED are not "at risk" — except a life-safety emergency (D-28), which
+  // can be raised on an already-completed, installed lift and must still escalate visibly.
+  const hasOpenEmergency = input.tasks.some(t => t.type === 'EMERGENCY_RESPONSE' && isOpenTask(t));
+  if (status !== 'ACTIVE' && !hasOpenEmergency) return 'ON_TRACK';
   const task = currentTask(input.tasks, input.stage);
   if (!task) return 'OVERDUE'; // NO NEXT ACTION
   const due = new Date(task.dueDate).getTime();
