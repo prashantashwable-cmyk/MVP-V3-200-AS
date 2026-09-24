@@ -51,6 +51,7 @@
 
 - Map the spec's lead statuses onto `CanonicalLeadStage`: NEW=`captured`, CONTACTED=`contacted`, QUALIFIED=`assigned`, SURVEY=`survey_done`, QUOTE=`quoted` or `negotiating`, WON=`closed_won`, LOST=`closed_lost`. If a cleaner additive mapping exists, Step 02 decides it.
 - The Pipeline's "Lead" column shows leads that haven't converted.
+- **CHANGED in Step 02 (R-1):** the MVP lead store is the existing Firestore `leads` collection (legacy `Lead` shape, extended additively with `ownerUserId`, `source`, `liftRequirement`, `notes`, `nextFollowUp`, `mvpStatus`, `projectId`). `CanonicalLead` is deprecated. See `MVP_REFACTOR_PLAN.md` §2.
 
 **D-05 Order status is separate from stage.**
 - Status is one of `ACTIVE | ON_HOLD | CANCELLED | COMPLETED`, added as an additive field. A missing value means ACTIVE.
@@ -159,6 +160,7 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 | QC | Assigned QC tasks only |
 | Customer | Their own orders only |
 | Supplier | Their own POs only. Default: the Admin manages suppliers, and the supplier has no login (D-15). |
+- **Step 02 addition:** order access comes from `Project.participantIds` (uids + `customer:<customerId>`), recomputed by the order service. `qc_inspector` is an alias of `qc` (R-2).
 
 **D-13 Logins for real people.** Ask the Owner in Step 01: Google sign-in only, or also email/password or phone OTP?
 - Default: Google sign-in for staff and customers, with email/password as a fallback if it already works.
@@ -166,6 +168,7 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - No self-signup into internal roles.
 
 ## C. Money
+- **CHANGED in Step 02 (R-3):** Google sign-in only. Access is by the Admin's invite list (`invites/{email}` → role, customerId). The client-side phone-OTP and password logins are hidden in MVP_MODE because they are not real authentication.
 
 **D-14 Payment milestones.**
 - Default milestones:
@@ -205,6 +208,7 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - Accept images only, up to 10 MB, compressed on the device if an existing helper does it.
 - Reuse `CameraCapture.tsx` and `src/offline/mediaUpload.ts`/`outbox.ts`.
 - No computer vision.
+- **CHANGED in Step 02:** evidence images (compressed on device to ≤ 900 KB; compliance PDFs ≤ 900 KB) are stored as `DocumentRecord`s in Firestore `documents`, with the data inline and the same participant rules. Reason: Storage rules can't check order participation in this project (there's no `(default)` database for cross-service rules, and no server SDK for custom claims). Revisit in Phase 2.
 
 **D-17 Notifications.**
 - In-app notifications use the existing `notificationService`/`NotificationRecord`.
@@ -233,6 +237,7 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - The production build must use `VITE_APP_ENV=production`, and `production-bundle-bypass:check` must pass.
 
 **D-21 One pilot deployment target.** Vercel or AI Studio/Cloud Run: the Owner decides in Step 01. The default is whichever one is live now. Document it in the plan.
+- **Decided in Step 02:** Vercel (`v3-200-ai-studio`). The Owner sets `VITE_APP_ENV=production` in the Vercel project.
 
 **D-22 Hide, don't delete.**
 - Add `MVP_MODE`, on by default, which filters navigation and command-palette entries down to MVP screens.

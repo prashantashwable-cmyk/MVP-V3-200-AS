@@ -4,8 +4,9 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 01 Audit (Phase A), approved 2026-09-24
-- **Next step:** 02 PLAN (`docs/mvp/prompts/02_PLAN.md`)
+- **Last completed step:** 02 Plan (Phase B), approved 2026-09-24 under the Owner's "Do autonomously" instruction
+- **Next step:** 03 Data foundation
+- **Mode:** the Owner said "Do autonomously" (2026-09-24). Claude runs Steps 02–11 in sequence, self-approving each gate with the recommended defaults, as stacked draft PRs. It still stops for anything on CLAUDE.md's "stop and ask" list that the approved plan doesn't cover
 - **Blocked on Owner:** nothing blocks Step 02. Still needed before go-live: the emergency phone number (audit §8 Q7); `VITE_APP_ENV=production` set in Vercel; Firebase Storage and backups enabled (Q3)
 
 ## Step status
@@ -13,7 +14,7 @@
 |---|---|---|---|---|---|
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
 | 01 | Audit (Phase A) | DONE | #3 | 2026-09-24 | Owner approved with no changes; §8 defaults accepted |
-| 02 | Plan (Phase B) | TODO | | | Needs Owner approval |
+| 02 | Plan (Phase B) | DONE | MVP Step 02 draft PR | 2026-09-24 | Self-approved per the Owner's autonomous instruction |
 | 03 | Data foundation | TODO | | | |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
 | 05 | Leads, Sales and Survey | TODO | | | |
@@ -70,6 +71,11 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 ## Decision changes (Owner-approved deviations from DECISIONS.md)
 | Date | Decision | Change | Why |
 |---|---|---|---|
+| 2026-09-24 | D-04 | Lead store = existing Firestore `leads` (extended), `CanonicalLead` deprecated | Only real shared lead data (audit R-1) |
+| 2026-09-24 | D-13 | Google sign-in + Admin invite list only; OTP/password hidden | Those logins are client-side fakes (audit R-3) |
+| 2026-09-24 | D-16 | Evidence inline in Firestore `documents` (≤ 900 KB) instead of Storage | Storage rules can't check participants here (plan §10) |
+| 2026-09-24 | D-12 (addition) | Participant model via `Project.participantIds` | Needed for rules-based per-order access |
+| 2026-09-24 | D-21 | Pilot = Vercel | Audit default; live today |
 
 ## Open issues / known gaps
 | # | Issue | Found in step | Severity | Plan |
@@ -106,4 +112,10 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - The audit's §8 defaults stand: Google sign-in with an invite list only; Vercel pilot; treat Firestore `leads`/`users` as real; record payments manually; survey fee 0; Admin handles the licence with a 30-day task ⚖; GST unconfirmed until the CA confirms it; a staging project is recommended but not blocking.
   - Q7 (the emergency number) is still open.
   - DECISIONS.md is unchanged. The Owner changed no decision. Step 02 folds the audit's R-1 to R-8 into the plan and freezes them.
+
+### Step 02: Plan, Phase B (2026-09-24), DONE
+- Wrote `docs/mvp/MVP_REFACTOR_PLAN.md` (target architecture, additive data changes, role matrix + rules, rules automation, screen plan, hide plan, check plan, Steps 03–11 breakdown, manual items, frozen decisions, rollback).
+- Updated DECISIONS.md with the changes above (amendment lines under D-04, D-12, D-13, D-16, D-21).
+- Docs only; no application code changed.
+- Approval: the Owner's standing instruction "Do autonomously" (2026-09-24). The plan is binding from here.
 
