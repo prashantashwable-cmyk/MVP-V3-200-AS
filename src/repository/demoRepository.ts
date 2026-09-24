@@ -45,6 +45,10 @@ export function createDemoRepository<T extends { id: string; version?: number }>
       );
     },
 
+    async queryContains(field, value) {
+      return Array.from(store.values()).filter(r => Array.isArray((r as any)[field]) && (r as any)[field].includes(value));
+    },
+
     async create(record) {
       store.set(record.id, record);
       notify();

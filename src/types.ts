@@ -117,6 +117,8 @@ export interface User {
   catalogSeedItems?: { name: string; price: number; sku: string }[];
   paymentTermsAcceptedFlag?: boolean;
   // Customer properties
+  /** MVP: the Customer record this user is linked to by their invite (D-13). */
+  customerId?: string;
   siteAddress?: string;
   communicationConsentFlags?: { sms: boolean; whatsapp: boolean; email: boolean };
   loginPreference?: 'password' | 'otp';
