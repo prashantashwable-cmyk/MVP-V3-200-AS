@@ -144,6 +144,9 @@ async function main() {
   ok(await allowed(getDoc(doc(db.owner, 'quote_costs/qv1'))) && await allowed(getDoc(doc(db.admin, 'quote_costs/qv1'))), 'admin and owner read cost');
   ok(!(await allowed(getDoc(doc(db.cust, 'purchase_orders/po1')))), 'a customer cannot read PO amounts');
   ok(await allowed(getDoc(doc(db.cust, 'quote_versions/qv1'))), 'the customer reads their customer-facing quote');
+  ok(await allowed(getDocs(query(collection(db.cust, 'quote_versions'), where('projectId', '==', 'ord1')))), 'the customer lists their quote versions by order');
+  ok(!(await allowed(getDocs(query(collection(db.cust2, 'quote_versions'), where('projectId', '==', 'ord1'))))), 'another customer cannot list them');
+  ok(await allowed(getDocs(query(collection(db.cust, 'payment_milestones'), where('orderId', '==', 'ord1')))), 'the customer lists their payment milestones');
 
   // ---- F-1: self-created roles ----
   ok(!(await allowed(setDoc(doc(db.newbie, `users/${uid.newbie}`), { id: uid.newbie, role: 'surveyor', status: 'active' }))), 'F-1: an uninvited user cannot self-create an active surveyor');

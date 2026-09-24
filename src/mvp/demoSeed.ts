@@ -8,6 +8,8 @@ import type { CanonicalUserRole } from '../domain/entities';
 import type { MvpActor, MvpCtx } from './services/orderService';
 import { applyEvent, assignSurveyor, createLead, qualifyLead, raiseBlocker, submitSurvey } from './services/orderService';
 import { usersRepository } from './services/people';
+import { decideQuote, saveQuote, sendQuote } from './services/quoteService';
+import { milestoneId, verifyPayment } from './services/paymentService';
 import { addDays } from './format';
 
 export interface DemoPerson { userId: string; role: CanonicalUserRole; name: string; customerId?: string }
@@ -71,12 +73,24 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   const o3 = await qualifyLead(ctx, sales, l3.id);
   await assignSurveyor(ctx, admin, o3.id, surveyor.userId);
   await submitSurvey(ctx, surveyor, o3.id, survey);
-  for (const e of [
-    { type: 'QUOTE_SENT' }, { type: 'QUOTE_ACCEPTED' }, { type: 'PAYMENT_PAID', kind: 'BOOKING_TOKEN' }, { type: 'PO_RAISED' },
-    { type: 'READINESS_SUBMITTED' }, { type: 'SITE_READY_CONFIRMED' },
-    { type: 'MATERIAL_RECEIVED', technicianId: DEMO_PEOPLE.technician.userId },
-  ] as const) {
+  // Demo values only; the tax rate here is a sample, not the company's rate (⚖ VERIFY with the CA).
+  const demoQuote = { lines: { base: 780000, installation: 140000, freight: 50000, other: 30000 }, taxRatePct: 18, estimatedCost: 800000 };
+  const customer: MvpActor = { userId: DEMO_PEOPLE.customer.userId, role: 'customer', customerId: o3.customerId };
+  await saveQuote(ctx, admin, o3.id, demoQuote);
+  await sendQuote(ctx, admin, o3.id);
+  await decideQuote(ctx, customer, o3.id, 'accept');
+  await verifyPayment(ctx, admin, milestoneId(o3.id, 'BOOKING_TOKEN'), { status: 'PAID', method: 'UPI', reference: 'DEMO-UTR-1' });
+  for (const e of [{ type: 'PO_RAISED' }, { type: 'READINESS_SUBMITTED' }, { type: 'SITE_READY_CONFIRMED' }] as const) {
     await applyEvent(ctx, admin, o3.id, e as any);
   }
+  await verifyPayment(ctx, admin, milestoneId(o3.id, 'DELIVERY'), { status: 'PAID', method: 'NEFT', reference: 'DEMO-UTR-2' });
+  await applyEvent(ctx, admin, o3.id, { type: 'MATERIAL_RECEIVED', technicianId: DEMO_PEOPLE.technician.userId });
+
+  // Order waiting for the customer's quote decision.
+  const l4 = await lead('Kale Towers', '9822000004', 'Hinjewadi, Pune');
+  const o4 = await qualifyLead(ctx, sales, l4.id);
+  await assignSurveyor(ctx, admin, o4.id, surveyor.userId);
+  await submitSurvey(ctx, surveyor, o4.id, survey);
+  await saveQuote(ctx, admin, o4.id, { ...demoQuote, estimatedCost: 850000 });
   return { customerId: o3.customerId };
 }

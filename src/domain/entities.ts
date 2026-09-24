@@ -189,6 +189,8 @@ export interface Project {
   sellingPrice?: number;
   /** QC inspector the Admin picked for this order (used by INSTALLATION_COMPLETED). */
   qcUserId?: string;
+  /** D-14 soft-gate overrides by the Admin (reason required, audited). */
+  gateOverrides?: Partial<Record<string, { by: string; at: string; reason: string }>>;
   version?: number;
   updatedBy?: string;
 }
