@@ -12,6 +12,11 @@ import { OrdersList } from './OrdersList';
 import { ProjectOperatingView } from '../../components/ProjectOperatingView';
 import { WorkQueueScreen } from '../../components/WorkQueueScreen';
 import { MvpSettings } from './MvpSettings';
+import { LeadForm } from './LeadForm';
+import { LeadsList } from './LeadsList';
+import { LeadDetailScreen } from './LeadDetail';
+import { SurveyForm, SurveyList } from './SurveyScreens';
+import { OrderExtras } from './OrderExtras';
 
 export interface MvpRouterProps {
   user: User;
@@ -23,7 +28,7 @@ export interface MvpRouterProps {
 
 // App.tsx re-mounts routed content on every tab change (motion key = activeTab), so the
 // selected order must live outside this component's state.
-const selection = { orderId: '', returnTab: '' };
+const selection = { orderId: '', returnTab: '', leadId: '' };
 
 export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActiveTab, onLogout, languageSection }) => {
   const [orderId, setOrderIdState] = useState<string>(selection.orderId);
@@ -47,6 +52,8 @@ export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActive
     setOrderId(id);
     setActiveTab('MvpOrder');
   };
+  const openLead = (id: string) => { selection.leadId = id; setActiveTab('MvpLead'); };
+  const openSurvey = (id: string) => { setOrderId(id); setActiveTab('MvpSurvey'); };
 
   switch (tab) {
     case 'MvpDashboard':
@@ -56,7 +63,20 @@ export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActive
     case 'MvpTasks':
       return <WorkQueueScreen user={user} onOpenOrder={openOrder} />;
     case 'MvpOrder':
-      return <ProjectOperatingView user={user} orderId={orderId} onBack={() => setActiveTab(returnTab)} />;
+      return (
+        <ProjectOperatingView user={user} orderId={orderId} onBack={() => setActiveTab(returnTab)}
+          renderExtra={p => <OrderExtras user={user} onOpenSurvey={openSurvey} {...p} />} />
+      );
+    case 'MvpLeads':
+      return <LeadsList user={user} onOpenLead={openLead} onNewLead={() => setActiveTab('MvpNewLead')} />;
+    case 'MvpNewLead':
+      return <LeadForm user={user} onSaved={openLead} onOpenLead={openLead} />;
+    case 'MvpLead':
+      return <LeadDetailScreen user={user} leadId={selection.leadId} onOpenOrder={openOrder} onBack={() => setActiveTab('MvpLeads')} />;
+    case 'MvpSurveys':
+      return <SurveyList user={user} onOpenSurvey={openSurvey} />;
+    case 'MvpSurvey':
+      return <SurveyForm user={user} orderId={orderId} onDone={() => setActiveTab('MvpSurveys')} />;
     case 'MvpSettings':
     default:
       return <MvpSettings user={user} onLogout={onLogout} languageSection={languageSection} />;

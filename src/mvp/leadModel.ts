@@ -17,6 +17,10 @@ export interface MvpLead extends Lead {
   projectId?: string;
   consentAt?: string;
   lostReasonText?: string;
+  /** 10-digit mobile, for the duplicate warning (spec §23). */
+  phoneNormalized?: string;
+  /** Site photos as DocumentRecord ids (D-16 as changed: inline in `documents`). */
+  photoIds?: string[];
   version?: number;
 }
 

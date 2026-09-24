@@ -33,7 +33,8 @@ export function setLocalMvpMode(on: boolean): void {
 }
 
 export type MvpTabId =
-  | 'MvpDashboard' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings';
+  | 'MvpDashboard' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings'
+  | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey';
 
 export interface MvpTab { id: MvpTabId; label: string; icon: string }
 
@@ -41,13 +42,16 @@ const DASHBOARD: MvpTab = { id: 'MvpDashboard', label: 'Dashboard', icon: 'dashb
 const ORDERS: MvpTab = { id: 'MvpOrders', label: 'Orders', icon: 'orders' };
 const TASKS: MvpTab = { id: 'MvpTasks', label: 'My tasks', icon: 'tasks' };
 const SETTINGS: MvpTab = { id: 'MvpSettings', label: 'Settings', icon: 'settings' };
+const LEADS: MvpTab = { id: 'MvpLeads', label: 'Leads', icon: 'leads' };
+const NEW_LEAD: MvpTab = { id: 'MvpNewLead', label: 'New lead', icon: 'leads' };
+const SURVEYS: MvpTab = { id: 'MvpSurveys', label: 'Surveys', icon: 'survey' };
 
 /** The allow-list per role. Later steps add their screens here (plan §5). */
 export const MVP_TABS: Record<CanonicalUserRole, MvpTab[]> = {
-  admin: [DASHBOARD, ORDERS, TASKS, SETTINGS],
-  owner: [DASHBOARD, ORDERS, SETTINGS],
-  sales: [TASKS, ORDERS, SETTINGS],
-  surveyor: [TASKS, SETTINGS],
+  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SETTINGS],
+  owner: [DASHBOARD, ORDERS, LEADS, SETTINGS],
+  sales: [LEADS, NEW_LEAD, TASKS, ORDERS, SETTINGS],
+  surveyor: [SURVEYS, TASKS, SETTINGS],
   technician: [TASKS, SETTINGS],
   qc: [TASKS, SETTINGS],
   customer: [ORDERS, TASKS, SETTINGS],
@@ -61,6 +65,9 @@ export function mvpTabsFor(role: string): MvpTab[] {
 /** Tabs a role may open, including the detail screens reached from a list. */
 export function isAllowedTab(role: string, tabId: string): boolean {
   if (tabId === 'MvpOrder') return mvpTabsFor(role).some(t => t.id === 'MvpOrders' || t.id === 'MvpTasks' || t.id === 'MvpDashboard');
+  if (tabId === 'MvpLead') return mvpTabsFor(role).some(t => t.id === 'MvpLeads');
+  if (tabId === 'MvpNewLead') return role === 'admin' || role === 'sales';
+  if (tabId === 'MvpSurvey') return mvpTabsFor(role).some(t => t.id === 'MvpSurveys') || role === 'admin';
   return mvpTabsFor(role).some(t => t.id === tabId);
 }
 

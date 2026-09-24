@@ -9,14 +9,14 @@
  */
 
 import type {
-  Blocker, BlockerReason, CanonicalUserRole, Customer, MvpStage, OrderStatus, Project, Site, SiteSurvey,
+  Blocker, BlockerReason, CanonicalUserRole, Customer, MvpStage, OrderStatus, PaymentMilestone, Project, Site, SiteSurvey,
   SurveyResult, Task, TaskType,
 } from '../../domain/entities';
 import type { AuthMethod } from '../../types';
 import type { RepositoryContext } from '../../repository/types';
 import { getRepository } from '../../repository';
 import {
-  blockerRepository, customerRepository, projectRepository, siteRepository, siteSurveyRepository, taskRepository,
+  blockerRepository, customerRepository, paymentMilestoneRepository, projectRepository, siteRepository, siteSurveyRepository, taskRepository,
 } from '../../repository/entities';
 import { createIfAbsent, nextSequence } from '../../repository/transactions';
 import { recordAuditEvent, newCorrelationId } from '../../lib/audit';
@@ -339,6 +339,8 @@ export async function createLead(ctx: MvpCtx, actor: MvpActor, input: NewLeadInp
     nextFollowUp: input.nextFollowUp,
     mvpStatus: 'NEW',
     consentAt: now,
+    phoneNormalized: phone,
+    photoIds: input.photoIds ?? [],
     version: 0,
   };
   const saved = await leadRepository(ctx).create(JSON.parse(JSON.stringify(lead)));
@@ -383,7 +385,7 @@ function orderCode(n: number): string {
  * the lead and is written with createIfAbsent, and the whole call is idempotent per lead, so
  * a retry after a partial failure completes the same records instead of duplicating them.
  */
-export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, opts: { liftSummary?: string } = {}): Promise<OrderRecord> {
+export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, opts: { liftSummary?: string; surveyFeeInr?: number } = {}): Promise<OrderRecord> {
   requireRole(actor, ['admin', 'sales'], 'qualify leads');
   const lead = await leadRepository(ctx).get(leadId);
   if (!lead) throw new MvpError('not_found', `Lead ${leadId} not found.`);
@@ -427,7 +429,17 @@ export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, 
     await leadRepository(ctx).update(leadId, { mvpStatus: 'QUALIFIED', stage: LEGACY_STAGE_FOR.QUALIFIED, projectId: orderId, updatedAt: now });
     await audit(ctx, actor, 'LEAD_QUALIFIED', 'Lead', leadId, orderId, { status: leadStatus(lead) }, { status: 'QUALIFIED', orderId });
 
-    await applyEvent(ctx, actor, orderId, { type: 'LEAD_QUALIFIED', surveyFeeInr: SURVEY_FEE_INR });
+    // The per-call override exists only for demo-repository checks; real orders always use config (D-30).
+    const fee = ctx.environment === 'demo' && opts.surveyFeeInr !== undefined ? opts.surveyFeeInr : SURVEY_FEE_INR;
+    if (fee > 0) {
+      // D-30: the survey fee is a payment milestone collected (or waived) before the survey.
+      await createIfAbsent(ctx, 'payment_milestones', {
+        id: `ms_${orderId}_SURVEY_FEE` as PaymentMilestone['id'], orderId: orderId as PaymentMilestone['orderId'], kind: 'SURVEY_FEE', label: 'Survey fee', amount: fee,
+        dueDate: addDays(nowOf(ctx), DUE_DAYS.COLLECT_SURVEY_FEE).toISOString(), status: 'PENDING', amountReceived: 0,
+        createdAt: now, updatedAt: now, version: 0,
+      } satisfies PaymentMilestone);
+    }
+    await applyEvent(ctx, actor, orderId, { type: 'LEAD_QUALIFIED', surveyFeeInr: fee });
     return orderId;
   });
   return loadOrder(ctx, result ?? `ord_${leadId}`);
@@ -436,6 +448,18 @@ export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, 
 // ---------------------------------------------------------------------------
 // Survey (spec §15)
 // ---------------------------------------------------------------------------
+
+/** D-30: the Admin waives the survey fee with a reason (audited); the surveyor can then be assigned. */
+export async function waiveSurveyFee(ctx: MvpCtx, actor: MvpActor, orderId: string, reason: string): Promise<void> {
+  requireRole(actor, ['admin'], 'waive the survey fee');
+  requireText(reason, 'A reason');
+  const repo = paymentMilestoneRepository(ctx);
+  const fee = await repo.get(`ms_${orderId}_SURVEY_FEE`);
+  if (!fee || fee.status === 'PAID' || fee.waived) throw new MvpError('invalid', 'There is no unpaid survey fee on this order.');
+  await repo.update(fee.id, { waived: true, notes: reason, updatedAt: nowOf(ctx).toISOString() }, fee.version ?? 0);
+  await applyEvent(ctx, actor, orderId, { type: 'PAYMENT_PAID', kind: 'SURVEY_FEE' }, { reason });
+  await audit(ctx, actor, 'SURVEY_FEE_WAIVED', 'PaymentMilestone', `ms_${orderId}_SURVEY_FEE`, orderId, { waived: false }, { waived: true }, reason);
+}
 
 export async function assignSurveyor(ctx: MvpCtx, actor: MvpActor, orderId: string, surveyorId: string, date?: string): Promise<ApplyResult> {
   requireRole(actor, ['admin'], 'assign surveyors');
