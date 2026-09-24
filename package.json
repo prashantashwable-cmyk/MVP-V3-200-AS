@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "mvp:dev": "tsx mvp/server/main.ts",
+    "mvp:start": "NODE_ENV=production tsx mvp/server/main.ts",
+    "mvp:test": "tsx --test mvp/test/*.test.ts",
+    "mvp:simulate": "tsx mvp/scripts/simulate.ts",
+    "mvp:typecheck": "tsc -p mvp/tsconfig.json && tsc -p mvp/client/tsconfig.json",
+    "mvp:reset": "rm -f mvp/data/aiec-mvp.sqlite mvp/data/aiec-mvp.sqlite-wal mvp/data/aiec-mvp.sqlite-shm",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
