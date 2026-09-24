@@ -13,6 +13,7 @@ import { getMvpTaskQueue } from '../../services/workQueue';
 import { projectRepository } from '../../repository/entities';
 import { submitSurvey, validateSurvey, type SurveyInput } from '../services/orderService';
 import { formatDateTime } from '../format';
+import { TIME_ZONE } from '../config';
 import { PhotoInput, type SavedPhoto } from './PhotoInput';
 import { ErrorNote, inputCls, labelCls, Loading, useAction, useLoad, useMvpCtx } from './ui';
 
@@ -25,8 +26,8 @@ export const SurveyList: React.FC<{ user: User; onOpenSurvey: (orderId: string) 
   }, [ctx]);
   if (loading && !data) return <Loading label="Loading surveys…" />;
   if (error) return <ErrorNote message={error} />;
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const isToday = (t: Task) => new Date(t.dueDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) <= today;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: TIME_ZONE });
+  const isToday = (t: Task) => new Date(t.dueDate).toLocaleDateString('en-CA', { timeZone: TIME_ZONE }) <= today;
   const rows = data ?? [];
   const section = (title: string, list: typeof rows) => list.length > 0 && (
     <div className="space-y-2">

@@ -429,7 +429,8 @@ export async function qualifyLead(ctx: MvpCtx, actor: MvpActor, leadId: string, 
     await leadRepository(ctx).update(leadId, { mvpStatus: 'QUALIFIED', stage: LEGACY_STAGE_FOR.QUALIFIED, projectId: orderId, updatedAt: now });
     await audit(ctx, actor, 'LEAD_QUALIFIED', 'Lead', leadId, orderId, { status: leadStatus(lead) }, { status: 'QUALIFIED', orderId });
 
-    const fee = opts.surveyFeeInr ?? SURVEY_FEE_INR;
+    // The per-call override exists only for demo-repository checks; real orders always use config (D-30).
+    const fee = ctx.environment === 'demo' && opts.surveyFeeInr !== undefined ? opts.surveyFeeInr : SURVEY_FEE_INR;
     if (fee > 0) {
       // D-30: the survey fee is a payment milestone collected (or waived) before the survey.
       await createIfAbsent(ctx, 'payment_milestones', {
@@ -454,9 +455,8 @@ export async function waiveSurveyFee(ctx: MvpCtx, actor: MvpActor, orderId: stri
   requireText(reason, 'A reason');
   const repo = paymentMilestoneRepository(ctx);
   const fee = await repo.get(`ms_${orderId}_SURVEY_FEE`);
-  if (fee && fee.status !== 'PAID') {
-    await repo.update(fee.id, { waived: true, notes: reason, updatedAt: nowOf(ctx).toISOString() }, fee.version ?? 0);
-  }
+  if (!fee || fee.status === 'PAID' || fee.waived) throw new MvpError('invalid', 'There is no unpaid survey fee on this order.');
+  await repo.update(fee.id, { waived: true, notes: reason, updatedAt: nowOf(ctx).toISOString() }, fee.version ?? 0);
   await applyEvent(ctx, actor, orderId, { type: 'PAYMENT_PAID', kind: 'SURVEY_FEE' }, { reason });
   await audit(ctx, actor, 'SURVEY_FEE_WAIVED', 'PaymentMilestone', `ms_${orderId}_SURVEY_FEE`, orderId, { waived: false }, { waived: true }, reason);
 }

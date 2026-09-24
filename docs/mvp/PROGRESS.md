@@ -170,6 +170,9 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Allow-list:** sales get Leads / New lead / My tasks / Orders; the surveyor gets Surveys / My tasks.
 - **Offline:** the forms refuse to submit when `navigator.onLine` is false and keep the entries ("No network — not saved"). The outbox is not used: it has no canonical Firestore write transport.
 - **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-leads-survey-check`: lists and ownership, follow-up sort, duplicates, lost + reason, validation, survey fee assign-gate + waive audit, survey assigned to another surveyor, evidence type/size) · `mvp:rules` 66/66 (new: survey and lead scoping) · 42/42 legacy.
-- **Known limit:** the duplicate warning only sees the leads the user may read (sales: their own), because of the rules. The Admin sees all.
+- **Known limits:**
+  - The duplicate warning only sees the leads the user may read (sales: their own), because of the rules. The Admin sees all.
+  - Lead site photos are saved before the lead exists (`ownerEntityId` is empty; the lead keeps the ids in `photoIds`). An abandoned form leaves those documents unlinked, and only the uploader, Admin and Owner can read them.
+- **Scope guard:** PASS with warnings. Applied: the waive guard, the demo-only fee override, and the timezone from config. Carried to Step 06: a waived milestone must count as settled in the payment totals and the D-30 token credit.
 - **Screenshots:** `docs/mvp/screenshots/step-05/`.
 

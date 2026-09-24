@@ -70,6 +70,7 @@ async function main() {
   await waiveSurveyFee(ctx, USERS.admin, order.id, 'Builder referral');
   check((await paymentMilestoneRepository(ctx).get(`ms_${order.id}_SURVEY_FEE`))?.waived === true, 'fee waived');
   check((await listAuditEventsForEntity(ctx, 'PaymentMilestone', `ms_${order.id}_SURVEY_FEE`)).some(e => e.action === 'SURVEY_FEE_WAIVED' && e.reason === 'Builder referral'), 'waiver audited with reason');
+  await expectError(waiveSurveyFee(ctx, USERS.admin, order.id, 'again'), 'invalid', 'a fee cannot be waived twice (no misleading audit)');
   await assignSurveyor(ctx, USERS.admin, order.id, USERS.surveyor.userId);
   check((await listOrderTasks(ctx, order.id)).some(t => t.type === 'SURVEY' && isOpenTask(t)), 'after the waiver the surveyor is assigned');
   const d = await createLead(ctx, USERS.sales, { ...FIXTURE_LEAD, phone: '9000000013' });
