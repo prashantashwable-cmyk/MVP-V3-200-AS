@@ -92,7 +92,8 @@ export async function buildOrderView(ctx: MvpCtx, viewer: MvpActor, orderId: str
         .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
     : undefined;
   return {
-    order,
+    // Roles without money access never receive the selling price, even unrendered.
+    order: canSeeMoney(viewer.role) ? order : { ...order, sellingPrice: undefined },
     code: order.displayCode ?? '—',
     customerName: order.displaySummary?.customerName ?? order.title,
     siteAddress: order.displaySummary?.siteAddress ?? '',

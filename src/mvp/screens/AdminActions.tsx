@@ -67,7 +67,7 @@ export const AdminActions: React.FC<{
         {isAdmin && view.currentTask && GENERIC_COMPLETE.includes(view.currentTask.type) && (
           <Button variant="emerald" disabled={busy} onClick={() => done(() => completeTask(ctx, actor, view.currentTask!.id))}>Mark “{view.currentTask.title}” done</Button>
         )}
-        {view.status === 'ACTIVE' && <Button variant="outline" onClick={() => setMode('blocker')}>Raise blocker</Button>}
+        {view.status === 'ACTIVE' && actor.role !== 'owner' && <Button variant="outline" onClick={() => setMode('blocker')}>Raise blocker</Button>}
         {isAdmin && view.status === 'ACTIVE' && <Button variant="ghost" onClick={() => setMode('hold')}>Put on hold</Button>}
         {isAdmin && view.status === 'ON_HOLD' && (
           <Button variant="emerald" disabled={busy} onClick={() => done(() => resumeOrder(ctx, actor, orderId, 'Resumed from Order View'))}>Resume order</Button>
