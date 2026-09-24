@@ -210,4 +210,9 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Demo seed:** now goes through the real supply services.
 - **Checks:** lint PASS · build PASS · `mvp:checks` PASS (new `mvp-supply-check`: S1 8–12; readiness validation, return and resubmit; supplier delay → date follows and is audited, supplier-delay bucket; S2 overdue → hold → resume + extend, audited; S5 material received without the delivery payment; the customer never sees PO amounts) · `mvp:rules` 71/71 (the customer writes `data` on their own task; another customer cannot) · 42/42 legacy.
 - **Screenshots:** `docs/mvp/screenshots/step-07/`.
+- **Scope guard:** PASS with warnings. Applied: PO creation now also writes a `PO_RAISED` audit with the Admin's role, and `Task.data` is limited to 10 keys in the rules.
+- **Known limits:**
+  - One delivery receipt per order (`rcpt_<orderId>`); partial deliveries are noted in the count note.
+  - A double-tap on "Add supplier" can create a duplicate supplier (the button is disabled while busy).
+  - The customer's own-task `data` could be written directly without photos. The Admin verifies the photos before confirming.
 

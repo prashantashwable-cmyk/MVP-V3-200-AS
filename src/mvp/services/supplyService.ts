@@ -148,7 +148,8 @@ export async function raisePo(
     status: 'sent_to_supplier', amount: input.amount, createdAt: nowOf(ctx).toISOString(), createdBy: actor.userId as PurchaseOrder['createdBy'],
     idempotencyKey: id, items: input.items.trim(), expectedDeliveryDate: input.expectedDeliveryDate, materialStatus: 'ORDERED', version: 0,
   };
-  const { purchaseOrder } = await createPurchaseOrderIdempotent(ctx, po);
+  const { purchaseOrder, wasDuplicate } = await createPurchaseOrderIdempotent(ctx, po);
+  if (!wasDuplicate) await audit(ctx, actor, 'PO_RAISED', 'PurchaseOrder', id, orderId, undefined, { supplierId: po.supplierId, amount: po.amount, expectedDeliveryDate: po.expectedDeliveryDate });
   await applyEvent(ctx, actor, orderId, { type: 'PO_RAISED' });
   // If delivery is already being tracked, its due date follows this PO's expected date.
   await syncDeliveryDue(ctx, actor, orderId, input.expectedDeliveryDate, 'PO raised');
