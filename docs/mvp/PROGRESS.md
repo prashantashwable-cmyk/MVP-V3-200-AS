@@ -76,6 +76,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 2026-09-24 | D-16 | Evidence inline in Firestore `documents` (≤ 900 KB) instead of Storage | Storage rules can't check participants here (plan §10) |
 | 2026-09-24 | D-12 (addition) | Participant model via `Project.participantIds` | Needed for rules-based per-order access |
 | 2026-09-24 | D-21 | Pilot = Vercel | Audit default; live today |
+| 2026-09-24 | D-08 (row "Survey REQUIRES_CORRECTION") | When the customer completes the correction, create ASSIGN_SURVEYOR → Admin (one-click re-assign) instead of SURVEY directly | A customer's action must not grant a surveyor access to the order (firestore.rules, Step 03 scope-guard fix) |
 
 ## Open issues / known gaps
 | # | Issue | Found in step | Severity | Plan |
@@ -131,5 +132,6 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - `qualifyLead` is *convergent* rather than one transaction: deterministic ids (`cust_/site_/ord_<leadId>`) + `createIfAbsent` + `runIdempotent` per lead, so a retry after a partial failure completes the same records instead of duplicating them.
   - A bug found by the check: `applyEvent` wrote tasks before rejecting a backward stage move. It now validates before any write.
   - `customers`/`sites` reads are tightened (surveyors no longer read every customer). Legacy screens relying on that are hidden by MVP_MODE (Step 04).
+- **Scope guard:** first run FAILED on rules breadth (customers could change money/QC fields, participants and stages, or complete others' tasks). Fixed in 03b (per-role stage map, QC-only hold, own-task writes, surveyor-only survey create, 11 new negative emulator tests → 62/62). Re-run: PASS with warnings (accepted residual risk = open issue 14; Step 03 size ≈ 3,000 lines across 03a+03b; QC-role stage move to add with a test in Step 09).
 - **Data:** additive only. Backfill dry-run output (demo): 2 sample legacy projects → status ACTIVE, AE-1001/1002, participants, REVIEW_ORDER task; re-plan after apply = 0 changes.
 
