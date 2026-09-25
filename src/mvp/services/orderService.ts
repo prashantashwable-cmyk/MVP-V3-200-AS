@@ -28,6 +28,9 @@ import { BLOCKER_DUE_DAYS, DUE_DAYS, SURVEY_FEE_INR } from '../config';
 import { addDays } from '../format';
 import { notify } from './notify';
 import { leadOwner, leadStatus, LEGACY_STAGE_FOR, type MvpLead, type MvpLeadStatus } from '../leadModel';
+import { MvpError, requireText } from '../validate';
+
+export { MvpError };
 
 // ---------------------------------------------------------------------------
 // Context, actor, errors
@@ -43,12 +46,6 @@ export interface MvpActor {
   /** Customers only: their Customer id (from the invite, D-13). */
   customerId?: string;
   name?: string;
-}
-
-export class MvpError extends Error {
-  constructor(public code: 'forbidden' | 'invalid' | 'not_found' | 'gate', message: string) {
-    super(message);
-  }
 }
 
 export function nowOf(ctx: MvpCtx): Date {
@@ -72,12 +69,6 @@ export function isAssignee(task: Pick<Task, 'assigneeId'>, actor: MvpActor): boo
 
 function requireRole(actor: MvpActor, roles: CanonicalUserRole[], action: string): void {
   if (!roles.includes(actor.role)) throw new MvpError('forbidden', `Role "${actor.role}" cannot ${action}.`);
-}
-
-function requireText(value: string | undefined, what: string): string {
-  const v = (value ?? '').trim();
-  if (!v) throw new MvpError('invalid', `${what} is required.`);
-  return v;
 }
 
 export const leadRepository = (ctx: RepositoryContext) => getRepository<MvpLead>('leads', ctx);

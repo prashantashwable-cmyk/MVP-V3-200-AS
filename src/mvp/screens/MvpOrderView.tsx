@@ -11,7 +11,8 @@ import { buildOrderView, assigneeLabel, type OrderViewModel } from '../services/
 import { listPeople, nameMap, type Person } from '../services/people';
 import { formatDateTime, formatInr, formatDate } from '../format';
 import { AdminActions } from './AdminActions';
-import { ErrorNote, HealthBadge, Loading, ProgressBar, SectionTitle, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, HealthBadge, Loading, ProgressBar, SectionTitle, useLoad, useMvpCtx, useMvpLang } from './ui';
+import { translateStage } from '../i18n';
 
 export interface OrderViewExtraProps {
   view: OrderViewModel;
@@ -25,6 +26,7 @@ export const MvpOrderView: React.FC<{
   renderExtra?: (props: OrderViewExtraProps) => React.ReactNode;
 }> = ({ user, orderId, onBack, renderExtra }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const lang = useMvpLang();
   const canListPeople = actor.role === 'admin' || actor.role === 'owner';
   const people = useLoad<Person[]>(() => (canListPeople ? listPeople(ctx) : Promise.resolve([])), [ctx, canListPeople]);
   const names = nameMap(people.data ?? []);
@@ -71,7 +73,7 @@ export const MvpOrderView: React.FC<{
           {row('Lift', view.lift || '—')}
         </div>
         <div className="space-y-1">
-          <div className="flex justify-between text-xs"><span className="font-bold">CURRENT STAGE: {view.stageLabel.toUpperCase()}</span><span className="font-bold">PROGRESS: {view.progress}%</span></div>
+          <div className="flex justify-between text-xs"><span className="font-bold">CURRENT STAGE: {translateStage(lang, view.stage).toUpperCase()}</span><span className="font-bold">PROGRESS: {view.progress}%</span></div>
           <ProgressBar value={view.progress} />
         </div>
         {view.noNextAction && (
@@ -98,7 +100,7 @@ export const MvpOrderView: React.FC<{
           {view.timeline.map(t => (
             <li key={t.stage} className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${
               t.state === 'done' ? 'bg-royalemerald/10 text-royalemerald' : t.state === 'current' ? 'bg-[#B8873D] text-white' : 'bg-alabaster text-warmgray'}`}>
-              {t.label}
+              {translateStage(lang, t.stage)}
             </li>
           ))}
         </ol>

@@ -90,7 +90,7 @@ import {
 import { useLanguage, translations as appTranslations, Language } from './lib/language';
 import { useTheme } from './lib/theme';
 import { auth } from './lib/firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { AdminRouter } from './routers/AdminRouter';
 import { TechnicianRouter } from './routers/TechnicianRouter';
 import { SurveyorRouter } from './routers/SurveyorRouter';
@@ -354,10 +354,16 @@ export default function App() {
     }
 
     // 2. Background check for active session token
+    // F-5 / Step 11: this token is a plain localStorage flag, not a server-verified
+    // credential — anyone with devtools can set it to any existing local user id and be
+    // signed in as them. In MVP_MODE (D-13/R-3: Google sign-in only) a returning
+    // real user is restored only from Firebase Auth's own persisted session, via the
+    // onAuthStateChanged effect below — never from this flag. Legacy (non-MVP) behavior
+    // is unchanged.
     const savedToken = localStorage.getItem('aiec_session_token');
     let authenticatedUser: User | null = null;
 
-    if (savedToken) {
+    if (savedToken && !mvpMode) {
       if (savedToken.startsWith('session_')) {
         const userId = savedToken.replace('session_', '');
         const foundUser = DbManager.getUsers().find(u => u.id === userId);
@@ -408,6 +414,28 @@ export default function App() {
     }, 2500);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  // MVP_MODE session restore (F-5, D-13/R-3, Step 11): the only trustworthy signal for a
+  // returning real user is Firebase Auth's own persisted session (verified server-side by
+  // Firebase, not writable by the page), not the localStorage flag the cold-start check
+  // above skips in MVP_MODE. No Firebase session -> no auto sign-in; the user signs in
+  // with Google again. Also fires right after handleGoogleSignIn's own signInWithPopup,
+  // which is harmless: mirrorFirebaseUser/setCurrentUser are idempotent.
+  useEffect(() => {
+    if (!mvpMode || !auth) return;
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) return;
+      try {
+        const mirroredUser = await mirrorFirebaseUser(firebaseUser);
+        setCurrentUser(mirroredUser);
+        logLaunchAnalytics(mirroredUser.role);
+      } catch (error) {
+        console.error('MVP session restore failed:', error);
+      }
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cooldown timer for incorrect OTP attempts
@@ -625,6 +653,24 @@ export default function App() {
     }
   };
 
+  // Real sign-ins resolve their identity against Firestore (users/{uid}), not the local demo
+  // array, then mirror into that array too, so this session's admin/staff views (which still
+  // read DbManager.getUsers()) can see this real user. Phase 05: this is the ONE login path
+  // backed by a real, server-verifiable Firebase Auth ID token — authz.ts's high-risk
+  // permission gate keys off exactly this value. Shared by the Google button and the
+  // MVP_MODE session-restore effect below (F-5), so both resolve identity the same way.
+  const mirrorFirebaseUser = async (firebaseUser: Parameters<typeof getOrCreateFirestoreUser>[0]): Promise<User> => {
+    const found = await getOrCreateFirestoreUser(firebaseUser);
+    const mirroredUser: User = { ...found, isDemo: false, authMethod: 'firebase_auth' };
+    const localList = DbManager.getUsers();
+    if (!localList.find(u => u.id === mirroredUser.id)) {
+      DbManager.addUser(mirroredUser);
+    } else {
+      DbManager.updateUser(mirroredUser);
+    }
+    return mirroredUser;
+  };
+
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
     if (!auth) {
@@ -635,34 +681,19 @@ export default function App() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
-      
+
       if (!firebaseUser) {
         throw new Error('No user credentials returned from Google Sign-In.');
       }
 
-      // Real sign-ins resolve their identity against Firestore (users/{uid}), not the
-      // local demo array, so the account and its role survive a refresh or new session.
-      const found = await getOrCreateFirestoreUser(firebaseUser);
-
-      // Mirror into the local array too, so this session's admin/staff views
-      // (which still read DbManager.getUsers()) can see this real user.
-      // Phase 05: this is the ONE login path backed by a real,
-      // server-verifiable Firebase Auth ID token — authz.ts's high-risk
-      // permission gate keys off exactly this value.
-      const mirroredUser: User = { ...found, isDemo: false, authMethod: 'firebase_auth' };
-      const localList = DbManager.getUsers();
-      if (!localList.find(u => u.id === mirroredUser.id)) {
-        DbManager.addUser(mirroredUser);
-      } else {
-        DbManager.updateUser(mirroredUser);
-      }
+      const mirroredUser = await mirrorFirebaseUser(firebaseUser);
 
       setCurrentUser(mirroredUser);
       if (rememberMe) {
-        localStorage.setItem('aiec_session_token', `session_${found.id}`);
-        localStorage.setItem('aiec_last_role_used', found.role);
+        localStorage.setItem('aiec_session_token', `session_${mirroredUser.id}`);
+        localStorage.setItem('aiec_last_role_used', mirroredUser.role);
       }
-      logLaunchAnalytics(found.role);
+      logLaunchAnalytics(mirroredUser.role);
       setActiveTab('OperatingSurfaces'); // Phase 28: full navigation cutover
     } catch (error: any) {
       console.error('Google Sign-In Error:', error);
@@ -723,6 +754,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    // F-5 companion (Step 11): Firebase keeps its own session independent of the
+    // localStorage flag; without this, MVP_MODE's onAuthStateChanged restore effect
+    // would immediately sign the same user back in after they log out.
+    if (mvpMode && auth) {
+      signOut(auth).catch((error) => console.error('Firebase sign-out failed:', error));
+    }
     setCurrentUser(null);
     localStorage.removeItem('aiec_session_token');
     localStorage.removeItem('aiec_last_role_used');
@@ -838,7 +875,7 @@ export default function App() {
   // Sidebar / bottom tab items per role
   const getTabsByRole = (role: UserRole) => {
     if (mvpMode) {
-      return mvpTabsFor(role).map(t => ({ id: t.id, label: t.label, icon: MVP_NAV_ICONS[t.icon] ?? LayoutDashboard }));
+      return mvpTabsFor(role, appLanguage).map(t => ({ id: t.id, label: t.label, icon: MVP_NAV_ICONS[t.icon] ?? LayoutDashboard }));
     }
     switch (role) {
       case 'admin':

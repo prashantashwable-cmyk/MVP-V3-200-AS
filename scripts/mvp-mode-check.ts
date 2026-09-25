@@ -36,7 +36,7 @@ const block = app.slice(start, app.indexOf('const TAB_LABEL_OVERRIDES', start) >
 const current = new Set([...block.matchAll(/id: '([A-Za-z0-9_]+)'/g)].map(m => m[1]));
 const missing = LEGACY_TABS.filter(id => !current.has(id));
 check(missing.length === 0, `legacy navigation unchanged when MVP_MODE is off (${LEGACY_TABS.length} tab ids present)`);
-check(/if \(mvpMode\) \{\s*return mvpTabsFor\(role\)/.test(app), 'App.tsx filters navigation through the MVP allow-list when MVP_MODE is on');
+check(/if \(mvpMode\) \{\s*return mvpTabsFor\(role/.test(app), 'App.tsx filters navigation through the MVP allow-list when MVP_MODE is on');
 check(/mvpMode \? \(\s*<MvpRouter/.test(app), 'App.tsx mounts only MvpRouter (no legacy routers) when MVP_MODE is on');
 const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'serverApp.ts'), 'utf8');
 check(/app\.use\(\['\/api\/gemini', '\/api\/maps', '\/api\/db'\]/.test(server), 'server hides Gemini/maps/db APIs in MVP_MODE (R-8)');

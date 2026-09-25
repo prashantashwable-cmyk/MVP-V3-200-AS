@@ -100,6 +100,15 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // Step 11 (open issue: "checklistDone has no 0-11 bound", Step 08): the service layer
+    // only ever writes checklistDoneCount()'s own 0-11 tally, but a spoofed direct write
+    // could set anything since onlyKeys() only restricts which keys change, not their value.
+    function checklistDoneOk() {
+      return !('checklistDone' in request.resource.data.diff(resource.data).affectedKeys()) ||
+        (request.resource.data.checklistDone is int &&
+         request.resource.data.checklistDone >= 0 && request.resource.data.checklistDone <= 11);
+    }
+
     // Forward-only stage rank for non-admin writers (D-03, I-4).
     function stageRank(s) {
       return {
@@ -309,7 +318,7 @@ service cloud.firestore {
         : role in ['sales', 'surveyor'] ? staffKeys
         : base; // customer: never participantIds, money or QC fields
       return role in ['sales', 'surveyor', 'technician', 'qc', 'customer'] &&
-        onlyKeys(keys) && stageMoveOk(role) && statusMoveOk(role);
+        onlyKeys(keys) && stageMoveOk(role) && statusMoveOk(role) && checklistDoneOk();
     }
 
     match /projects/{projectId} {
@@ -579,8 +588,10 @@ service cloud.firestore {
 
     match /qc_inspections/{inspectionId} {
       allow read: if isAdminOrOwner() || isRecordOwner('inspectorId') || isParticipantOf(resource.data.projectId);
-      // Phase 35: customer/supplier sessions cannot create QC records.
-      allow create: if isTechnician();
+      // Step 11 (open issue #15): scoped to the order's own participants — a
+      // technician/qc/qc_inspector could otherwise inspect ANY order, not just
+      // their own (D-12 participant model).
+      allow create: if isAdmin() || (isTechnician() && isParticipantOf(request.resource.data.projectId));
       allow update: if isAdmin() || isRecordOwner('inspectorId');
       allow delete: if false;
     }
@@ -602,7 +613,12 @@ service cloud.firestore {
     match /installation_jobs/{jobId} {
       allow read: if isAdminOrOwner() || isRecordOwner('technicianId') || isParticipantOf(resource.data.projectId);
       allow create: if isAdmin();
-      allow update: if isAdmin() || isRecordOwner('technicianId');
+      // Step 11 (open issue: "onlyKeys limits on technician installation_jobs updates",
+      // Step 08): the assigned technician could previously write ANY field, including
+      // reassigning technicianId to themselves — now scoped to the fields installationService.ts
+      // actually writes (startedAt/checkInAt/checkInLocation/checklist/completedAt/status/version).
+      allow update: if isAdmin() || (isRecordOwner('technicianId') &&
+        onlyKeys(['status', 'startedAt', 'checkedInAt', 'checkInLocation', 'checklist', 'completedAt', 'version']));
       allow delete: if false;
     }
 

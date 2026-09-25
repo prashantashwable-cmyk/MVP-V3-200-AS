@@ -4,12 +4,14 @@ import React from 'react';
 import type { User } from '../../types';
 import { Card } from '../../components/Common';
 import { listOrdersFor } from '../services/readModels';
-import { MVP_STAGE_LABELS, toMvpStage } from '../stage';
+import { toMvpStage } from '../stage';
 import { computeProgress } from '../progress';
-import { ErrorNote, Loading, ProgressBar, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, Loading, ProgressBar, useLoad, useMvpCtx, useMvpLang } from './ui';
+import { translateStage } from '../i18n';
 
 export const OrdersList: React.FC<{ user: User; onOpenOrder: (id: string) => void }> = ({ user, onOpenOrder }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const lang = useMvpLang();
   const { data, error, loading } = useLoad(() => listOrdersFor(ctx, actor), [ctx]);
   if (loading && !data) return <Loading label="Loading orders…" />;
   if (error) return <ErrorNote message={`Could not load orders: ${error}`} />;
@@ -26,7 +28,7 @@ export const OrdersList: React.FC<{ user: User; onOpenOrder: (id: string) => voi
             <Card className="p-4 space-y-2" hoverEffect>
               <div className="flex justify-between gap-2">
                 <span className="font-bold">#{o.displayCode ?? '—'} · {o.displaySummary?.customerName ?? o.title}</span>
-                <span className="text-xs text-warmgray">{o.status && o.status !== 'ACTIVE' ? o.status.replace('_', ' ') : MVP_STAGE_LABELS[stage]}</span>
+                <span className="text-xs text-warmgray">{o.status && o.status !== 'ACTIVE' ? o.status.replace('_', ' ') : translateStage(lang, stage)}</span>
               </div>
               <div className="text-xs text-warmgray">{o.displaySummary?.siteAddress}</div>
               <ProgressBar value={progress} />
