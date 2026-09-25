@@ -19,18 +19,13 @@ import { notify } from './notify';
 import {
   applyEvent, completeTask, listOrderTasks, MvpError, nowOf, setTaskInProgress, type MvpActor, type MvpCtx,
 } from './orderService';
+import { requireText } from '../validate';
 
 async function audit(ctx: MvpCtx, actor: MvpActor, action: string, entityType: string, entityId: string, orderId: string | undefined, before: unknown, after: unknown, reason?: string) {
   await recordAuditEvent(ctx, {
     actorId: actor.userId, actorRole: actor.role, action, entityType, entityId, projectId: orderId,
     before, after, reason, source: 'ui', correlationId: newCorrelationId(),
   });
-}
-
-function requireText(value: string | undefined, what: string): string {
-  const v = (value ?? '').trim();
-  if (!v) throw new MvpError('invalid', `${what} is required.`);
-  return v;
 }
 
 /** 'YYYY-MM-DD' in Asia/Kolkata — the on-call setting's document id. */

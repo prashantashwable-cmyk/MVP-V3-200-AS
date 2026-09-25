@@ -52,7 +52,10 @@ function main() {
     'firestore.rules: payments.create now requires createdBy == request.auth.uid (or Admin) — the real Phase 35 fix is present, not just documented',
   );
   assert(
-    /match \/qc_inspections\/\{inspectionId\}[\s\S]*?allow create: if isTechnician\(\)/.test(rules),
+    // Step 11 (open issue #15) additionally scopes this to isParticipantOf(projectId) — isTechnician()
+    // may now appear inside a larger boolean (e.g. "isAdmin() || (isTechnician() && ...)"), not only
+    // as the sole condition; the check's intent (role-gated, not open to everyone) still holds.
+    /match \/qc_inspections\/\{inspectionId\}[\s\S]*?allow create: if [\s\S]{0,80}isTechnician\(\)/.test(rules),
     'firestore.rules: qc_inspections.create now requires isTechnician() — the real Phase 35 fix is present, not just documented',
   );
 

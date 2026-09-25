@@ -10,14 +10,7 @@ import { customerRepository, inviteRepository } from '../../repository/entities'
 import { createIfAbsent } from '../../repository/transactions';
 import { recordAuditEvent, newCorrelationId } from '../../lib/audit';
 import { MvpError, nowOf, type MvpActor, type MvpCtx } from './orderService';
-
-function requireText(value: string | undefined, what: string): string {
-  const v = (value ?? '').trim();
-  if (!v) throw new MvpError('invalid', `${what} is required.`);
-  return v;
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { requireEmail, requireText } from '../validate';
 
 export async function listInvites(ctx: MvpCtx): Promise<Invite[]> {
   return (await inviteRepository(ctx).list()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -31,8 +24,7 @@ export async function createInvite(
   ctx: MvpCtx, actor: MvpActor, input: { email: string; name: string; role: CanonicalUserRole; customerId?: string },
 ): Promise<Invite> {
   if (actor.role !== 'admin') throw new MvpError('forbidden', 'Only the Admin can invite people.');
-  const email = requireText(input.email, 'Email').toLowerCase();
-  if (!EMAIL_RE.test(email)) throw new MvpError('invalid', 'That does not look like an email address.');
+  const email = requireEmail(input.email);
   const name = requireText(input.name, 'Name');
   if (input.role === 'customer' && !input.customerId) throw new MvpError('invalid', 'Choose the customer this invite is for.');
 
