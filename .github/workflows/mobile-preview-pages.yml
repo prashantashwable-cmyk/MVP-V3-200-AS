@@ -1,0 +1,46 @@
+name: Mobile preview (GitHub Pages)
+
+# One-off manual deploy so the Owner can open the current build on their
+# phone. Static-only: builds with Vite's client output (`npm run build`'s
+# esbuild server bundle isn't needed here — the MVP flow talks to Firestore
+# directly from the browser, not through this repo's own Express server).
+# Never wired to push/PR — only ever runs when someone dispatches it by hand.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Vite's own base stays "/" for the real (Vercel) deployment (D-21);
+      # only this one-off Pages build needs the repo-name subpath, so it's
+      # overridden here via --base rather than edited in vite.config.ts.
+      - run: npx vite build --base=/${{ github.event.repository.name }}/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
