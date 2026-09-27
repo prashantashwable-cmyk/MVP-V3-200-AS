@@ -89,6 +89,12 @@ async function main() {
 
   await assertInvariants(ctx, overdueOrder.orderId, 'reports-check');
 
+  // A quote that is only sent (not yet accepted) is not booked business (field test: it was counted).
+  const bookedBefore = (await buildOwnerSummary(ctx)).bookedValue;
+  await runS1(ctx, clock, 5);
+  const bookedAfter = (await buildOwnerSummary(ctx)).bookedValue;
+  check(bookedAfter === bookedBefore, `owner totals: a sent-but-unaccepted quote is not booked value (${bookedBefore} → ${bookedAfter})`);
+
   done('mvp-reports-check');
 }
 

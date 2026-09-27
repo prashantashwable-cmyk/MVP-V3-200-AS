@@ -27,6 +27,17 @@ export const app = express();
 // after Lighthouse numbers.
 app.use(compression());
 
+// Baseline security headers (production-readiness pass). No CSP yet: Firebase Auth, Google
+// fonts and maps need a tested allow-list first. HSTS is added by Vercel itself.
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+  next();
+});
+
 // Increase payload limits to support base64 image uploads
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));

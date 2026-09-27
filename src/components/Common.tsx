@@ -36,7 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
   children,
   ...props
 }) => {
-  const baseStyle = "px-5 py-3 rounded-xl font-medium tracking-wide transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none cursor-pointer text-sm font-sans";
+  const baseStyle = "px-5 py-3 rounded-xl font-medium tracking-wide transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none cursor-pointer text-sm font-sans disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
     primary: "bg-antiquegold text-white hover:bg-[#a37532] shadow-sm active:scale-[0.98]",

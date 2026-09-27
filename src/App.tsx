@@ -727,7 +727,7 @@ export default function App() {
     if (!mvpMode || !isDemoAuthBuild() || showSplash || currentUser) return;
     const role = new URLSearchParams(window.location.search).get('demoRole');
     if (!role) return;
-    buildDemoUser(role as any).then(handleMvpDemoLogin).catch(err => console.error('demoRole login failed:', err));
+    buildDemoUser((role === 'technician2' ? 'technician' : role) as any, role === 'technician2').then(handleMvpDemoLogin).catch(err => console.error('demoRole login failed:', err));
   }, [showSplash]);
 
   const handleDemoBypass = (role: UserRole) => {
@@ -2414,7 +2414,7 @@ export default function App() {
                           key={lng}
                           type="button"
                           onClick={() => setAppLanguage(lng)}
-                          className={`px-2 py-1 text-[9px] font-bold rounded-md cursor-pointer transition-all ${
+                          className={`px-2 min-h-[40px] min-w-[40px] text-[11px] font-bold rounded-md cursor-pointer transition-all ${
                             appLanguage === lng
                               ? 'bg-[#B8873D] text-white font-extrabold shadow-xs'
                               : 'text-warmgray hover:text-charcoal'
@@ -2429,7 +2429,7 @@ export default function App() {
                       onClick={handleLogout}
                       aria-label="Sign out"
                       title="Sign out"
-                      className="p-2 rounded-lg bg-error/10 text-error hover:bg-error/15 cursor-pointer"
+                      className="p-3 rounded-lg bg-error/10 text-error hover:bg-error/15 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                     </button>

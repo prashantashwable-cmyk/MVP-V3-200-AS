@@ -18,9 +18,12 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Admin', owner: 'Owner', sales: 'Sales / Rider', surveyor: 'Surveyor', technician: 'Technician', qc: 'QC inspector', customer: 'Customer',
 };
 
-export async function buildDemoUser(role: CanonicalUserRole): Promise<User> {
+/** A second demo technician, so reassignment and rework can be tried from both sides. */
+const DEMO_TECH2 = { userId: 'demo_tech2', role: 'technician' as const, name: 'Technician Vikas' };
+
+export async function buildDemoUser(role: CanonicalUserRole, second = false): Promise<User> {
   const { customerId } = await ensureDemoSeed({ environment: 'demo', actorUserId: 'demo_seed' });
-  const p = DEMO_PEOPLE[role];
+  const p = second && role === 'technician' ? DEMO_TECH2 : DEMO_PEOPLE[role];
   return {
     id: p.userId, role, name: p.name, phone: '', status: 'active', isDemo: true, authMethod: 'demo',
     onboardingCompleted: true, primer_shown_flag: true, ...(role === 'customer' ? { customerId } : {}),
@@ -34,15 +37,17 @@ export const MvpDemoLogin: React.FC<{ onLogin: (user: User) => void }> = ({ onLo
     <div className="space-y-2">
       <p className="text-xs text-warmgray">Training mode: sample orders, kept only in this browser tab. Nothing is saved to the real database.</p>
       {error && <ErrorNote message={error} />}
-      {ROLE_ORDER.map(role => (
-        <button key={role} type="button" disabled={!!busy}
+      {ROLE_ORDER.flatMap((role): { key: string; role: CanonicalUserRole; second: boolean; label: string }[] => role === 'technician'
+        ? [{ key: role, role, second: false, label: 'Technician (Rahul)' }, { key: 'technician2', role, second: true, label: 'Technician 2 (Vikas)' }]
+        : [{ key: role, role, second: false, label: ROLE_LABEL[role] }]).map(({ key, role, second, label }) => (
+        <button key={key} type="button" disabled={!!busy}
           onClick={async () => {
-            setBusy(role); setError(null);
-            try { onLogin(await buildDemoUser(role)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
+            setBusy(key); setError(null);
+            try { onLogin(await buildDemoUser(role, second)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
           }}
           className="w-full p-3 bg-alabaster hover:bg-[#edeae2] border border-[rgba(184,135,61,0.1)] rounded-xl flex items-center justify-between text-left cursor-pointer">
-          <span className="text-sm font-bold text-charcoal">Try as {ROLE_LABEL[role]}</span>
-          <span className="text-xs text-warmgray">{busy === role ? 'Preparing…' : <ChevronRight className="w-4 h-4" />}</span>
+          <span className="text-sm font-bold text-charcoal">Try as {label}</span>
+          <span className="text-xs text-warmgray">{busy === key ? 'Preparing…' : <ChevronRight className="w-4 h-4" />}</span>
         </button>
       ))}
     </div>

@@ -38,7 +38,7 @@ export const NotificationBell: React.FC<{ user: User; onOpenOrder: (id: string) 
 
   return (
     <div className="relative">
-      <button aria-label="Notifications" onClick={() => setOpen(o => !o)} className="relative p-1.5 rounded-lg hover:bg-alabaster cursor-pointer">
+      <button aria-label="Notifications" onClick={() => setOpen(o => !o)} className="relative p-2.5 rounded-lg hover:bg-alabaster cursor-pointer">
         <BellIcon className="w-5 h-5 text-charcoal" />
         {unread > 0 && <span className="absolute -top-1 -right-1 bg-error text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{Math.min(unread, 9)}</span>}
       </button>

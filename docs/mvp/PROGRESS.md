@@ -151,6 +151,16 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 20 | `scanTaskNotifications` reads the whole `tasks` collection on every Admin/Owner dashboard load (same pattern `buildDashboard` already uses) | 10 | Low | Fine at 10–20 lifts; revisit if the task count grows much larger |
 | 21 | New mr/hi strings in `src/mvp/i18n.ts` initially had no `// needs native review` marker (D-18) | 10 | Low | Fixed before this step's PR — the marker is now on both dictionaries |
 | 22 | `installation_jobs.update` had no `onlyKeys` limit (the assigned technician could write ANY field, including reassigning `technicianId` to themselves) and `projects.checklistDone` had no 0–11 bound (Step 08's own step note flagged both, deferred to Step 11) | 08 | Medium (fixed) | Fixed in Step 11: `installation_jobs.update` now scoped to the 7 fields `installationService.ts` actually writes; a new `checklistDoneOk()` rejects anything outside 0–11 |
+| 23 | Phone field test (demo build): QC/technician "My tasks" cards show only the task title and due date, not the order code or site | FT | Low | Open. Small UI change if the Owner wants it |
+| 24 | Phone field test: the floating ⌘ command button overlaps content on a phone, and the Documents & compliance block sits above tasks/actions on every order (long scroll) | FT | Low | Open. Layout-only |
+| 25 | Phone field test: the Installation team selector shows "Technician…" instead of the current technician, and Reassign task offers every role (sales, customer, QC) for an installation task | FT | Low | Open |
+| 26 | The PWA service worker keeps serving the previous build until the page is reloaded twice (`registerType: 'autoUpdate'` without an in-app reload) | FT | Low | Open. After a redeploy, testers reload twice or close and reopen the tab |
+| 27 | Production readiness: first load is ~4.4 s on normal 4G and ~8.2 s on slow 4G (4x slower CPU); repeat visits ~3.2 s. The main script is 3.0 MB (772 KB gzipped) because hidden legacy screens are still bundled | PR | Medium | Open. Lazy-load legacy (non-MVP) screens so the MVP shell ships alone |
+| 28 | No Firestore offline cache: survey and photo screens refuse cleanly when offline, other actions fail with a Firestore "offline" error after a few seconds. The app has no emulator switch, so this could not be tested against a real Firestore here | PR | Medium | Open. Test in the first supervised pilot at a low-signal site; consider `persistentLocalCache` later |
+| 29 | Notifications use generic text ("A payment milestone is due") even for a customer's payment proof; Needs Attention has no "proof to verify" group | PR | Low | Open. The notification opens the right order |
+| 30 | Technician, QC and customer screens are mostly English in Marathi/Hindi mode (only stages, health and nav are translated, see issue 18) | PR | Medium | Owner decision (D-18): translate the field-staff screens before go-live? |
+| 31 | No Content-Security-Policy header yet (Firebase Auth, fonts and maps need a tested allow-list). The other baseline headers are now set | PR | Low | Open |
+| 32 | The Firebase web API key and `/api/config/maps-key` are public by design; they must be restricted by HTTP referrer in Google Cloud Console | PR | Medium | Owner action before go-live (Go-live checklist, Step 14) |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -387,4 +397,29 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Scope guard:** PASS, all 14 checklist items, no required fixes. One contextual observation, not a fail: `mirrorFirebaseUser` still calls `DbManager.getUsers/addUser/updateUser` — a straight extraction of pre-existing `handleGoogleSignIn` logic (mirroring the real Firebase user into the legacy array so old admin/staff screens still see them), same call sites as before, not new legacy-store use.
 - **Screenshots:** this step has no UI change (App.tsx's fix is invisible session-restore logic) — `docs/mvp/screenshots/step-11/admin-dashboard-desktop.png` (nothing broke) and `login-google-signin-phone.png` (MVP_MODE's Secure Login tab, confirming Google Sign-In really is the only login path there — no phone/email fallback shown — which is the precondition the F-5 fix depends on).
 - **Known limits:** none newly introduced. Issue #6 (live Vercel env var) and issue #16 (AMC sequencing) remain as before, with notes updated above.
+
+### Field test on a phone-sized browser (2026-09-27), fixes on branch `claude/mvp-field-test-fixes`
+- **What:** Claude drove the demo build in headless Chromium at 390×844 through the phone checklist (ACCEPTANCE_SCENARIOS S1–S10 adapted for Demo mode), switching roles with Sign out → Try as. S1 was run end to end: new lead Mrs. Deshpande → AE-1007 → COMPLETED at AMC, warranty 27 Sept 2027. S3, S4, S5, S6, S7, S9, S10, S2 (hold/resume) and the low-margin approval were also run.
+- **Fixed (all UI-level, services already allowed them, except the QC task title):**
+  1. **Blocker:** a customer without an app login (most customers) left the order stuck at QUOTE. Only a logged-in customer saw Accept. Admin now gets "Record acceptance / Record change request" with a required note (audited via `decideQuote`, which already allowed admin). "Send quote" is hidden once sent.
+  2. **Blocker:** the same gap at SITE_READY. The readiness form was customer-only. Admin can now fill it on the customer's behalf (`submitReadiness` already allowed admin).
+  3. Only a logged-in customer could raise an emergency. Admin can now "Log an emergency call" on an installed lift (QC_HANDOVER/AMC), with the same 112 line.
+  4. Setting the QC inspector moved the placeholder task "Assign a QC inspector" to QC Meera unchanged. `reassignTask` now retitles a QC_INSPECTION task to "Inspect the installation (QC)" when a QC person takes it.
+  5. A cancelled order with a leftover blocker still showed as Blocked and stayed in Needs Attention. `computeHealth` and `bucketsFor` now ignore it.
+  6. Owner "Booked value/Outstanding" counted quotes that were only sent. It now counts only orders at BOOKED or later.
+  7. Lift licence: marking DONE without the document silently left the handover gate closed. A hint now asks for the licence document, and saving refreshes the order view (the gate was stale until reopen).
+  8. Disabled buttons looked enabled (shared `Button`: `disabled:opacity-50`).
+  9. Demo login gains "Try as Technician 2 (Vikas)" (`?demoRole=technician2`), so reassignment (S7) and rework (S4) can be tried from both sides on a phone.
+- **Not bugs (checklist wording was wrong):** the quote is prepared by Admin (D-rules: PREPARE_QUOTE → Admin); there is no supplier demo login by design; the top dashboard tiles count only tasks due in the next 24 h.
+- **Checks:** `npm run lint` PASS; `npm run mvp:checks` PASS (816 OK, 0 FAIL, with 4 new assertions in readmodels/installation/reports); `npm run build` PASS. No rules, schema or dependency changes.
+- **Screenshots:** `docs/mvp/screenshots/field-test/`.
+
+### Production-readiness test pass (2026-09-27), same branch
+- **Automated:** `npm run lint` PASS; `npm run mvp:checks` PASS (817 OK, 0 FAIL); `npm run mvp:rules` PASS (106/106, S8 access control on the emulator); all 42 non-`live-*` legacy checks PASS; `npm run build` PASS.
+- **Production build** (`VITE_APP_ENV=production`): only "Continue with Google" is shown; `?demoRole=admin` is ignored; `password123` and the Gemini key are not in the bundle.
+- **Server** (`NODE_ENV=production node dist/server.cjs`): `/api/gemini|maps|db/*` return 404 in MVP mode; SPA deep links return 200.
+- **Fixed in this pass:** baseline security headers on Express and in `vercel.json` (nosniff, Referrer-Policy, X-Frame-Options SAMEORIGIN, Permissions-Policy), and `x-powered-by` removed. `npm audit fix` updated the lockfile only (body-parser 1.20.8, express 4.22.3, qs 6.16.0, postcss 8.5.28, nanoid 3.3.19): production vulnerabilities went from 5 (2 high, build-time only) to 0. Header, Back, Refresh and "Call customer" tap targets were enlarged to about 40–44 px. Scope-guard warning W1 is fixed: an emergency on a cancelled order still escalates (health and Needs Attention), with a new check.
+- **UI checks (demo build, 390×844):** QC FAIL puts the order ON HOLD and lists it under "QC failure" and "On hold". The customer "I have paid" proof reaches the Admin. A triple-tap on Mark PAID records one payment and one audit entry. The Marathi/Hindi switch works (partial translation, issue 30). There is no horizontal scroll on any screen tested.
+- **Scope guard:** PASS WITH WARNINGS, no required fixes. W1 is fixed as above. W2: this branch is a Step 11 follow-up, not a numbered step.
+- **Open for go-live:** issues 27–32.
 

@@ -51,7 +51,7 @@ export const MvpOrderView: React.FC<{
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-24">
       {onBack && (
-        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-warmgray hover:text-charcoal cursor-pointer">
+        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-warmgray hover:text-charcoal cursor-pointer min-h-[40px] pr-3">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
       )}

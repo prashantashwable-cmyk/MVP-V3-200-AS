@@ -40,7 +40,7 @@ export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) =>
     <div className="space-y-4 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-charcoal">{user.role === 'owner' ? 'Company overview' : 'Admin dashboard'}</h2>
-        <button onClick={reload} className="text-xs text-warmgray flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3.5 h-3.5" />Refresh</button>
+        <button onClick={reload} className="text-xs text-warmgray flex items-center gap-1 cursor-pointer min-h-[40px] px-2"><RefreshCw className="w-3.5 h-3.5" />Refresh</button>
       </div>
 
       <Card className="p-4">

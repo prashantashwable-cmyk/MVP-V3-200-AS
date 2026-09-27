@@ -104,7 +104,7 @@ export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ use
           <Button variant="emerald" disabled={busy || !reason.trim()} onClick={() => act(() => approveMargin(ctx, actor, view.order.id, reason))}>Approve margin</Button>
         </div>
       )}
-      {isAdmin && (
+      {isAdmin && status !== 'sent' && status !== 'accepted' && (
         <Button variant="emerald" disabled={busy || status !== 'approved'} onClick={() => act(() => sendQuote(ctx, actor, view.order.id))}
           title={status === 'pending_approval' ? 'Approve the margin first' : undefined}>Send quote to customer</Button>
       )}
@@ -114,6 +114,16 @@ export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ use
           <Button variant="emerald" fullWidth disabled={busy} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'accept'))}>Accept quote</Button>
           <input className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="What would you like changed?" />
           <Button variant="secondary" fullWidth disabled={busy || !note.trim()} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'changes', note))}>Request changes</Button>
+        </div>
+      )}
+      {isAdmin && status === 'sent' && (
+        <div className="space-y-2 p-3 rounded-xl bg-alabaster">
+          <div className="text-xs text-warmgray">Customer replied by phone, WhatsApp or in person? Record their decision here (saved in the audit log).</div>
+          <input className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="How they confirmed, or what they want changed" />
+          <div className="flex gap-2">
+            <Button variant="emerald" disabled={busy || !note.trim()} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'accept', note))}>Record acceptance</Button>
+            <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'changes', note))}>Record change request</Button>
+          </div>
         </div>
       )}
       {q.data?.quote?.decidedAt && <div className="text-xs text-warmgray">Customer decision {formatDateTime(q.data.quote.decidedAt)}{q.data.quote.decisionNote ? ` — “${q.data.quote.decisionNote}”` : ''}</div>}
