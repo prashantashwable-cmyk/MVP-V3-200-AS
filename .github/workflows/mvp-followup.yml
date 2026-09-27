@@ -1,0 +1,43 @@
+name: MVP follow-up robot
+
+# D-32: chase late work at 9:00 and 17:00 IST (03:30 and 11:30 UTC), even when nobody has the
+# app open. Runs scripts/mvp-followup-run.ts, which signs in as the robot Admin account from the
+# two secrets below. Until the Owner adds them, the run prints a notice and stays green.
+# Setup: docs/mvp/OWNER_STEPS.md, "Follow-up robot".
+# GitHub runs schedules only from the default branch (main), so this file is also registered
+# on main; it always checks out the MVP deploy branch (the same code the phone link runs).
+on:
+  schedule:
+    - cron: '30 3,11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be sent, send nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mvp-followup
+  cancel-in-progress: false
+
+jobs:
+  chase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/mvp-step-11-security-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run the follow-up scan
+        env:
+          FOLLOWUP_ROBOT_EMAIL: ${{ secrets.FOLLOWUP_ROBOT_EMAIL }}
+          FOLLOWUP_ROBOT_PASSWORD: ${{ secrets.FOLLOWUP_ROBOT_PASSWORD }}
+        run: npx tsx scripts/mvp-followup-run.ts ${{ inputs.dry_run && '--dry-run' || '' }}
