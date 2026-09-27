@@ -12,7 +12,7 @@ import type { DocumentRecord } from '../../domain/entities';
 import type { MvpCtx as Ctx } from '../services/orderService';
 import { MAX_EVIDENCE_BYTES } from '../config';
 import type { MvpActor, MvpCtx } from '../services/orderService';
-import { ErrorNote } from './ui';
+import { ErrorNote, useT } from './ui';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -65,6 +65,7 @@ export async function makeThumbnail(dataUrl: string): Promise<string> {
  * so opening an order no longer downloads every full photo.
  */
 export const EvidenceThumb: React.FC<{ ctx: Ctx; doc: DocumentRecord; className?: string }> = ({ ctx, doc, className = 'w-full aspect-square' }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,16 +85,16 @@ export const EvidenceThumb: React.FC<{ ctx: Ctx; doc: DocumentRecord; className?
       <button type="button" onClick={show} aria-label={`Open ${doc.caption ?? 'evidence'}`} className={`${className} rounded-lg overflow-hidden bg-alabaster flex items-center justify-center cursor-pointer`}>
         {preview && isImage
           ? <img src={preview} alt={doc.caption ?? 'evidence'} className="w-full h-full object-cover" loading="lazy" />
-          : <span className="text-[10px] text-warmgray px-1 text-center">{isImage ? 'Photo' : 'PDF'} · tap to open</span>}
+          : <span className="text-[10px] text-warmgray px-1 text-center">{isImage ? 'Photo' : 'PDF'} · {t('tap to open')}</span>}
       </button>
       {open && (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setOpen(false)}>
           {error && <div className="bg-white rounded-lg p-3 text-sm text-error">{error}</div>}
-          {!error && !full && <div className="text-white text-sm">Loading…</div>}
+          {!error && !full && <div className="text-white text-sm">{t('Loading…')}</div>}
           {full && isImage && <img src={full} alt={doc.caption ?? 'evidence'} className="max-w-full max-h-[80vh] rounded-lg" />}
           {full && !isImage && <a href={full} download={`${doc.caption ?? 'document'}.pdf`} onClick={e => e.stopPropagation()} className="bg-white rounded-lg px-4 py-3 text-sm font-bold">Download the document</a>}
           {doc.caption && <div className="text-white text-xs mt-2">{doc.caption}</div>}
-          <button type="button" className="mt-3 text-white text-sm underline min-h-[40px]">Close</button>
+          <button type="button" className="mt-3 text-white text-sm underline min-h-[40px]">{t('Close')}</button>
         </div>
       )}
     </>
@@ -109,7 +110,8 @@ export const PhotoInput: React.FC<{
   photos: SavedPhoto[];
   onChange: (photos: SavedPhoto[]) => void;
   label?: string;
-}> = ({ ctx, actor, target, caption, photos, onChange, label = 'Add photo' }) => {
+}> = ({ ctx, actor, target, caption, photos, onChange, label }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export const PhotoInput: React.FC<{
         ))}
         <button type="button" disabled={busy} onClick={() => setOpen(true)}
           className="w-16 h-16 rounded-lg border-2 border-dashed border-[#B8873D]/50 flex flex-col items-center justify-center text-[10px] text-[#8a6224] cursor-pointer disabled:opacity-50">
-          <Camera className="w-5 h-5" />{busy ? 'Saving…' : label}
+          <Camera className="w-5 h-5" />{busy ? t('Saving…') : (label ?? t('Add photo'))}
         </button>
       </div>
       {open && (

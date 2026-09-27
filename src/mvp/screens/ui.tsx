@@ -8,6 +8,7 @@ import type { MvpActor, MvpCtx } from '../services/orderService';
 import type { Health } from '../health';
 import { useLanguage } from '../../lib/language';
 import { translateHealth, type Lang } from '../i18n';
+import { tr } from '../i18nUi';
 
 export function toMvpActor(user: User): MvpActor {
   return {
@@ -108,6 +109,12 @@ const HEALTH_STYLE: Record<Health, { cls: string; icon: React.ComponentType<{ cl
 /** D-18: the current language, reactive to the same switch the legacy app uses. */
 export function useMvpLang(): Lang {
   return useLanguage().language;
+}
+
+/** Screen text in the viewer's language (field-staff and customer screens), English fallback. */
+export function useT(): (english: string) => string {
+  const lang = useMvpLang();
+  return useCallback((english: string) => tr(lang, english), [lang]);
 }
 
 export const HealthBadge: React.FC<{ health: Health }> = ({ health }) => {

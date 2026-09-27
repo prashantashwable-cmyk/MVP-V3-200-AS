@@ -13,10 +13,11 @@ import { editMilestoneAmounts, isSettled, listMilestones, rejectPaymentProof, su
 import { formatDate, formatInr } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
 import { PhotoInput, type SavedPhoto } from './PhotoInput';
-import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 const Row: React.FC<{ m: PaymentMilestone; user: User; orderId: string; onDone: () => void }> = ({ m, user, orderId, onDone }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const [ref, setRef] = useState(m.proof?.reference ?? '');
   const [method, setMethod] = useState('UPI');
@@ -28,20 +29,20 @@ const Row: React.FC<{ m: PaymentMilestone; user: User; orderId: string; onDone: 
   return (
     <li className="py-3 space-y-2">
       <div className="flex flex-wrap justify-between gap-2 text-sm">
-        <span className="font-semibold">{m.label}</span>
+        <span className="font-semibold">{t(m.label)}</span>
         <span>{formatInr(m.amount)} · <strong className={settled ? 'text-royalemerald' : ''}>{m.waived ? 'WAIVED' : m.status}</strong>{m.dueDate ? ` · due ${formatDate(m.dueDate)}` : ''}</span>
       </div>
       {m.status === 'PARTIAL' && <div className="text-xs text-warmgray">Received {formatInr(m.amountReceived)} so far</div>}
-      {m.proof && !settled && <div className="text-xs">Proof submitted: <strong>{m.proof.reference}</strong></div>}
+      {m.proof && !settled && <div className="text-xs">{t('Proof submitted:')} <strong>{m.proof.reference}</strong></div>}
       {m.rejectedReason && !settled && <div className="text-xs text-error">Proof not accepted: {m.rejectedReason}</div>}
       {error && <ErrorNote message={error} />}
 
       {user.role === 'customer' && !settled && m.kind !== 'SURVEY_FEE' && (
         <div className="space-y-2 p-3 rounded-xl bg-alabaster">
-          <label className={labelCls}>UTR / transaction reference</label>
+          <label className={labelCls}>{t('UTR / transaction reference')}</label>
           <input className={inputCls} value={ref} onChange={e => setRef(e.target.value)} />
-          <PhotoInput ctx={ctx} actor={actor} target={{ orderId }} caption={`${m.label} payment screenshot`} photos={shot} onChange={setShot} label="Screenshot" />
-          <Button variant="primary" disabled={busy || !ref.trim()} onClick={() => act(() => submitPaymentProof(ctx, actor, m.id, ref, shot[0]?.id))}>I have paid</Button>
+          <PhotoInput ctx={ctx} actor={actor} target={{ orderId }} caption={`${m.label} payment screenshot`} photos={shot} onChange={setShot} label={t('Screenshot')} />
+          <Button variant="primary" disabled={busy || !ref.trim()} onClick={() => act(() => submitPaymentProof(ctx, actor, m.id, ref, shot[0]?.id))}>{t('I have paid')}</Button>
         </div>
       )}
 
@@ -79,6 +80,7 @@ const Row: React.FC<{ m: PaymentMilestone; user: User; orderId: string; onDone: 
 
 export const PaymentsPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const ms = useLoad(() => listMilestones(ctx, view.order.id), [ctx, view.order.id, view.stage, view.payments?.paid]);
   const { run, busy, error } = useAction();
   const [edit, setEdit] = useState<Record<string, string>>({});

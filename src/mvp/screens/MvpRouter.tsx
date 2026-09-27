@@ -23,12 +23,13 @@ import { OwnerView } from './OwnerView';
 import { Reports } from './Reports';
 import { UsersScreen } from './UsersScreen';
 import { NotificationBell } from './Bell';
-import { MvpAutoRefresh, useLastRefresh } from './ui';
+import { MvpAutoRefresh, useLastRefresh, useT } from './ui';
 
 /** Tells people the screen keeps itself up to date (several people work on one order). */
 const UpdatedLabel: React.FC = () => {
   const at = useLastRefresh();
-  return <span className="text-[10px] text-warmgray self-center">Updated {new Date(at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>;
+  const t = useT();
+  return <span className="text-[10px] text-warmgray self-center">{t('Updated')} {new Date(at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>;
 };
 
 export interface MvpRouterProps {

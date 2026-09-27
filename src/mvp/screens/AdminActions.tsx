@@ -13,7 +13,7 @@ import {
 import type { OrderViewModel } from '../services/readModels';
 import type { Person } from '../services/people';
 import { MVP_STAGES, MVP_STAGE_LABELS } from '../stage';
-import { ErrorNote, inputCls, labelCls, SectionTitle, useAction } from './ui';
+import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useT } from './ui';
 
 const GENERIC_COMPLETE: Task['type'][] = ['REVIEW_ORDER', 'REVIEW_NOT_FEASIBLE', 'AMC_FOLLOW_UP', 'EMERGENCY_RESPONSE'];
 
@@ -29,6 +29,7 @@ export const AdminActions: React.FC<{
   view: OrderViewModel; ctx: MvpCtx; actor: MvpActor; people: Person[]; onDone: () => void;
 }> = ({ view, ctx, actor, people, onDone }) => {
   const { run, busy, error } = useAction();
+  const t = useT();
   const [mode, setMode] = useState<Mode>(null);
   const [taskId, setTaskId] = useState<string>(view.currentTask?.id ?? view.openTasks[0]?.id ?? '');
   const [assignee, setAssignee] = useState('');
@@ -55,7 +56,7 @@ export const AdminActions: React.FC<{
 
   return (
     <Card className="p-4 space-y-3">
-      <SectionTitle>{isAdmin ? 'Admin actions' : 'Actions'}</SectionTitle>
+      <SectionTitle>{isAdmin ? 'Admin actions' : t('Actions')}</SectionTitle>
       {error && <ErrorNote message={error} />}
       <div className="flex flex-wrap gap-2">
         {isAdmin && openSurveyTask && <Button variant="primary" onClick={() => setMode('surveyor')}>Assign surveyor</Button>}
@@ -67,7 +68,7 @@ export const AdminActions: React.FC<{
         {isAdmin && view.currentTask && GENERIC_COMPLETE.includes(view.currentTask.type) && (
           <Button variant="emerald" disabled={busy} onClick={() => done(() => completeTask(ctx, actor, view.currentTask!.id))}>Mark “{view.currentTask.title}” done</Button>
         )}
-        {view.status === 'ACTIVE' && actor.role !== 'owner' && <Button variant="outline" onClick={() => setMode('blocker')}>Raise blocker</Button>}
+        {view.status === 'ACTIVE' && actor.role !== 'owner' && <Button variant="outline" onClick={() => setMode('blocker')}>{t('Raise blocker')}</Button>}
         {isAdmin && view.status === 'ACTIVE' && <Button variant="ghost" onClick={() => setMode('hold')}>Put on hold</Button>}
         {isAdmin && view.status === 'ON_HOLD' && (
           <Button variant="emerald" disabled={busy} onClick={() => done(() => resumeOrder(ctx, actor, orderId, 'Resumed from Order View'))}>Resume order</Button>

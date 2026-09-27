@@ -8,7 +8,8 @@ import type { User } from '../../types';
 import { Button, Card } from '../../components/Common';
 import { getLatestSurvey, waiveSurveyFee } from '../services/orderService';
 import type { OrderViewExtraProps } from './MvpOrderView';
-import { ErrorNote, inputCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, SectionTitle, useAction, useLoad, useMvpCtx, useMvpLang } from './ui';
+import { tr } from '../i18nUi';
 import { QuotePanel } from './QuotePanels';
 import { PaymentsPanel } from './PaymentsPanel';
 import { ReadinessPanel, SupplyPanel } from './SupplyPanels';
@@ -49,11 +50,12 @@ const SurveyFeePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, 
 };
 
 export const OrderExtras: React.FC<{ user: User; onOpenSurvey?: (orderId: string) => void } & OrderViewExtraProps> = props => {
+  const lang = useMvpLang();
   const surveyTask = props.view.openTasks.find(t => t.type === 'SURVEY' && t.assigneeId === props.user.id);
   return (
     <>
       {surveyTask && props.onOpenSurvey && (
-        <Button variant="primary" fullWidth onClick={() => props.onOpenSurvey!(props.view.order.id)}>Start the survey</Button>
+        <Button variant="primary" fullWidth onClick={() => props.onOpenSurvey!(props.view.order.id)}>{tr(lang, 'Start the survey')}</Button>
       )}
       <EmergencyButton {...props} />
       <EmergencyPanel {...props} />
