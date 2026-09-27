@@ -303,3 +303,41 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - Prefer ◆ canonical code, then ★ bridged screens (switch their reads), then thin new screens.
 - Rewire ○ legacy screens only if they are small.
 - Every new screen or service gets a one-line "why not reuse" in the PR.
+
+**D-32 Follow-up ladder (Owner, 2026-09-27: "app itself acts as manager for follow-up").**
+- Rule-based, **not an AI manager** (Phase 1 ban). The rules live in `src/mvp/followUp.ts`; the thresholds live in `config.ts`.
+- **The ladder, per open task:**
+
+  | Rung | When | Who is told |
+  |---|---|---|
+  | L0 | Due within 24 h and still TODO | The assignee |
+  | L1 | Overdue | The assignee |
+  | L2 | More than `ESCALATE_ADMIN_HOURS` (24) late | + the Admin |
+  | L3 | More than `ESCALATE_OWNER_HOURS` (72) late | + the Owner |
+
+- **Special cases:**
+  - A late emergency goes straight to L3.
+  - A late customer task goes straight to L2, so the Admin calls the customer.
+  - A task left on a whole role for more than 4 h → the Admin.
+  - A blocker open longer than `BLOCKER_DUE_DAYS` → the Admin, and at twice that → the Owner.
+  - An ACTIVE order with no next action → the Admin.
+  - A lead whose `nextFollowUp` date has passed → its sales owner, and the Admin after 24 h.
+  - A BLOCKED task is never nagged: its blocker is chased instead.
+  - Cancelled and on-hold orders are skipped, except emergencies and the hold review.
+- **Each reminder fires once a day per person:** it is keyed by person, item, rung and IST day. It stops as soon as the work is done.
+- **Where the scan runs:**
+  - The Admin/Owner app runs the full scan on load and then hourly.
+  - Every other person's app checks their own work.
+  - A robot Admin account runs the full scan at 9:00 and 17:00 IST (`.github/workflows/mvp-followup.yml`).
+- **Daily summary:** the Admin and the Owner each get one a day, and it carries the counts.
+- **Chase list** (Admin dashboard):
+  - Late items grouped by the person who has to act, worst first.
+  - Buttons: WhatsApp (a `wa.me` link with the message prefilled in the Admin's app language; nothing is sent until the Admin presses Send), Call, and "Chased".
+  - "Chased" is Admin-only and audited. It hides the row for `CHASE_SNOOZE_HOURS` (20).
+  - The Admin records staff mobiles on the Users screen, because Google sign-in gives none. ⚖ VERIFY the customer message wording.
+- **Owner approval for the robot (2026-09-27):** asked "Should it also chase people automatically at 9 AM and 5 PM when nobody has it open?", the Owner chose "Yes, 9 AM + 5 PM", whose stated terms were: a GitHub scheduled job, one robot Admin login the Owner creates, and 2 GitHub secrets. That covers:
+  - a scheduled job that writes reminder notifications (and nothing else) to the live project
+  - a password-based robot Admin account, which needs **Email/Password sign-in enabled in Firebase Authentication**
+- **The Owner makes the Firebase change themselves** (OWNER_STEPS §5). No session changes Firebase settings, and no session runs the robot against live data.
+- Until the secrets exist, a scheduled run prints a notice and writes nothing.
+- On the first live run each task may get one extra "overdue" reminder, because the reminder key format changed (`overdue:<id>` became `overdue:OVERDUE:<id>`). This is harmless.

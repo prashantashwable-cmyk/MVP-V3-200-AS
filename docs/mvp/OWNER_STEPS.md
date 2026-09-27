@@ -2,7 +2,7 @@
 
 Claude cannot do these from its session: they need your own Google or GitHub login. Each one takes a few minutes.
 
-## 1. Put the fixes on the phone link (about 2 min)
+## 1. Put the fixes on the phone link. DONE on 2026-09-27 (Claude merged #16 and #17 and redeployed)
 1. Open https://github.com/prashantashwable-cmyk/MVP-V3-200-AS/pull/16. Click **Ready for review**, then **Merge pull request**, then **Confirm**.
 2. Do the same for https://github.com/prashantashwable-cmyk/MVP-V3-200-AS/pull/17.
    Its base changes automatically once #16 is merged. If GitHub asks, set the base to `claude/mvp-step-11-security-hardening`.
@@ -31,6 +31,24 @@ This is a separate test copy, so testers never touch real customer data.
 6. Go to **Project settings** (gear icon), then **Your apps**, and add a **Web app**. Copy the `firebaseConfig` values and send them to Claude.
    These values are public web settings, not secrets. Claude will then build a staging link from them.
 7. Send Claude the 8 testers' Gmail addresses and the date for Lift Day.
+
+## 5. Switch on the 9 AM / 5 PM follow-up robot (about 10 min)
+The app already chases people whenever anyone opens it. The robot does the same at 9:00 and 17:00 even when nobody does.
+1. **Create the robot's login.**
+   - In https://console.firebase.google.com (project **dogwood-torus-v71nt**), go to **Authentication**, then **Sign-in method**.
+   - Enable **Email/Password**. This is needed only for the robot; everyone else keeps signing in with Google.
+   - Go to **Authentication**, then **Users**, then **Add user**.
+   - Email: `followup-robot@allindiaelevators.in` (any address you own). Choose a long random password and keep it safe.
+2. **Make it an Admin.** In the app, go to **More**, then **Users**, then **Invite someone**. Enter that email, name `Follow-up robot`, role **admin**, and tap **Send invite**.
+3. **Give GitHub the login.**
+   - Go to https://github.com/prashantashwable-cmyk/MVP-V3-200-AS/settings/secrets/actions and click **New repository secret**.
+   - Add `FOLLOWUP_ROBOT_EMAIL` (the email) and `FOLLOWUP_ROBOT_PASSWORD` (the password).
+4. **Try it once.**
+   - Go to **Actions**, then **MVP follow-up robot**, then **Run workflow**. Keep **dry run** ticked and click **Run**.
+   - The log lists what it would chase and sends nothing. After that it runs by itself every day.
+   - GitHub runs schedules only from the `main` branch. If **MVP follow-up robot** is not in the Actions list, ask Claude to register it on `main`, the same way the phone-link workflow was.
+
+Also on the **Users** screen: tap **Add mobile** next to each staff member. The chase list needs this for its WhatsApp and Call buttons.
 
 ## Decisions already taken (change any of them by telling Claude)
 - **Marathi and Hindi for field screens:** done for the technician, surveyor, QC and customer screens and the shared order screen. Admin screens stay English. A native speaker should review the wording (`src/mvp/i18nUi.ts`).

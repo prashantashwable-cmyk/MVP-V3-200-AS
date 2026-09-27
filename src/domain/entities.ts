@@ -568,6 +568,8 @@ export interface NotificationRecord {
   createdAt: string;
   /** MVP: set by the audience when opened in the bell. */
   readAt?: string;
+  /** MVP (D-32): small numbers the text shows, e.g. the daily digest's counts. */
+  data?: Record<string, number>;
 }
 
 export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -694,6 +696,8 @@ export interface Task {
   previousStatus?: TaskStatus;
   /** Small structured result the assignee records (e.g. the customer's site-readiness checklist). */
   data?: Record<string, unknown>;
+  /** D-32: when the Admin last chased the assignee from the chase list (snoozes the row). */
+  lastChasedAt?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -720,6 +724,8 @@ export interface Blocker {
   createdBy: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  /** D-32: when the Admin last chased the blocker's owner from the chase list. */
+  lastChasedAt?: string;
   version: number;
 }
 

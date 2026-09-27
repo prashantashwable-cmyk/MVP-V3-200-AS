@@ -47,6 +47,17 @@ export const AT_RISK_WINDOW_HOURS = 24;
 export const EMERGENCY_RESPONSE_MINUTES = 45; // ⚖ VERIFY the right response target (D-28)
 export const BLOCKER_DUE_DAYS = 2; // D-07
 
+/**
+ * D-32 follow-up ladder (src/mvp/followUp.ts): when an overdue task is escalated past the
+ * person doing it. The Owner chose the defaults; change them here only.
+ */
+export const ESCALATE_ADMIN_HOURS = 24;
+export const ESCALATE_OWNER_HOURS = 72;
+/** A task left on a whole role (nobody picked it up) is flagged to the Admin after this. */
+export const UNASSIGNED_ALERT_HOURS = 4;
+/** "Chased" on the Admin's chase list hides the row this long (so tomorrow's run shows it again). */
+export const CHASE_SNOOZE_HOURS = 20;
+
 /** D-15: minimum markup % before Admin approval is required (Owner's "minimum 20% margin"). */
 export const MIN_MARKUP_PCT = 20;
 

@@ -409,7 +409,55 @@ async function main() {
   const f2job = await people.admin.call('getJob', '$ctx', f2);
   ok(!!f2job.checkedInAt && both.some(b => b.ok), `double-tap CHECK IN → checked in once (${both.map(b => (b.ok ? 'ok' : b.error!.message.slice(0, 40))).join(' / ')})`);
 
-  // ---- Summary ----
+  // ---- G. Follow-up ladder (D-32): three phones scan at the same moment ----
+  area = 'G follow-ups';
+  const ftNow = await people.admin.call('rawGet', 'tasks', ft.id);
+  await people.admin.call('repoUpdate', 'tasks', ft.id, { dueDate: new Date(Date.now() - 30 * 3_600_000).toISOString() }, ftNow.version);
+  const scans = await Promise.all([
+    people.admin.try('scanTaskNotifications', '$ctx'),
+    people.owner.try('scanTaskNotifications', '$ctx'),
+    people.tech1.try('scanMyFollowUps', '$ctx', '$actor'),
+    people.admin.try('scanTaskNotifications', '$ctx'),
+  ]);
+  ok(scans.every(x => x.ok), `Admin, Owner, technician and a second Admin phone scan at once without errors (${scans.map(x => (x.ok ? 'ok' : x.error!.message.slice(0, 50))).join(' / ')})`);
+  const techBell = await people.tech1.call('listMyNotifications', '$ctx', '$actor', 1000);
+  const adminBell = await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000);
+  const ownerBell = await people.owner.call('listMyNotifications', '$ctx', '$actor', 1000);
+  const nOverdue = techBell.filter((n: any) => n.templateId === 'mvp_task_overdue' && n.projectId === f2).length;
+  const nEsc = adminBell.filter((n: any) => n.templateId === 'mvp_escalated' && n.projectId === f2).length;
+  ok(nOverdue === 1 && nEsc === 1, `30 h late installation: technician reminded once, Admin escalated once (${nOverdue} / ${nEsc})`);
+  ok(!ownerBell.some((n: any) => n.templateId === 'mvp_escalated' && n.projectId === f2), 'Owner not told before 72 h');
+  const digests = [...adminBell, ...ownerBell].filter((n: any) => n.templateId === 'mvp_daily_digest');
+  ok(digests.length === 2 && digests.every((n: any) => (n.data?.overdue ?? 0) >= 1), `one digest each for Admin and Owner, with counts (${digests.length})`);
+  const chases = await people.admin.call('listChases', '$ctx');
+  const row = chases.find((r: any) => r.taskId === ft.id);
+  ok(!!row && row.level === 2 && row.personName.length > 0, `the chase list shows it (L${row?.level}, ${row?.personName})`);
+  const ownerMark = await people.owner.try('markChased', '$ctx', '$actor', row, 'call');
+  ok(!ownerMark.ok, 'the Owner cannot mark it chased');
+  await people.admin.call('markChased', '$ctx', '$actor', row, 'whatsapp');
+  ok(!(await people.admin.call('listChases', '$ctx')).some((r: any) => r.taskId === ft.id), '"Chased" on the real database hides the row');
+
+    // The 9:00/17:00 robot (scripts/mvp-followup-run.ts) against the same emulator.
+  const robot = (args: string[], env: Record<string, string>) => new Promise<{ code: number; out: string }>(resolve => {
+    const pr = spawn('npx', ['tsx', 'scripts/mvp-followup-run.ts', ...args], { env: { ...process.env, VITE_FIREBASE_PROJECT_ID: PROJECT, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    pr.stdout!.on('data', d => { out += d; });
+    pr.stderr!.on('data', d => { out += d; });
+    pr.on('close', code => resolve({ code: code ?? 1, out }));
+  });
+  const noSetup = await robot([], { FOLLOWUP_ROBOT_EMAIL: '', FOLLOWUP_ROBOT_PASSWORD: '' });
+  ok(noSetup.code === 0 && /not set up yet/.test(noSetup.out), 'robot without its login: a notice, not a failure (schedule stays green)');
+  const asTech = await robot(['--dry-run'], { FOLLOWUP_ROBOT_EMAIL: people.tech1.email, FOLLOWUP_ROBOT_PASSWORD: PASSWORD });
+  ok(asTech.code === 1 && /must have the Admin role/.test(asTech.out), 'robot refuses to run as a non-Admin account');
+  const bellBefore = (await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000)).length;
+  const dry = await robot(['--dry-run'], { FOLLOWUP_ROBOT_EMAIL: ADMIN_EMAIL, FOLLOWUP_ROBOT_PASSWORD: PASSWORD });
+  const bellAfterDry = (await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000)).length;
+  ok(dry.code === 0 && /DRY RUN: \d+ follow-ups/.test(dry.out) && bellAfterDry === bellBefore, `robot --dry-run lists and sends nothing (${(dry.out.match(/DRY RUN: [^\n]*/) ?? [''])[0].slice(0, 70)})`);
+  const real = await robot([], { FOLLOWUP_ROBOT_EMAIL: ADMIN_EMAIL, FOLLOWUP_ROBOT_PASSWORD: PASSWORD });
+  const escAfter = (await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000)).filter((n: any) => n.templateId === 'mvp_escalated' && n.projectId === f2).length;
+  ok(real.code === 0 && /Follow-up run done/.test(real.out) && escAfter === 1, `robot real run: done, and still one escalation (already sent today) (${escAfter})`);
+
+    // ---- Summary ----
   area = 'summary';
   const byArea: Record<string, { ok: number; fail: number }> = {};
   for (const r of results) { byArea[r.area] ??= { ok: 0, fail: 0 }; byArea[r.area][r.ok ? 'ok' : 'fail']++; }
