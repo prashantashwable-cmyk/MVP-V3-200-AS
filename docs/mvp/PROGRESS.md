@@ -161,6 +161,8 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 30 | Technician, QC and customer screens are mostly English in Marathi/Hindi mode (only stages, health and nav are translated, see issue 18) | PR | Medium | Owner decision (D-18): translate the field-staff screens before go-live? |
 | 31 | No Content-Security-Policy header yet (Firebase Auth, fonts and maps need a tested allow-list). The other baseline headers are now set | PR | Low | Open |
 | 32 | The Firebase web API key and `/api/config/maps-key` are public by design; they must be restricted by HTTP referrer in Google Cloud Console | PR | Medium | Owner action before go-live (Go-live checklist, Step 14) |
+| 33 | Photos are stored inside Firestore `documents` records (up to 900 KB each), so opening an order downloads every photo: with ~20 real photos (~200–300 KB after compression) that is ~5 MB per open. Auto-refresh of the order screen is limited to every 3 min for this reason | MU | Medium | Open. Proposed: store a small thumbnail in the record and fetch the full photo only on tap (additive: new collection plus a matching rule; Owner approval needed for the rules change) |
+| 34 | A person loses read access to an order once their last task on it is done (participants = open-task assignees), e.g. QC after PASS, technician after COMPLETE. By design, but they can no longer look back at a job they finished | MU | Low | Owner decision: keep, or keep finished staff as read-only participants |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -422,4 +424,19 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **UI checks (demo build, 390×844):** QC FAIL puts the order ON HOLD and lists it under "QC failure" and "On hold". The customer "I have paid" proof reaches the Admin. A triple-tap on Mark PAID records one payment and one audit entry. The Marathi/Hindi switch works (partial translation, issue 30). There is no horizontal scroll on any screen tested.
 - **Scope guard:** PASS WITH WARNINGS, no required fixes. W1 is fixed as above. W2: this branch is a Step 11 follow-up, not a numbered step.
 - **Open for go-live:** issues 27–32.
+
+### Multi-user Phase 0 + Phase 1 (2026-09-27), branch `claude/mvp-multiuser-phase1`
+- **Phase 0 fixes:**
+  1. **Screens update themselves** (`MvpAutoRefresh` + `useLoad` in `src/mvp/screens/ui.tsx`). Every screen reloads when the person returns to the app or the network comes back. While the app is visible, lists and the bell reload every minute, the order screen every 3 minutes (photos and history, see issue 33), and dashboard/owner/reports every 5 minutes. A small "Updated hh:mm" label sits next to the bell. A reload never blanks a screen or clears a half-typed form (checked in the browser).
+  2. **Safe saves:** the versioned `update` in `firestoreRepository.ts` is now one Firestore transaction. Before, it was check-then-write, and a racing save could silently overwrite another. A stale save now says "Someone else just changed this. Reload the screen and try again."
+  3. **Test-database switch:** `src/lib/firebase.ts` reads `VITE_FIREBASE_*` for a staging project, with the live project as the default (unchanged behaviour). It connects to the emulators only for a `demo-*` project.
+  4. `firestoreReadStats` (a counter only) in the repository, used to measure what each screen costs.
+- **Phase 1 harness:** `npm run mvp:multiuser` (emulator only) runs `scripts/mvp-multiuser-check.ts` with 11 simulated people. Each is its own process and signed-in Firebase client (`scripts/mvp/mu-worker.ts`); the Admin is the owner email and everyone else signs in through the Admin's invite. **Result: 42/42 PASS, about 75 s.** Relay 15/15 hand-offs reach the next person's own view. Ten parallel orders get unique AE codes and the Owner totals add up. Collisions 6/6. Privacy 5/5. Double taps 2/2. Usage: about 1.5 lakh reads per working day for 15 people, roughly ₹158/month ⚖ VERIFY pricing.
+- **Real bugs the harness found (they only show under real rules with separate users; the demo-mode checks could not see them):**
+  1. **Every real survey submission was refused.** Submitting mirrors the lead to QUOTE, and the rules only let a lead's `surveyorId` read or update it, but that field was never set. Fix: `assignSurveyor` and survey reassignment record the surveyor on the lead. No rules change.
+  2. **Every real QC PASS failed at the end.** After the decision QC is no longer a participant, so the follow-up order read was refused. Fix: use the order `applyEvent` returns. The old repository `update` also re-read after writing and would have hit the same refusal; the transactional update no longer re-reads.
+  3. **Simultaneous "Mark qualified" by two people:** 15 of 20 were refused, because the counter rule reports contention as permission-denied. Fix: `nextSequence` retries up to 8 times with random back-off.
+  4. The silent-overwrite race: the old code lost a save in 20/20 races; the new code lost 0/20.
+- **Checks:** `npm run lint` PASS; `npm run mvp:checks` PASS (817 OK); `npm run mvp:rules` PASS (106/106); `npm run mvp:multiuser` PASS (42/42); 42/42 legacy checks PASS; `npm run build` PASS.
+- **Not done (needs the Owner):** the staging Firebase project, and the staging deploy and invites (Day 3 of the plan). Invites and test orders are created in the app itself during Lift Day (Users screen), so no seed script is needed.
 

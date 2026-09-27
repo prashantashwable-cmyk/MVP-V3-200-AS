@@ -180,6 +180,19 @@ async function refreshParticipants(ctx: MvpCtx, actor: MvpActor, orderId: string
   }
 }
 
+/**
+ * Records the assigned surveyor on the lead. firestore.rules let `leads.surveyorId` read and
+ * update the lead, which submitting the survey needs (it mirrors the lead to QUOTE, D-04).
+ * Without it every real survey submission was refused (multi-user emulator test finding).
+ */
+async function setLeadSurveyor(ctx: MvpCtx, order: OrderRecord, surveyorId: string): Promise<void> {
+  if (!order.sourceLeadId) return;
+  const repo = leadRepository(ctx);
+  const lead = await repo.get(order.sourceLeadId);
+  if (!lead || (lead as { surveyorId?: string }).surveyorId === surveyorId) return;
+  await repo.update(lead.id, { surveyorId, updatedAt: nowOf(ctx).toISOString() } as Partial<MvpLead>);
+}
+
 async function syncLeadStatus(ctx: MvpCtx, order: OrderRecord, status: MvpLeadStatus): Promise<void> {
   if (!order.sourceLeadId) return;
   const repo = leadRepository(ctx);
@@ -460,6 +473,7 @@ export async function assignSurveyor(ctx: MvpCtx, actor: MvpActor, orderId: stri
   const tasks = await listOrderTasks(ctx, orderId);
   const feeOpen = tasks.find(t => t.type === 'COLLECT_SURVEY_FEE' && isOpenTask(t));
   if (feeOpen) throw new MvpError('gate', 'Collect or waive the survey fee before assigning a surveyor (D-30).');
+  await setLeadSurveyor(ctx, order, surveyorId);
   const result = await applyEvent(ctx, actor, orderId, { type: 'SURVEYOR_ASSIGNED', surveyorId, date });
   await notify(ctx, surveyorId, 'mvp_survey_scheduled', orderId, `survey:${orderId}:${surveyorId}`);
   await notify(ctx, customerToken(order.customerId), 'mvp_survey_scheduled', orderId, `survey:${orderId}`);
@@ -570,6 +584,9 @@ export async function reassignTask(ctx: MvpCtx, actor: MvpActor, taskId: string,
   await audit(ctx, actor, 'TASK_REASSIGNED', 'Task', taskId, task.orderId, { assigneeId: task.assigneeId }, { assigneeId: assignee.id }, reason);
   if (task.orderId && task.type === 'INSTALLATION' && assignee.role === 'technician') {
     await syncInstallationJob(ctx, task.orderId, assignee.id);
+  }
+  if (task.orderId && task.type === 'SURVEY' && assignee.role === 'surveyor') {
+    await setLeadSurveyor(ctx, await loadOrder(ctx, task.orderId), assignee.id);
   }
   await notify(ctx, assignee.id, 'mvp_task_assigned', task.orderId, `${taskId}:reassign:${assignee.id}`);
   if (task.orderId) await refreshParticipants(ctx, actor, task.orderId);

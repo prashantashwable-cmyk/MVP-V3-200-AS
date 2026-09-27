@@ -25,7 +25,7 @@ const Tile: React.FC<{ icon: React.ComponentType<{ className?: string }>; label:
 
 export const OwnerView: React.FC<{ user: User }> = ({ user }) => {
   const { ctx } = useMvpCtx(user);
-  const { data, error, loading } = useLoad(() => buildOwnerSummary(ctx), [ctx]);
+  const { data, error, loading } = useLoad(() => buildOwnerSummary(ctx), [ctx], { every: 5 });
   if (loading && !data) return <Loading label="Loading the company overview…" />;
   if (error) return <ErrorNote message={`Could not load the overview: ${error}`} />;
   if (!data) return null;
