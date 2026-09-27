@@ -226,6 +226,18 @@ async function assistantDemo() {
   check(await refuse(() => promiseTask(ctx, USERS.tech2, install.id, inDays(2), 'x')), 'someone else cannot promise for this task');
   check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(-1), 'x')), 'a promised date must be in the future');
   check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(20), 'x')), 'more than 14 days needs the Admin to re-plan');
+  {
+    // Not late yet: "more time" is measured from the due date, not from today.
+    const c2 = new Clock();
+    const ctx2 = demoCtx(c2, USERS.admin);
+    const s2 = await runS1(ctx2, c2, 12);
+    const t2 = (await listOrderTasks(ctx2, s2.orderId)).find(t => t.type === 'INSTALLATION' && t.status === 'TODO')!;
+    const afterDue = (d: number) => new Date(new Date(t2.dueDate).getTime() + d * 24 * HOUR).toISOString();
+    check(await refuse(() => promiseTask(ctx2, USERS.tech1, t2.id, new Date(new Date(t2.dueDate).getTime() - HOUR).toISOString(), 'x')), 'a "new" date before the current due date is refused');
+    const p2 = await promiseTask(ctx2, USERS.tech1, t2.id, afterDue(3), 'Crane only after the 20th');
+    check(promiseOf(p2)?.count === 1, 'a task due in 3 weeks can still get 3 more days (cap counts from the due date)');
+    check(await refuse(() => promiseTask(ctx2, USERS.tech1, t2.id, afterDue(15), 'x')), 'but not more than 14 days past the due date');
+  }
   check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(2), '  ')), 'a reason is required');
   await promiseTask(ctx, USERS.tech1, install.id, inDays(2), 'Crane only available Thursday');
   check((await listMyNotifications(ctx, USERS.admin)).some(n => n.templateId === 'mvp_promise_made' && n.projectId === s.orderId), 'the Admin is told at once that more time was asked');

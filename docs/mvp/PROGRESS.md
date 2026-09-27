@@ -76,7 +76,7 @@
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
-| FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | TODO | | | Approved plan, next |
+| FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
 Environment at baseline: Node v22.22.2, npm 10.9.7, OpenJDK 21.0.10, firebase-tools 15.31.0 (via `npx`), Chromium at `/opt/pw-browsers`.
@@ -164,6 +164,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 31 | No Content-Security-Policy header yet (Firebase Auth, fonts and maps need a tested allow-list). The other baseline headers are now set | PR | Low | Open |
 | 32 | The Firebase web API key and `/api/config/maps-key` are public by design; they must be restricted by HTTP referrer in Google Cloud Console | PR | Medium | Owner action before go-live (Go-live checklist, Step 14) |
 | 33 | Photos were stored inside Firestore `documents` records (up to 900 KB each), so opening an order downloaded every full photo (~7 MB for 21 photos) | MU | Medium (fixed) | Fixed: the record keeps a ~240 px preview (`thumbnailDataUrl`, ≤ 40 KB) and the full file moves to `document_blobs/{id}`, loaded on tap. Opening a 21-photo order now downloads ~391 KB. Older records with an inline photo still open. New rule: `document_blobs` can be read one at a time by the same people as the document, is never listed and can never be changed (10 new emulator rules tests) |
+| 35 | **Staff task lists failed to load on real Firestore.** Technician "Today", the surveyor's list and "My tasks" queried tasks by the role token (`role:technician`), which `firestore.rules` refuses for staff, and one refused query failed the whole list. Demo mode (no rules) hid it; the field test ran in demo mode | FU-2 | High (fixed) | Found by the new `mvp:multiuser` section H. Fixed with `queryTokens()` (orderService): staff query only their own uid or customer token; Admin/Owner keep role tokens. Tasks left on a role are the Admin's to assign, and D-32 flags them. H now proves technician, surveyor and QC lists load under the real rules |
 | 34 | A person loses read access to an order once their last task on it is done | MU | Low (decided) | Kept as is (least access): staff see an order only while they have an open task on it; Admin and Owner always see it |
 
 ## Step notes
@@ -489,3 +490,21 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - `npm run build` PASS
 - **Screenshots:** `docs/mvp/screenshots/step-12/` 01–05.
 - **Owner action to switch the robot on:** `docs/mvp/OWNER_STEPS.md` §5. GitHub runs schedules only from `main`, so the workflow file must also be on `main` (the same pattern as `mobile-preview-pages.yml`).
+
+### FU-2 Work assistant, D-33 (2026-09-27), branch `claude/mvp-followup-2-work-assistant`
+- **Built:**
+  - `MyDay.tsx`: "My day" with "Can't finish?" → "Need more time" / "I'm stuck". It replaces the MVP branch of `WorkQueueScreen` (the old flat list).
+  - `promiseTask` (orderService).
+  - `buildMyDay` (readModels).
+  - Rungs in `followUp.ts`: `promiseOf`, `dayGroupOf`, `BROKEN_PROMISE`, `PROMISED_AGAIN`, `GATE_RISK` and `CUSTOMER_REMINDER`.
+  - The scan loads payment milestones.
+  - Chase-list messages for the new cases (en/mr/hi).
+  - "Where work is slow" (`stageFlow` in reports.ts) on the Reports screen.
+  - 23 Marathi/Hindi phrases.
+  - Templates `mvp_promise_made`, `mvp_promise_broken` and `mvp_gate_risk`.
+- **Found and fixed in the browser test:**
+  - A "new" date earlier than the due date would have triggered a false "missed promise". Now refused.
+  - The 14-day cap counted from today, so a task due in 3 weeks couldn't get more time. It now counts from the due date.
+- **Found by the multi-user test:** issue 35 (staff task lists failed on real Firestore). Fixed.
+- **Data:** no new fields. The promise lives in the existing `task.data`, which the assignee may already write. **No `firestore.rules` change** (3 new emulator tests prove it).
+- **Screenshots:** `docs/mvp/screenshots/step-13/` 01–05.

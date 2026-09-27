@@ -638,7 +638,12 @@ export async function promiseTask(ctx: MvpCtx, actor: MvpActor, taskId: string, 
   const at = new Date(promisedAt);
   const now = nowOf(ctx);
   if (Number.isNaN(at.getTime()) || at.getTime() <= now.getTime()) throw new MvpError('invalid', 'Choose a date in the future.');
-  if (at.getTime() > addDays(now, MAX_PROMISE_DAYS).getTime()) {
+  // "More time" means later than the task is already due; an earlier date would make the ladder
+  // escalate a "missed promise" before the task was ever late.
+  if (at.getTime() <= new Date(task.dueDate).getTime()) throw new MvpError('invalid', 'This task is not due until then anyway. Choose a later date.');
+  // At most MAX_PROMISE_DAYS past the later of now and the current due date.
+  const from = new Date(Math.max(now.getTime(), new Date(task.dueDate).getTime()));
+  if (at.getTime() > addDays(from, MAX_PROMISE_DAYS).getTime()) {
     throw new MvpError('invalid', `Choose a date within ${MAX_PROMISE_DAYS} days, or ask the Admin to re-plan the task.`);
   }
   const previous = promiseOf(task);

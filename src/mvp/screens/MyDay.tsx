@@ -26,9 +26,9 @@ const GROUP_STYLE: Record<DayGroup, string> = {
   EMERGENCY: 'border-error bg-error/5', LATE: 'border-error/40', TODAY: 'border-[#B8873D]/50', SOON: '', WAITING: 'border-[#f0ebe2] opacity-80', LATER: '',
 };
 
-/** datetime-local value for "tomorrow 6 pm", a sensible default for a new promised date. */
-function tomorrowEvening(): string {
-  const d = new Date(Date.now() + 24 * 3600 * 1000);
+/** datetime-local value for 6 pm the day after the later of today and the due date: a sensible new date. */
+function nextEvening(dueDate: string): string {
+  const d = new Date(Math.max(Date.now(), new Date(dueDate).getTime()) + 24 * 3600 * 1000);
   d.setHours(18, 0, 0, 0);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -39,7 +39,7 @@ const CantFinish: React.FC<{ row: MyDayRow; user: User; onDone: () => void }> = 
   const t = useT();
   const { run, busy, error } = useAction();
   const [mode, setMode] = useState<'time' | 'stuck'>('time');
-  const [when, setWhen] = useState(tomorrowEvening());
+  const [when, setWhen] = useState(nextEvening(row.task.dueDate));
   const [reason, setReason] = useState<BlockerReason>('CUSTOMER_NOT_READY');
   const [text, setText] = useState('');
   const canBlock = !!row.task.orderId;
