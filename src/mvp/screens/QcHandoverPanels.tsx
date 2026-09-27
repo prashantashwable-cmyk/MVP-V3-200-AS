@@ -155,6 +155,9 @@ const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceTyp
     <li className="py-2 space-y-1 text-sm">
       <div className="flex justify-between gap-2"><span className="font-semibold">{label}</span>{item?.documentId && <span className="text-royalemerald text-xs font-bold">Document attached</span>}</div>
       {(error || fileError) && <ErrorNote message={error ?? fileError!} />}
+      {type === 'LIFT_LICENSE' && status === 'DONE' && !item?.documentId && (
+        <div className="text-xs text-[#8a6224]">Attach the licence document to close the licence step for handover.</div>
+      )}
       <div className="flex flex-wrap gap-2">
         <select className={`${inputCls} max-w-[170px]`} value={status} onChange={e => setStatus(e.target.value)}>
           {['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'NOT_APPLICABLE'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -184,7 +187,7 @@ const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceTyp
   );
 };
 
-export const CompliancePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view }) => {
+export const CompliancePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx } = useMvpCtx(user);
   const items = useLoad(() => listComplianceItems(ctx, view.order.id), [ctx, view.order.id]);
   if (user.role !== 'admin') return null;
@@ -193,7 +196,7 @@ export const CompliancePanel: React.FC<{ user: User } & OrderViewExtraProps> = (
     <Card className="p-4">
       <SectionTitle>Documents & compliance (⚖ record only, not a guarantee)</SectionTitle>
       <ul className="divide-y divide-[#f0ebe2]">
-        {COMPLIANCE_TYPES.map(t => <ComplianceRow key={t.key} user={user} orderId={view.order.id} type={t.key} label={t.label} item={byType[t.key]} onDone={items.reload} />)}
+        {COMPLIANCE_TYPES.map(t => <ComplianceRow key={t.key} user={user} orderId={view.order.id} type={t.key} label={t.label} item={byType[t.key]} onDone={() => { items.reload(); reload(); }} />)}
       </ul>
     </Card>
   );
@@ -254,12 +257,13 @@ export const EmergencyButton: React.FC<{ user: User } & OrderViewExtraProps> = (
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<SavedPhoto[]>([]);
-  if (user.role !== 'customer' || !INSTALLED_STAGES.includes(view.stage)) return null;
+  // Admin logs an emergency phoned in by the customer (most customers call rather than use the app).
+  if ((user.role !== 'customer' && user.role !== 'admin') || !INSTALLED_STAGES.includes(view.stage)) return null;
   return (
     <Card className="p-4 space-y-2 border-2 border-error/30">
       <div className="text-xs font-bold text-error">{EMERGENCY_112_LINE}</div>
       {EMERGENCY_PHONE && <a href={`tel:${EMERGENCY_PHONE}`} className="text-sm font-bold text-error flex items-center gap-1"><Phone className="w-4 h-4" />{EMERGENCY_PHONE}</a>}
-      {!open && <Button variant="danger" fullWidth onClick={() => setOpen(true)}><AlertOctagon className="w-4 h-4" />EMERGENCY</Button>}
+      {!open && <Button variant="danger" fullWidth onClick={() => setOpen(true)}><AlertOctagon className="w-4 h-4" />{user.role === 'admin' ? 'Log an emergency call' : 'EMERGENCY'}</Button>}
       {open && (
         <div className="space-y-2">
           {error && <ErrorNote message={error} />}

@@ -183,6 +183,8 @@ export function bucketsFor(
   const cur = currentTask(tasks, stage);
   const health = computeHealth({ status, stage, tasks, openBlockerCount: blockers.length, milestones, now });
   const b: AttentionBucket[] = [];
+  // A cancelled order needs no attention; any blocker it had no longer matters.
+  if (status === 'CANCELLED') return { health, buckets: b, current: cur };
   const past = (iso: string) => new Date(iso).getTime() < now.getTime();
   if (open.some(t => t.type === 'EMERGENCY_RESPONSE')) b.push('emergency');
   if (status === 'ACTIVE' && !cur) b.push('no_next_action');

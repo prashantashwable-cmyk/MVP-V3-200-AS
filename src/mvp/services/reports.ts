@@ -29,7 +29,10 @@ async function loadCore(ctx: MvpCtx) {
 }
 
 function moneyOf(orders: OrderRecord[], milestones: { status: string; amount: number; amountReceived: number; kind: string }[]) {
-  const booked = orders.filter(o => (o.status ?? 'ACTIVE') !== 'CANCELLED' && o.sellingPrice).reduce((s, o) => s + (o.sellingPrice ?? 0), 0);
+  // Booked = the customer has accepted (stage BOOKED or later). A quote that is only sent sets
+  // sellingPrice too, but is not yet business the company has won.
+  const isBooked = (o: OrderRecord) => !['LEAD', 'QUALIFIED', 'SURVEY', 'QUOTE'].includes(toMvpStage(o.stage));
+  const booked = orders.filter(o => (o.status ?? 'ACTIVE') !== 'CANCELLED' && o.sellingPrice && isBooked(o)).reduce((s, o) => s + (o.sellingPrice ?? 0), 0);
   const collected = milestones.reduce((s, m) => s + (m.status === 'PAID' ? m.amount : m.status === 'PARTIAL' ? m.amountReceived : 0), 0);
   return { booked, collected, outstanding: Math.max(0, booked - collected) };
 }

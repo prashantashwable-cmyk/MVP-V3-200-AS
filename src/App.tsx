@@ -727,7 +727,7 @@ export default function App() {
     if (!mvpMode || !isDemoAuthBuild() || showSplash || currentUser) return;
     const role = new URLSearchParams(window.location.search).get('demoRole');
     if (!role) return;
-    buildDemoUser(role as any).then(handleMvpDemoLogin).catch(err => console.error('demoRole login failed:', err));
+    buildDemoUser((role === 'technician2' ? 'technician' : role) as any, role === 'technician2').then(handleMvpDemoLogin).catch(err => console.error('demoRole login failed:', err));
   }, [showSplash]);
 
   const handleDemoBypass = (role: UserRole) => {

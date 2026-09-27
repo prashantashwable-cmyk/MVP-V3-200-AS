@@ -82,6 +82,7 @@ async function main() {
   check((await openTask(late.orderId, 'QC_INSPECTION')).assigneeId === 'role:admin', 'no QC inspector yet → the QC task waits on the Admin');
   await assignQcInspector(ctx, USERS.admin, late.orderId, USERS.qc.userId);
   check((await openTask(late.orderId, 'QC_INSPECTION')).assigneeId === USERS.qc.userId, 'setting the inspector moves the QC task to them');
+  check((await openTask(late.orderId, 'QC_INSPECTION')).title === 'Inspect the installation (QC)', 'the moved QC task is titled as an inspection, not "Assign a QC inspector"');
 
   // Rework (the Step 09 QC decision is driven by its event here): needs a photo → new QC task.
   await applyEvent(ctx, USERS.qc, late.orderId, { type: 'QC_DECISION', decision: 'REWORK', technicianId: USERS.tech1.userId }, { reason: 'Door gap uneven, floor 4' });

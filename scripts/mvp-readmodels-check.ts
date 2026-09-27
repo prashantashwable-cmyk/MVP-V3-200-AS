@@ -7,7 +7,7 @@
 import { check, done, Clock, demoCtx, USERS, customerActor } from './mvp/fixtures';
 import { runS1 } from './mvp/scenario';
 import { buildOrderView, buildDashboard, bucketsFor, listOrdersFor } from '../src/mvp/services/readModels';
-import { listOrderTasks, listOpenBlockers, raiseBlocker, completeTask } from '../src/mvp/services/orderService';
+import { listOrderTasks, listOpenBlockers, raiseBlocker, completeTask, cancelOrder } from '../src/mvp/services/orderService';
 import { paymentMilestoneRepository, projectRepository, purchaseOrderRepository } from '../src/repository/entities';
 import { isOpenTask } from '../src/mvp/health';
 
@@ -105,6 +105,14 @@ async function main() {
   check(dash.pipeline.LEAD >= 0 && dash.pipeline.INSTALLATION >= 2 && dash.pipeline.QUOTE >= 1, `pipeline counts per stage (${JSON.stringify(dash.pipeline)})`);
   check(dash.attention.find(g => g.bucket === 'blocked')?.orders.some(o => o.id === s3.orderId) === true, 'dashboard groups the S3 order under Blocked');
   check(dash.today.length === 9, 'TODAY shows the 9 spec §9 counters');
+
+  // A cancelled order with a leftover open blocker needs no attention (field test: it stayed under Blocked).
+  const s7 = await runS1(ctx, clock, 5);
+  await raiseBlocker(ctx, USERS.admin, { orderId: s7.orderId, reason: 'CUSTOMER_NOT_READY', description: 'Customer travelling' });
+  await cancelOrder(ctx, USERS.admin, s7.orderId, 'Customer chose another vendor');
+  const dash2 = await buildDashboard(ctx);
+  check(!dash2.attention.some(g => g.orders.some(o => o.id === s7.orderId)), 'a cancelled order is not in Needs Attention');
+  check(dash2.orders.find(o => o.id === s7.orderId)?.health !== 'BLOCKED', 'a cancelled order is not shown as Blocked');
 
   done('mvp-readmodels-check');
 }

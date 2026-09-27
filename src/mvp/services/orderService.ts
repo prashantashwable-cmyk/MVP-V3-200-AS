@@ -560,8 +560,12 @@ export async function reassignTask(ctx: MvpCtx, actor: MvpActor, taskId: string,
   if (!task) throw new MvpError('not_found', `Task ${taskId} not found.`);
   if (!isOpenTask(task)) throw new MvpError('invalid', 'Only open tasks can be reassigned.');
   requireText(assignee.id, 'Assignee');
+  // A QC inspection parked with the Admin is titled "Assign a QC inspector"; once a QC person
+  // holds it, it is their inspection, so it takes the normal title.
+  const retitle = task.type === 'QC_INSPECTION' && assignee.role === 'qc' && task.title !== TASK_TITLES.QC_INSPECTION
+    ? { title: TASK_TITLES.QC_INSPECTION } : {};
   const updated = await taskRepository(ctx).update(taskId, {
-    assigneeId: assignee.id, assigneeRole: assignee.role, updatedAt: nowOf(ctx).toISOString(),
+    assigneeId: assignee.id, assigneeRole: assignee.role, updatedAt: nowOf(ctx).toISOString(), ...retitle,
   }, task.version ?? 0);
   await audit(ctx, actor, 'TASK_REASSIGNED', 'Task', taskId, task.orderId, { assigneeId: task.assigneeId }, { assigneeId: assignee.id }, reason);
   if (task.orderId && task.type === 'INSTALLATION' && assignee.role === 'technician') {

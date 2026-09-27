@@ -40,6 +40,7 @@ export function hasOverdueMilestone(milestones: HealthInput['milestones'], now: 
 export function computeHealth(input: HealthInput): Health {
   const status = input.status ?? 'ACTIVE';
   if (status === 'ON_HOLD') return 'ON_HOLD';
+  if (status === 'CANCELLED') return 'ON_TRACK'; // closed: leftover blockers no longer matter
   if (input.openBlockerCount > 0) return 'BLOCKED';
   // COMPLETED / CANCELLED are not "at risk" — except a life-safety emergency (D-28), which
   // can be raised on an already-completed, installed lift and must still escalate visibly.

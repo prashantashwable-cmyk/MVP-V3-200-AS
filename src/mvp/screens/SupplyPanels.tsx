@@ -36,11 +36,13 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
   const gate = useLoad(() => (verify ? checkGate(ctx, view.order.id, 'SITE_READY_ENTRY') : Promise.resolve(null)), [verify?.id, view.payments?.paid]);
   const act = (fn: () => Promise<unknown>) => run(fn).then(ok => ok && reload());
 
-  if (ask && user.role === 'customer') {
+  // The Admin can fill this in for a customer who sends photos on WhatsApp or has no app login.
+  if (ask && (user.role === 'customer' || user.role === 'admin')) {
+    const forCustomer = user.role === 'admin';
     return (
       <Card className="p-4 space-y-3">
-        <SectionTitle>Get the site ready</SectionTitle>
-        <p className="text-sm">Please complete by <strong>{formatDate(ask.dueDate)}</strong>. Add a photo for each item.</p>
+        <SectionTitle>{forCustomer ? "Site readiness (on the customer's behalf)" : 'Get the site ready'}</SectionTitle>
+        <p className="text-sm">{forCustomer ? 'Due' : 'Please complete by'} <strong>{formatDate(ask.dueDate)}</strong>. Add a photo for each item{forCustomer ? ' (from the customer or your site visit)' : ''}.</p>
         {error && <ErrorNote message={error} />}
         {READINESS_ITEMS.map(i => (
           <div key={i.key} className="p-3 rounded-xl bg-alabaster space-y-1">
@@ -57,7 +59,7 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
         <Button variant="primary" fullWidth disabled={busy} onClick={() => act(() => submitReadiness(ctx, actor, view.order.id, {
           items: Object.fromEntries(READINESS_ITEMS.map(i => [i.key, { ok: !!photos[i.key]?.length, photoId: photos[i.key]?.[0]?.id }])) as Record<ReadinessKey, { ok: boolean; photoId?: string }>,
           powerDate: powerDate || undefined, note,
-        }))}>The site is ready — send to the Admin</Button>
+        }))}>{forCustomer ? 'Record the site as ready' : 'The site is ready — send to the Admin'}</Button>
       </Card>
     );
   }
