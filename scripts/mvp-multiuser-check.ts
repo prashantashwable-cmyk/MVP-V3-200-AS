@@ -95,7 +95,9 @@ class Person {
   stop() { this.proc.stdin!.end(); this.proc.kill(); }
 }
 
-const TINY_JPEG = 'data:image/jpeg;base64,' + Buffer.from('multi-user-test-photo').toString('base64');
+// Realistic sizes: a compressed phone photo (~250 KB) and its list preview (~12 KB).
+const PHOTO_JPEG = 'data:image/jpeg;base64,' + Buffer.alloc(250 * 1024, 7).toString('base64');
+const THUMB_JPEG = 'data:image/jpeg;base64,' + Buffer.alloc(12 * 1024, 3).toString('base64');
 const FIXTURE_SURVEY = {
   floors: 8, stops: 8, capacityPersons: 8, shaftWidthMm: 1800, shaftDepthMm: 1900, pitMm: 1500, headroomMm: 4200,
   power: '3-phase available', access: 'Truck access', siteReadiness: 'Structure complete', remarks: 'Standard shaft', result: 'FEASIBLE',
@@ -113,7 +115,7 @@ let phoneSeq = 0;
 const at = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
 
 async function photo(p: Person, orderId: string, caption: string): Promise<string> {
-  return (await p.call('saveEvidence', '$ctx', '$actor', { dataUrl: TINY_JPEG, contentType: 'image/jpeg', orderId, caption })).id;
+  return (await p.call('saveEvidence', '$ctx', '$actor', { dataUrl: PHOTO_JPEG, thumbnailDataUrl: THUMB_JPEG, contentType: 'image/jpeg', orderId, caption })).id;
 }
 async function openTaskFor(p: Person, orderId: string, type: string): Promise<any | undefined> {
   const v = await p.call('buildOrderView', '$ctx', '$actor', orderId);
@@ -308,15 +310,21 @@ async function main() {
   ok((!tick.ok || tickLanded) && (!reassign.ok || task.assigneeId === people.tech2.actor.userId),
     `reassign during a checklist tick: nothing reported "saved" was lost (tick ${tick.ok ? 'saved' : 'refused: ' + tick.error!.message.slice(0, 60)}, reassign ${reassign.ok ? 'saved' : 'refused'})`);
 
-  // C4: QC passes while the Admin cancels the same order.
-  const c4 = await lifecycleToQc('C4');
-  const [pass, cancel] = await Promise.all([
-    people.qc.try('submitQcDecision', '$ctx', '$actor', c4, { decision: 'PASS', tests: { mechanical: true, electrical: true, safety: true, testRun: true }, remarks: 'OK' }),
-    people.admin.try('cancelOrder', '$ctx', '$actor', c4, 'Customer withdrew'),
-  ]);
-  const v4 = await people.admin.call('buildOrderView', '$ctx', '$actor', c4);
-  const openAfter = v4.openTasks.length;
-  ok(!(v4.status === 'CANCELLED' && openAfter > 0), `QC pass vs cancel at the same moment: a consistent end state (${v4.status}, ${openAfter} open tasks; QC ${pass.ok ? 'saved' : 'refused'}, cancel ${cancel.ok ? 'saved' : 'refused'})`);
+  // C4: QC passes while the Admin cancels the same order — 5 rounds, since races are timing-dependent.
+  const c4 = await Promise.all([1, 2, 3, 4, 5].map(i => lifecycleToQc(`C4-${i}`)));
+  const outcomes: string[] = [];
+  let inconsistent = 0;
+  const delays = [0, 80, 200, 400, 700]; // the cancel lands at different points of QC's save
+  for (const [i, id] of c4.entries()) {
+    const [pass, cancel] = await Promise.all([
+      people.qc.try('submitQcDecision', '$ctx', '$actor', id, { decision: 'PASS', tests: { mechanical: true, electrical: true, safety: true, testRun: true }, remarks: 'OK' }),
+      new Promise(r => setTimeout(r, delays[i])).then(() => people.admin.try('cancelOrder', '$ctx', '$actor', id, 'Customer withdrew')),
+    ]) as [any, any];
+    const v = await people.admin.call('buildOrderView', '$ctx', '$actor', id);
+    if (v.status === 'CANCELLED' && v.openTasks.length > 0) inconsistent++;
+    outcomes.push(`+${delays[c4.indexOf(id)]}ms ${v.status}/${v.openTasks.length} open (QC ${pass.ok ? 'saved' : 'refused'}, cancel ${cancel.ok ? 'saved' : 'refused'})`);
+  }
+  ok(inconsistent === 0, `QC pass vs cancel at the same moment, 5 rounds: always a consistent end state — ${outcomes.join('; ')}`);
 
   // C5: two salespeople qualify 10 leads each at the same instant → unique codes.
   const mk = (p: Person, i: number) => p.call('createLead', '$ctx', '$actor', { name: `Race ${p.label} ${i}`, phone: `96${String(20000000 + i + (p.label === 'sales' ? 0 : 500)).padStart(8, '0')}`, location: 'Pune', source: 'Walk-in', siteType: 'residential', floors: 4, liftRequirement: 'G+3', constructionStage: 'structure-up', consent: true });
@@ -330,6 +338,12 @@ async function main() {
   const otherCust = done[0].cust, target = a.id;
   const peek = await otherCust.try('buildOrderView', '$ctx', '$actor', target);
   ok(!peek.ok || peek.result === null, `a customer cannot open another customer's order (${peek.ok ? 'null' : peek.error!.code})`);
+  const relayView = await people.admin.call('buildOrderView', '$ctx', '$actor', target);
+  const aPhoto = relayView.evidence[0];
+  const own = await a.cust.try('getEvidenceFull', '$ctx', aPhoto);
+  ok(own.ok && own.result?.length > 200_000, "the order's own customer opens a full photo on tap");
+  const other = await otherCust.try('getEvidenceFull', '$ctx', aPhoto);
+  ok(!other.ok || other.result === null, `another customer cannot open that full photo (${other.ok ? 'null' : other.error!.code})`);
   const tech2List = await people.tech2.call('listOrdersFor', '$ctx', '$actor');
   ok(!tech2List.some((o: any) => o.id === target), 'a technician who is not on an order does not see it');
   const survQuote = await people.surveyor.try('getQuoteForViewer', '$ctx', '$actor', target);
@@ -349,7 +363,11 @@ async function main() {
     const out = await p.call(fn, ...args);
     const st = await p.call('readStats');
     breakdown[fn] = Object.entries(st.byCollection as Record<string, number>).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, v]) => `${k} ${v}`).join(', ');
-    if (fn === 'buildOrderView') info(`order screen payload ~${Math.round(JSON.stringify(out).length / 1024)} KB`);
+    if (fn === 'buildOrderView') {
+      const kb = Math.round(JSON.stringify(out).length / 1024);
+      const photos = (out?.evidence ?? []).length;
+      ok(kb < 600, `opening an order with ${photos} photos downloads ~${kb} KB (previews only; the full photos would be ~${Math.round(photos * 250 * 1.34)} KB)`);
+    }
     return st.total as number;
   };
   const dash = await measure(people.admin, 'buildDashboard', '$ctx');

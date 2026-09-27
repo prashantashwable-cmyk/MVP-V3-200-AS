@@ -172,7 +172,9 @@ const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceTyp
             try {
               const dataUrl = await readFileAsDataUrl(file);
               const { saveEvidence } = await import('../services/evidenceService');
-              const doc = await saveEvidence(ctx, actor, { dataUrl, contentType: file.type, orderId, caption: label });
+              const { makeThumbnail } = await import('./PhotoInput');
+              const thumbnailDataUrl = file.type.startsWith('image/') ? await makeThumbnail(dataUrl) : undefined;
+              const doc = await saveEvidence(ctx, actor, { dataUrl, thumbnailDataUrl, contentType: file.type, orderId, caption: label });
               await save(doc.id);
             } catch (err) {
               setFileError(err instanceof Error ? err.message : String(err));

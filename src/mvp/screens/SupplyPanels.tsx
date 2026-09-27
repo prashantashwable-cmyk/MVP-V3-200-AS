@@ -19,7 +19,7 @@ import { listPeople } from '../services/people';
 import { purchaseOrderRepository } from '../../repository/entities';
 import { formatDate, formatInr } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
-import { PhotoInput, type SavedPhoto } from './PhotoInput';
+import { EvidenceThumb, PhotoInput, type SavedPhoto } from './PhotoInput';
 import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
 
 export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
@@ -69,7 +69,7 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
       <Card className="p-4 space-y-3">
         <SectionTitle>Verify site readiness</SectionTitle>
         {error && <ErrorNote message={error} />}
-        <div className="flex flex-wrap gap-2">{(evidence.data ?? []).map(d => d.dataUrl && <figure key={d.id} className="w-20"><img src={d.dataUrl} alt={d.caption} className="w-20 h-20 object-cover rounded-lg" /><figcaption className="text-[10px] text-warmgray truncate">{d.caption}</figcaption></figure>)}</div>
+        <div className="flex flex-wrap gap-2">{(evidence.data ?? []).map(d => <figure key={d.id} className="w-20"><EvidenceThumb ctx={ctx} doc={d} className="w-20 h-20" /><figcaption className="text-[10px] text-warmgray truncate">{d.caption}</figcaption></figure>)}</div>
         {data.powerDate && <div className="text-xs">Power available from {formatDate(data.powerDate)}</div>}
         {data.note && <div className="text-xs">Customer note: {data.note}</div>}
         {gate.data && !gate.data.allowed && (

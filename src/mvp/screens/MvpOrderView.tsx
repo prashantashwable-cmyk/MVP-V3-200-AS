@@ -11,6 +11,7 @@ import { buildOrderView, assigneeLabel, type OrderViewModel } from '../services/
 import { listPeople, nameMap, type Person } from '../services/people';
 import { formatDateTime, formatInr, formatDate } from '../format';
 import { AdminActions } from './AdminActions';
+import { EvidenceThumb } from './PhotoInput';
 import { ErrorNote, HealthBadge, Loading, ProgressBar, SectionTitle, useLoad, useMvpCtx, useMvpLang } from './ui';
 import { translateStage } from '../i18n';
 
@@ -130,9 +131,7 @@ export const MvpOrderView: React.FC<{
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {view.evidence.map(d => (
               <figure key={d.id} className="space-y-1">
-                {d.dataUrl && d.contentType.startsWith('image/')
-                  ? <img src={d.dataUrl} alt={d.caption ?? 'evidence'} className="w-full aspect-square object-cover rounded-lg" />
-                  : <div className="w-full aspect-square rounded-lg bg-alabaster flex items-center justify-center text-[10px] text-warmgray">{d.contentType}</div>}
+                <EvidenceThumb ctx={ctx} doc={d} />
                 <figcaption className="text-[10px] text-warmgray truncate">{d.caption ?? formatDate(d.uploadedAt)}</figcaption>
               </figure>
             ))}

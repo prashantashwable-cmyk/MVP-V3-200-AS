@@ -260,6 +260,20 @@ async function main() {
   ok(!(await allowed(getDoc(doc(db.cust, 'idempotency_keys/k_sales')))), 'another user cannot read that claim');
   ok(await allowed(getDoc(doc(db.cust, 'idempotency_keys/does-not-exist'))), 'an unclaimed key can be checked (transactional claim)');
 
+  // ---- Evidence full files (document_blobs): read one by id like the document, never listed ----
+  await seed('projects/ord9', { id: 'ord9', customerId: 'C1', siteId: 'S9', stage: 'installation', status: 'ACTIVE', ownerUserId: uid.sales, title: 'PHOTO', participantIds: [uid.sales, 'customer:C1', uid.tech1].sort(), version: 0 });
+  await seed('document_blobs/b1', { id: 'b1', projectId: 'ord9', uploadedBy: uid.tech1, contentType: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AAAA', version: 1 });
+  ok(await allowed(getDoc(doc(db.tech1, 'document_blobs/b1'))), 'an order participant opens a full photo');
+  ok(await allowed(getDoc(doc(db.cust, 'document_blobs/b1'))), "the order's customer opens a full photo");
+  ok(await allowed(getDoc(doc(db.admin, 'document_blobs/b1'))), 'the Admin opens a full photo');
+  ok(!(await allowed(getDoc(doc(db.cust2, 'document_blobs/b1')))), "another customer cannot open this order's photo");
+  ok(!(await allowed(getDoc(doc(db.tech2, 'document_blobs/b1')))), 'a technician not on the order cannot open its photo');
+  ok(!(await allowed(getDocs(collection(db.admin, 'document_blobs')))), 'nobody can list full photos (not even the Admin)');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'document_blobs/b1'), { dataUrl: 'data:image/jpeg;base64,BBBB' }))), 'a full photo cannot be changed');
+  ok(await allowed(setDoc(doc(db.tech1, 'document_blobs/b2'), { id: 'b2', projectId: 'ord9', uploadedBy: uid.tech1, contentType: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AAAA', version: 1 })), 'a participant uploads a full photo as themselves');
+  ok(!(await allowed(setDoc(doc(db.tech1, 'document_blobs/b3'), { id: 'b3', projectId: 'ord9', uploadedBy: uid.tech2, contentType: 'image/jpeg', dataUrl: 'x', version: 1 }))), 'nobody uploads in someone else\'s name');
+  ok(!(await allowed(setDoc(doc(db.cust2, 'document_blobs/b4'), { id: 'b4', projectId: 'ord9', uploadedBy: uid.cust2, contentType: 'image/jpeg', dataUrl: 'x', version: 1 }))), 'a non-participant cannot add a photo to the order');
+
   for (const a of apps) await deleteApp(a).catch(() => undefined);
   if (failures) { console.error(`\n${failures} rules assertion(s) FAILED`); process.exit(1); }
   console.log('\nPASS: mvp-rules-emulator-check');

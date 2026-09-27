@@ -89,7 +89,7 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   await verifyPayment(ctx, admin, milestoneId(o3.id, 'BOOKING_TOKEN'), { status: 'PAID', method: 'UPI', reference: 'DEMO-UTR-1' });
   const sup = await createSupplier(ctx, admin, { name: 'Sahyadri Lift Components', contactName: 'Mr. Joshi', phone: '9822012345' });
   await raisePo(ctx, admin, o3.id, { supplierId: sup.id, items: 'G+7 lift kit, 8 stops', amount: 700000, expectedDeliveryDate: addDays(new Date(), 5).toISOString() });
-  const pic = async (who: MvpActor, caption: string) => (await saveEvidence(ctx, who, { dataUrl: DEMO_PNG, contentType: 'image/png', orderId: o3.id, caption })).id;
+  const pic = async (who: MvpActor, caption: string) => (await saveEvidence(ctx, who, { dataUrl: DEMO_PNG, thumbnailDataUrl: DEMO_PNG, contentType: 'image/png', orderId: o3.id, caption })).id;
   const items: any = {};
   for (const i of READINESS_ITEMS) items[i.key] = { ok: true, photoId: await pic(customer, i.label) };
   await submitReadiness(ctx, customer, o3.id, { items, note: 'Site is ready' });
