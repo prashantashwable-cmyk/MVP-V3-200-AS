@@ -24,7 +24,7 @@ import { EMERGENCY_112_LINE, EMERGENCY_PHONE } from '../config';
 import { formatDate, formatDateTime } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
 import { PhotoInput, type SavedPhoto } from './PhotoInput';
-import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 // ---------------------------------------------------------------------------
 // QC decision (spec §19)
@@ -32,6 +32,7 @@ import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvp
 
 export const QcPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const task = view.openTasks.find(t => t.type === 'QC_INSPECTION');
   const job = useLoad(() => (task ? getJob(ctx, view.order.id) : Promise.resolve(null)), [task?.id]);
@@ -47,32 +48,32 @@ export const QcPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, 
 
   return (
     <Card className="p-4 space-y-3">
-      <SectionTitle>QC inspection</SectionTitle>
+      <SectionTitle>{t('QC inspection')}</SectionTitle>
       {error && <ErrorNote message={error} />}
       <ul className="space-y-1">
         {QC_TEST_ITEMS.map(item => (
           <li key={item.key} className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!tests[item.key]} onChange={e => setTests({ ...tests, [item.key]: e.target.checked })} />
-            {item.label}
+            {t(item.label)}
           </li>
         ))}
       </ul>
-      <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id, taskId: task.id }} caption="QC inspection" photos={photos} onChange={setPhotos} label="Add photo" />
+      <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id, taskId: task.id }} caption="QC inspection" photos={photos} onChange={setPhotos} label={t('Add photo')} />
       <div>
-        <label className={labelCls}>Remarks (required)</label>
-        <textarea className={inputCls} rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Test results and remarks" />
+        <label className={labelCls}>{t('Remarks (required)')}</label>
+        <textarea className={inputCls} rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder={t('Test results and remarks')} />
       </div>
       <div>
-        <label className={labelCls}>If REWORK: technician</label>
+        <label className={labelCls}>{t('If REWORK: technician')}</label>
         <select className={inputCls} value={technicianId} onChange={e => setTechnicianId(e.target.value)}>
-          <option value="">{job.data?.technicianId ? 'Same technician (default)' : 'Choose…'}</option>
+          <option value="">{job.data?.technicianId ? t('Same technician (default)') : 'Choose…'}</option>
           {(techs.data ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="emerald" disabled={busy || !remarks.trim()} onClick={() => act('PASS')}>PASS</Button>
-        <Button variant="secondary" disabled={busy || !remarks.trim()} onClick={() => act('REWORK')}>REWORK</Button>
-        <Button variant="danger" disabled={busy || !remarks.trim()} onClick={() => act('FAIL')}>FAIL</Button>
+        <Button variant="emerald" disabled={busy || !remarks.trim()} onClick={() => act('PASS')}>{t('PASS')}</Button>
+        <Button variant="secondary" disabled={busy || !remarks.trim()} onClick={() => act('REWORK')}>{t('REWORK')}</Button>
+        <Button variant="danger" disabled={busy || !remarks.trim()} onClick={() => act('FAIL')}>{t('FAIL')}</Button>
       </div>
     </Card>
   );
@@ -84,6 +85,7 @@ export const QcPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, 
 
 export const HandoverPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const task = view.openTasks.find(t => t.type === 'HANDOVER');
   const gates = useLoad(() => (task ? checkHandoverGates(ctx, view.order.id) : Promise.resolve([])), [task?.id, view.payments?.paid]);
@@ -145,6 +147,7 @@ async function readFileAsDataUrl(file: File): Promise<string> {
 
 const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceType; label: string; item?: { status: string; documentId?: string; note?: string }; onDone: () => void }> = ({ user, orderId, type, label, item, onDone }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const [status, setStatus] = useState(item?.status ?? 'NOT_STARTED');
   const [note, setNote] = useState(item?.note ?? '');
@@ -172,7 +175,9 @@ const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceTyp
             try {
               const dataUrl = await readFileAsDataUrl(file);
               const { saveEvidence } = await import('../services/evidenceService');
-              const doc = await saveEvidence(ctx, actor, { dataUrl, contentType: file.type, orderId, caption: label });
+              const { makeThumbnail } = await import('./PhotoInput');
+              const thumbnailDataUrl = file.type.startsWith('image/') ? await makeThumbnail(dataUrl) : undefined;
+              const doc = await saveEvidence(ctx, actor, { dataUrl, thumbnailDataUrl, contentType: file.type, orderId, caption: label });
               await save(doc.id);
             } catch (err) {
               setFileError(err instanceof Error ? err.message : String(err));
@@ -189,6 +194,7 @@ const ComplianceRow: React.FC<{ user: User; orderId: string; type: ComplianceTyp
 
 export const CompliancePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx } = useMvpCtx(user);
+  const t = useT();
   const items = useLoad(() => listComplianceItems(ctx, view.order.id), [ctx, view.order.id]);
   if (user.role !== 'admin') return null;
   const byType = Object.fromEntries((items.data ?? []).map(i => [i.type, i]));
@@ -210,6 +216,7 @@ const AMC_LABELS: Record<string, string> = { WARRANTY: 'Under warranty', AMC_DUE
 
 export const AmcPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const amc = useLoad(() => (view.stage === 'AMC' ? getAmc(ctx, view.order.id) : Promise.resolve(null)), [ctx, view.order.id, view.stage]);
   const [last, setLast] = useState('');
@@ -221,7 +228,7 @@ export const AmcPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user,
     <Card className="p-4 space-y-2">
       <SectionTitle>Warranty & AMC</SectionTitle>
       {error && <ErrorNote message={error} />}
-      <div className="text-sm">Warranty ends {formatDate(amc.data?.warrantyEnd)} · <strong>{AMC_LABELS[display] ?? display}</strong></div>
+      <div className="text-sm">{t('Warranty ends')} {formatDate(amc.data?.warrantyEnd)} · <strong>{t(AMC_LABELS[display] ?? display)}</strong></div>
       {amc.data?.lastServiceDate && <div className="text-xs text-warmgray">Last service {formatDate(amc.data.lastServiceDate)}</div>}
       {amc.data?.nextServiceDate && <div className="text-xs text-warmgray">Next service {formatDate(amc.data.nextServiceDate)}</div>}
       {user.role === 'admin' && amc.data && (
@@ -253,6 +260,7 @@ const INSTALLED_STAGES = ['QC_HANDOVER', 'AMC'];
 
 export const EmergencyButton: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
@@ -261,19 +269,19 @@ export const EmergencyButton: React.FC<{ user: User } & OrderViewExtraProps> = (
   if ((user.role !== 'customer' && user.role !== 'admin') || !INSTALLED_STAGES.includes(view.stage)) return null;
   return (
     <Card className="p-4 space-y-2 border-2 border-error/30">
-      <div className="text-xs font-bold text-error">{EMERGENCY_112_LINE}</div>
+      <div className="text-xs font-bold text-error">{t(EMERGENCY_112_LINE)}</div>
       {EMERGENCY_PHONE && <a href={`tel:${EMERGENCY_PHONE}`} className="text-sm font-bold text-error flex items-center gap-1"><Phone className="w-4 h-4" />{EMERGENCY_PHONE}</a>}
-      {!open && <Button variant="danger" fullWidth onClick={() => setOpen(true)}><AlertOctagon className="w-4 h-4" />{user.role === 'admin' ? 'Log an emergency call' : 'EMERGENCY'}</Button>}
+      {!open && <Button variant="danger" fullWidth onClick={() => setOpen(true)}><AlertOctagon className="w-4 h-4" />{user.role === 'admin' ? 'Log an emergency call' : t('EMERGENCY')}</Button>}
       {open && (
         <div className="space-y-2">
           {error && <ErrorNote message={error} />}
-          <textarea className={inputCls} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder='What is happening, e.g. "Lift stuck between floors"' />
+          <textarea className={inputCls} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder={t('What is happening, e.g. "Lift stuck between floors"')} />
           <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id }} caption="Emergency" photos={photos} onChange={setPhotos} label="Photo (optional)" />
           <div className="flex gap-2">
             <Button variant="danger" disabled={busy || !description.trim()} onClick={() => run(() => raiseEmergency(ctx, actor, view.order.id, {
               description, evidenceIds: photos.map(p => p.id),
-            })).then(ok => { if (ok) { setOpen(false); setDescription(''); reload(); } })}>Send emergency alert</Button>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            })).then(ok => { if (ok) { setOpen(false); setDescription(''); reload(); } })}>{t('Send emergency alert')}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{t('Cancel')}</Button>
           </div>
         </div>
       )}
@@ -283,6 +291,7 @@ export const EmergencyButton: React.FC<{ user: User } & OrderViewExtraProps> = (
 
 export const EmergencyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const cases = useLoad(() => listOpenEmergencies(ctx, view.order.id), [ctx, view.order.id, view.openTasks.length]);
   const [note, setNote] = useState('');
@@ -314,6 +323,7 @@ export const EmergencyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
 
 export const OnCallSetting: React.FC<{ user: User }> = ({ user }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const today = dateKey(new Date());
   const current = useLoad(() => getOnCallTechnician(ctx, today), [ctx, today]);

@@ -99,7 +99,7 @@ export async function submitQcDecision(
   await qcInspectionRepository(ctx).create(JSON.parse(JSON.stringify(inspection)) as any);
   await audit(ctx, actor, 'QC_DECISION_RECORDED', 'QCInspection', inspection.id, orderId, undefined, { decision: input.decision, remarks });
 
-  await applyEvent(
+  const applied = await applyEvent(
     ctx, actor, orderId, { type: 'QC_DECISION', decision: input.decision, technicianId: reworkTechId, remarks },
     { reason: remarks, orderPatch: input.decision === 'PASS' ? { qcPassedAt: now.toISOString() } : {} },
   );
@@ -113,8 +113,9 @@ export async function submitQcDecision(
     await audit(ctx, actor, 'SNAG_CREATED', 'Snag', snag.id, orderId, undefined, { qcInspectionId: inspection.id, assignedTo: reworkTechId ?? null });
   }
   if (input.decision === 'PASS') {
-    const order = await projectRepository(ctx).get(orderId);
-    if (order) await notify(ctx, customerToken(order.customerId), 'mvp_handover_ready', orderId, `handover:${orderId}`);
+    // Use the order applyEvent returned: once QC's task is done, QC is no longer a participant
+    // and firestore.rules refuse a fresh read (multi-user emulator test finding).
+    await notify(ctx, customerToken(applied.order.customerId), 'mvp_handover_ready', orderId, `handover:${orderId}`);
   }
 }
 

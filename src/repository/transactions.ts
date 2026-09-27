@@ -71,11 +71,24 @@ export async function nextSequence(ctx: RepositoryContext, name: string): Promis
     });
   }
   const database = requireDb();
-  return runTransaction(database, async tx => {
-    const ref = doc(database, 'counters', name);
-    const snap = await tx.get(ref);
-    const value = ((snap.exists() ? (snap.data() as { value?: number }).value : 0) ?? 0) + 1;
-    tx.set(ref, { id: name, value });
-    return value;
-  });
+  // Two people taking a number at the same moment: firestore.rules (value == previous + 1)
+  // judge the losing write against the NEW value and refuse it as permission-denied instead of
+  // a retryable conflict, so retry a few times with a random pause (multi-user emulator test:
+  // 15 of 20 simultaneous "Mark qualified" were refused before this). A genuinely forbidden
+  // caller still fails after the last attempt.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runTransaction(database, async tx => {
+        const ref = doc(database, 'counters', name);
+        const snap = await tx.get(ref);
+        const value = ((snap.exists() ? (snap.data() as { value?: number }).value : 0) ?? 0) + 1;
+        tx.set(ref, { id: name, value });
+        return value;
+      });
+    } catch (e: any) {
+      const contention = e?.code === 'permission-denied' || e?.code === 'aborted' || e?.code === 'failed-precondition';
+      if (!contention || attempt >= 8) throw e;
+      await new Promise(r => setTimeout(r, 40 + Math.random() * 160 * attempt));
+    }
+  }
 }

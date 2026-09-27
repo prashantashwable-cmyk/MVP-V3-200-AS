@@ -41,7 +41,8 @@ export function makeNotFoundError(entity: string, id: string): NotFoundError {
 
 export function makeStaleWriteError(currentVersion: number, attemptedVersion: number): StaleWriteError {
   const err = new Error(
-    `Stale write: record is at version ${currentVersion}, attempted update assumed version ${attemptedVersion}. Reload and retry.`,
+    // Shown to people as-is (screens display error messages): plain words, not versions.
+    `Someone else just changed this. Reload the screen and try again. (stale write: v${currentVersion}, expected v${attemptedVersion})`,
   ) as StaleWriteError;
   err.code = 'stale_write';
   err.currentVersion = currentVersion;

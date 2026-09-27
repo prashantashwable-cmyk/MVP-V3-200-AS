@@ -15,7 +15,7 @@ import { computeQuote } from '../quoteMath';
 import { GST_RATE_CONFIRMED, GST_RATE_PCT, MIN_MARKUP_PCT } from '../config';
 import { formatInr, formatDateTime } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
-import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 const TaxWarning: React.FC<{ confirmed?: boolean }> = ({ confirmed }) => confirmed ? null : (
   <div className="p-2 rounded-lg bg-[#B8873D]/10 text-[11px] text-[#8a6224] flex items-center gap-1">
@@ -25,6 +25,7 @@ const TaxWarning: React.FC<{ confirmed?: boolean }> = ({ confirmed }) => confirm
 
 export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const q = useLoad(() => getQuoteForViewer(ctx, actor, view.order.id), [ctx, view.order.id, view.stage, view.openTasks.length]);
   const { run, busy, error } = useAction();
   const v = q.data?.version;
@@ -57,11 +58,11 @@ export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ use
       {v && (
         <div className="space-y-1 text-sm">
           {([['Base lift', v.lines?.base], ['Installation', v.lines?.installation], ['Freight', v.lines?.freight], ['Other charges', v.lines?.other]] as const).map(([l, a]) => (
-            <div key={l} className="flex justify-between"><span>{l}</span><span>{formatInr(a ?? 0)}</span></div>
+            <div key={l} className="flex justify-between"><span>{t(l)}</span><span>{formatInr(a ?? 0)}</span></div>
           ))}
-          <div className="flex justify-between text-warmgray"><span>Subtotal (excl. tax)</span><span>{formatInr(v.subtotalExclTax ?? 0)}</span></div>
+          <div className="flex justify-between text-warmgray"><span>{t('Subtotal (excl. tax)')}</span><span>{formatInr(v.subtotalExclTax ?? 0)}</span></div>
           <div className="flex justify-between text-warmgray"><span>Tax ({v.taxRatePct}%)</span><span>{formatInr(v.taxAmount ?? 0)}</span></div>
-          <div className="flex justify-between font-bold text-base"><span>Selling price</span><span>{formatInr(v.sellingPrice ?? 0)}</span></div>
+          <div className="flex justify-between font-bold text-base"><span>{t('Selling price')}</span><span>{formatInr(v.sellingPrice ?? 0)}</span></div>
           <TaxWarning confirmed={v.taxRateConfirmed} />
         </div>
       )}
@@ -111,9 +112,9 @@ export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ use
 
       {user.role === 'customer' && status === 'sent' && (
         <div className="space-y-2">
-          <Button variant="emerald" fullWidth disabled={busy} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'accept'))}>Accept quote</Button>
-          <input className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="What would you like changed?" />
-          <Button variant="secondary" fullWidth disabled={busy || !note.trim()} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'changes', note))}>Request changes</Button>
+          <Button variant="emerald" fullWidth disabled={busy} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'accept'))}>{t('Accept quote')}</Button>
+          <input className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder={t('What would you like changed?')} />
+          <Button variant="secondary" fullWidth disabled={busy || !note.trim()} onClick={() => act(() => decideQuote(ctx, actor, view.order.id, 'changes', note))}>{t('Request changes')}</Button>
         </div>
       )}
       {isAdmin && status === 'sent' && (
@@ -126,7 +127,7 @@ export const QuotePanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ use
           </div>
         </div>
       )}
-      {q.data?.quote?.decidedAt && <div className="text-xs text-warmgray">Customer decision {formatDateTime(q.data.quote.decidedAt)}{q.data.quote.decisionNote ? ` — “${q.data.quote.decisionNote}”` : ''}</div>}
+      {q.data?.quote?.decidedAt && <div className="text-xs text-warmgray">{t('Customer decision')} {formatDateTime(q.data.quote.decidedAt)}{q.data.quote.decisionNote ? ` — “${q.data.quote.decisionNote}”` : ''}</div>}
     </Card>
   );
 };

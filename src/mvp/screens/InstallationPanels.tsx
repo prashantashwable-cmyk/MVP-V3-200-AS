@@ -25,18 +25,19 @@ import { CHECKLIST_ITEM_COUNT, TIME_ZONE } from '../config';
 import { formatDateTime } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
 import { PhotoInput, type SavedPhoto } from './PhotoInput';
-import { ErrorNote, inputCls, labelCls, Loading, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, labelCls, Loading, SectionTitle, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 const WORK_TYPES: Task['type'][] = ['INSTALLATION', 'REWORK'];
 
 export const TechToday: React.FC<{ user: User; onOpenOrder: (orderId: string) => void }> = ({ user, onOpenOrder }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { data, error, loading } = useLoad(async () => {
     const tasks = (await getMvpTaskQueue(ctx, actor)).filter(t => WORK_TYPES.includes(t.type) && t.orderId);
     const orders = await Promise.all(tasks.map(t => projectRepository(ctx).get(t.orderId!)));
     return tasks.map((t, i) => ({ task: t, order: orders[i] }));
   }, [ctx]);
-  if (loading && !data) return <Loading label="Loading your jobs…" />;
+  if (loading && !data) return <Loading label={t('Loading your jobs…')} />;
   if (error) return <ErrorNote message={error} />;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: TIME_ZONE });
   const isToday = (t: Task) => new Date(t.dueDate).toLocaleDateString('en-CA', { timeZone: TIME_ZONE }) <= today;
@@ -49,13 +50,13 @@ export const TechToday: React.FC<{ user: User; onOpenOrder: (orderId: string) =>
           <button onClick={() => onOpenOrder(task.orderId!)} className="w-full text-left cursor-pointer">
             <div className="flex justify-between gap-2">
               <span className="font-bold text-sm">#{order?.displayCode} · {order?.displaySummary?.customerName}</span>
-              <span className={`text-[11px] font-bold ${task.status === 'BLOCKED' ? 'text-error' : 'text-warmgray'}`}>{task.status.replace('_', ' ')}</span>
+              <span className={`text-[11px] font-bold ${task.status === 'BLOCKED' ? 'text-error' : 'text-warmgray'}`}>{t(task.status.replace('_', ' '))}</span>
             </div>
-            <div className="text-xs flex items-center gap-1"><Wrench className="w-3.5 h-3.5" />{task.title} · due {formatDateTime(task.dueDate)}</div>
+            <div className="text-xs flex items-center gap-1"><Wrench className="w-3.5 h-3.5" />{t(task.title)} · {t('due')} {formatDateTime(task.dueDate)}</div>
             <div className="text-xs text-warmgray flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{order?.displaySummary?.siteAddress || '—'}</div>
           </button>
           {order?.displaySummary?.customerPhone && (
-            <a href={`tel:${order.displaySummary.customerPhone}`} className="text-sm text-royalemerald font-semibold inline-flex items-center gap-1.5 min-h-[44px] pr-3"><Phone className="w-4 h-4" />Call customer</a>
+            <a href={`tel:${order.displaySummary.customerPhone}`} className="text-sm text-royalemerald font-semibold inline-flex items-center gap-1.5 min-h-[44px] pr-3"><Phone className="w-4 h-4" />{t('Call customer')}</a>
           )}
         </Card>
       ))}
@@ -63,10 +64,10 @@ export const TechToday: React.FC<{ user: User; onOpenOrder: (orderId: string) =>
   );
   return (
     <div className="space-y-4 max-w-xl mx-auto pb-24">
-      <h2 className="text-lg font-bold text-charcoal">Today</h2>
-      {rows.length === 0 && <Card className="p-6 text-sm text-warmgray">No installation or rework jobs assigned to you.</Card>}
-      {section('Today', rows.filter(r => isToday(r.task)))}
-      {section('Upcoming', rows.filter(r => !isToday(r.task)))}
+      <h2 className="text-lg font-bold text-charcoal">{t('Today')}</h2>
+      {rows.length === 0 && <Card className="p-6 text-sm text-warmgray">{t('No installation or rework jobs assigned to you.')}</Card>}
+      {section(t('Today'), rows.filter(r => isToday(r.task)))}
+      {section(t('Upcoming'), rows.filter(r => !isToday(r.task)))}
       {/* Earnings: no partner rate is stored in the MVP, so nothing is shown rather than a made-up figure. */}
       <p className="text-[11px] text-warmgray">Earnings: —</p>
     </div>
@@ -85,24 +86,25 @@ function currentPosition(): Promise<{ lat: number; lng: number; accuracyM?: numb
 const BlockedDialog: React.FC<{ user: User; orderId: string; taskId: string; onDone: () => void; onCancel: () => void }> = ({ user, orderId, taskId, onDone, onCancel }) => {
   const { ctx, actor } = useMvpCtx(user);
   const { run, busy, error } = useAction();
+  const t = useT();
   const [reason, setReason] = useState<BlockerReason | ''>('');
   const [text, setText] = useState('');
   const [photos, setPhotos] = useState<SavedPhoto[]>([]);
   return (
     <div className="p-3 rounded-xl bg-error/5 border border-error/20 space-y-2">
-      <div className="text-sm font-semibold">What is blocking the work?</div>
+      <div className="text-sm font-semibold">{t('What is blocking the work?')}</div>
       {error && <ErrorNote message={error} />}
       <select className={inputCls} value={reason} onChange={e => setReason(e.target.value as BlockerReason)}>
-        <option value="">Choose a reason…</option>
-        {BLOCKER_REASONS.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ').toLowerCase()}</option>)}
+        <option value="">{t('Choose a reason…')}</option>
+        {BLOCKER_REASONS.map(r => <option key={r} value={r}>{t(r.replace(/_/g, ' ').toLowerCase())}</option>)}
       </select>
-      <textarea className={inputCls} rows={2} value={text} onChange={e => setText(e.target.value)} placeholder="Describe the problem" />
-      <PhotoInput ctx={ctx} actor={actor} target={{ orderId, taskId }} caption="Blocker" photos={photos} onChange={setPhotos} label="Photo (optional)" />
+      <textarea className={inputCls} rows={2} value={text} onChange={e => setText(e.target.value)} placeholder={t('Describe the problem')} />
+      <PhotoInput ctx={ctx} actor={actor} target={{ orderId, taskId }} caption="Blocker" photos={photos} onChange={setPhotos} label={t('Photo (optional)')} />
       <div className="flex gap-2">
         <Button variant="primary" disabled={busy || !reason || !text.trim()} onClick={() => run(() => raiseBlocker(ctx, actor, {
           orderId, taskId, reason: reason as BlockerReason, description: text, evidence: photos.map(p => p.id),
-        })).then(ok => ok && onDone())}>Report blocker</Button>
-        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        })).then(ok => ok && onDone())}>{t('Report blocker')}</Button>
+        <Button variant="ghost" onClick={onCancel}>{t('Cancel')}</Button>
       </div>
     </div>
   );
@@ -112,6 +114,7 @@ const BlockedDialog: React.FC<{ user: User; orderId: string; taskId: string; onD
 export const InstallationPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
   const { run, busy, error } = useAction();
+  const t = useT();
   const task = view.openTasks.find(t => WORK_TYPES.includes(t.type) && (t.assigneeId === user.id || user.role === 'admin'));
   const job = useLoad(() => (task ? getJob(ctx, view.order.id) : Promise.resolve(null)), [task?.id, task?.status]);
   const gate = useLoad(() => (task?.type === 'INSTALLATION' && task.status === 'TODO' ? checkGate(ctx, view.order.id, 'INSTALLATION_START') : Promise.resolve(null)), [task?.id, task?.status]);
@@ -128,21 +131,21 @@ export const InstallationPanel: React.FC<{ user: User } & OrderViewExtraProps> =
 
   return (
     <Card className="p-4 space-y-3">
-      <SectionTitle right={!isRework && <span className="text-xs font-bold">{done}/{CHECKLIST_ITEM_COUNT}</span>}>{isRework ? 'Rework' : 'Installation'} · {task.status.replace('_', ' ')}</SectionTitle>
+      <SectionTitle right={!isRework && <span className="text-xs font-bold">{done}/{CHECKLIST_ITEM_COUNT}</span>}>{t(isRework ? 'Rework' : 'Installation')} · {t(task.status.replace('_', ' '))}</SectionTitle>
       {error && <ErrorNote message={error} />}
-      {isRework && task.notes && <div className="p-2 rounded-lg bg-[#B8873D]/10 text-xs"><strong>QC remarks:</strong> {task.notes}</div>}
-      {task.status === 'BLOCKED' && <div className="p-2 rounded-lg bg-error/10 text-xs text-error">Blocked. The Admin or the blocker owner must resolve it before work continues.</div>}
-      {gate.data && !gate.data.allowed && <div className="p-2 rounded-lg bg-error/10 text-xs text-error">{gate.data.reason}. The Admin can override this.</div>}
+      {isRework && task.notes && <div className="p-2 rounded-lg bg-[#B8873D]/10 text-xs"><strong>{t('QC remarks:')}</strong> {task.notes}</div>}
+      {task.status === 'BLOCKED' && <div className="p-2 rounded-lg bg-error/10 text-xs text-error">{t('Blocked. The Admin or the blocker owner must resolve it before work continues.')}</div>}
+      {gate.data && !gate.data.allowed && <div className="p-2 rounded-lg bg-error/10 text-xs text-error">{t(gate.data.reason)}. {t('The Admin can override this.')}</div>}
 
       <div className="flex flex-wrap gap-2">
         {task.status === 'TODO' && (
-          <Button variant="primary" disabled={busy || (gate.data ? !gate.data.allowed : false)} onClick={() => act(() => startWork(ctx, actor, task.id))}>START</Button>
+          <Button variant="primary" disabled={busy || (gate.data ? !gate.data.allowed : false)} onClick={() => act(() => startWork(ctx, actor, task.id))}>{t('START')}</Button>
         )}
         {started && !isRework && !j?.checkedInAt && (
-          <Button variant="primary" disabled={busy} onClick={() => act(async () => checkInAtSite(ctx, actor, task.id, await currentPosition()))}>CHECK IN at site</Button>
+          <Button variant="primary" disabled={busy} onClick={() => act(async () => checkInAtSite(ctx, actor, task.id, await currentPosition()))}>{t('CHECK IN at site')}</Button>
         )}
-        {j?.checkedInAt && !isRework && <span className="text-xs text-warmgray self-center">Checked in {formatDateTime(j.checkedInAt)}</span>}
-        {task.status !== 'BLOCKED' && !blocked && <Button variant="outline" onClick={() => setBlocked(true)}>BLOCKED</Button>}
+        {j?.checkedInAt && !isRework && <span className="text-xs text-warmgray self-center">{t('Checked in')} {formatDateTime(j.checkedInAt)}</span>}
+        {task.status !== 'BLOCKED' && !blocked && <Button variant="outline" onClick={() => setBlocked(true)}>{t('BLOCKED')}</Button>}
       </div>
       {blocked && <BlockedDialog user={user} orderId={view.order.id} taskId={task.id} onCancel={() => setBlocked(false)} onDone={() => { setBlocked(false); refresh(); }} />}
 
@@ -154,15 +157,15 @@ export const InstallationPanel: React.FC<{ user: User } & OrderViewExtraProps> =
             return (
               <li key={item.key} className={`p-3 rounded-xl ${state?.done ? 'bg-royalemerald/5' : 'bg-alabaster'} space-y-2`}>
                 <div className="flex justify-between gap-2 text-sm">
-                  <span className="font-semibold">{i + 1}. {item.label}{optional ? ' (photo optional)' : ''}</span>
-                  {state?.done && <span className="text-xs text-royalemerald font-bold">Done</span>}
+                  <span className="font-semibold">{i + 1}. {t(item.label)}{optional ? ` ${t('(photo optional)')}` : ''}</span>
+                  {state?.done && <span className="text-xs text-royalemerald font-bold">{t('Done')}</span>}
                 </div>
                 {!state?.done && (
                   <>
                     <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id, taskId: task.id }} caption={item.label}
                       photos={photos[item.key] ?? []} onChange={p => setPhotos({ ...photos, [item.key]: p })} />
                     <Button variant="emerald" disabled={busy || (!optional && !(photos[item.key]?.length))}
-                      onClick={() => act(() => setChecklistItem(ctx, actor, task.id, item.key, { done: true, documentId: photos[item.key]?.[0]?.id }))}>Mark done</Button>
+                      onClick={() => act(() => setChecklistItem(ctx, actor, task.id, item.key, { done: true, documentId: photos[item.key]?.[0]?.id }))}>{t('Mark done')}</Button>
                   </>
                 )}
               </li>
@@ -173,15 +176,15 @@ export const InstallationPanel: React.FC<{ user: User } & OrderViewExtraProps> =
 
       {isRework && started && (
         <div className="space-y-2">
-          <label className={labelCls}>Photo of the fixed work</label>
+          <label className={labelCls}>{t('Photo of the fixed work')}</label>
           <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id, taskId: task.id }} caption="Rework done" photos={photos.rework ?? []} onChange={p => setPhotos({ ...photos, rework: p })} />
         </div>
       )}
       {started && (isRework || done === CHECKLIST_ITEM_COUNT) && (
         <div className="space-y-2">
-          <textarea className={inputCls} rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="Note for QC (optional)" />
+          <textarea className={inputCls} rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('Note for QC (optional)')} />
           <Button variant="emerald" fullWidth disabled={busy || (isRework && !photos.rework?.length)}
-            onClick={() => act(() => completeWork(ctx, actor, task.id, { note, documentId: photos.rework?.[0]?.id }))}>COMPLETE — send to QC</Button>
+            onClick={() => act(() => completeWork(ctx, actor, task.id, { note, documentId: photos.rework?.[0]?.id }))}>{t('COMPLETE — send to QC')}</Button>
         </div>
       )}
     </Card>

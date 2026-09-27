@@ -8,6 +8,7 @@ import type { MvpActor, MvpCtx } from '../services/orderService';
 import type { Health } from '../health';
 import { useLanguage } from '../../lib/language';
 import { translateHealth, type Lang } from '../i18n';
+import { tr } from '../i18nUi';
 
 export function toMvpActor(user: User): MvpActor {
   return {
@@ -23,12 +24,66 @@ export function useMvpCtx(user: User): { ctx: MvpCtx; actor: MvpActor } {
   }), [user]);
 }
 
-/** Loads async data with loading/error state and a `reload()` for after an action. */
-export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): { data: T | null; error: string | null; loading: boolean; reload: () => void } {
+/**
+ * Multi-user freshness. Several people work on the same order, so screens must not stay stale:
+ * every `useLoad` reloads when the person comes back to the app (tab visible again, network
+ * back) and on a timer while the app is visible. Heavy screens (dashboard, owner, reports read
+ * whole collections) poll less often via `every` to keep Firestore reads — and the bill — low.
+ */
+export const AUTO_REFRESH_MS = 60_000;
+const RefreshContext = React.createContext<{ returned: number; poll: number; at: number }>({ returned: 0, poll: 0, at: 0 });
+
+export const MvpAutoRefresh: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [state, setState] = useState({ returned: 0, poll: 0, at: Date.now() });
+  useEffect(() => {
+    let last = Date.now();
+    const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+    const onReturn = () => {
+      if (!visible() || Date.now() - last < 5_000) return; // one reload per return, not per event
+      last = Date.now();
+      setState(s => ({ ...s, returned: s.returned + 1, at: last }));
+    };
+    const timer = setInterval(() => {
+      if (!visible()) return;
+      last = Date.now();
+      setState(s => ({ ...s, poll: s.poll + 1, at: last }));
+    }, AUTO_REFRESH_MS);
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('online', onReturn);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onReturn); window.removeEventListener('online', onReturn); };
+  }, []);
+  return <RefreshContext.Provider value={state}>{children}</RefreshContext.Provider>;
+};
+
+/**
+ * Default poll interval (in minutes) for every `useLoad` below it. The order screen sets 3:
+ * it carries the photos and the full history, so reloading it every minute would cost
+ * megabytes of mobile data; lists and the bell stay at 1 so hand-offs still arrive quickly.
+ */
+const RefreshEveryContext = React.createContext(1);
+export const RefreshEvery: React.FC<{ minutes: number; children: React.ReactNode }> = ({ minutes, children }) => (
+  <RefreshEveryContext.Provider value={minutes}>{children}</RefreshEveryContext.Provider>
+);
+
+/** When the shared auto-refresh last fired (for the "Updated …" label). */
+export function useLastRefresh(): number {
+  return React.useContext(RefreshContext).at;
+}
+
+/**
+ * Loads async data with loading/error state and a `reload()` for after an action. Also reloads
+ * with the shared auto-refresh: on every return to the app, and every `every` minutes while
+ * visible (default 1; 0 = only on return).
+ */
+export function useLoad<T>(load: () => Promise<T>, deps: unknown[], opts: { every?: number } = {}): { data: T | null; error: string | null; loading: boolean; reload: () => void } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const refresh = React.useContext(RefreshContext);
+  const scopeEvery = React.useContext(RefreshEveryContext);
+  const every = opts.every ?? scopeEvery;
+  const pollStep = every > 0 ? Math.floor(refresh.poll / every) : 0;
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -38,7 +93,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): { data: T |
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick]);
+  }, [...deps, tick, refresh.returned, pollStep]);
   const reload = useCallback(() => setTick(t => t + 1), []);
   return { data, error, loading, reload };
 }
@@ -54,6 +109,12 @@ const HEALTH_STYLE: Record<Health, { cls: string; icon: React.ComponentType<{ cl
 /** D-18: the current language, reactive to the same switch the legacy app uses. */
 export function useMvpLang(): Lang {
   return useLanguage().language;
+}
+
+/** Screen text in the viewer's language (field-staff and customer screens), English fallback. */
+export function useT(): (english: string) => string {
+  const lang = useMvpLang();
+  return useCallback((english: string) => tr(lang, english), [lang]);
 }
 
 export const HealthBadge: React.FC<{ health: Health }> = ({ health }) => {

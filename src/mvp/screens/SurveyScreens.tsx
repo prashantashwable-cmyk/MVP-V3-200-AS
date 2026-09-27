@@ -15,16 +15,17 @@ import { submitSurvey, validateSurvey, type SurveyInput } from '../services/orde
 import { formatDateTime } from '../format';
 import { TIME_ZONE } from '../config';
 import { PhotoInput, type SavedPhoto } from './PhotoInput';
-import { ErrorNote, inputCls, labelCls, Loading, useAction, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, inputCls, labelCls, Loading, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 export const SurveyList: React.FC<{ user: User; onOpenSurvey: (orderId: string) => void }> = ({ user, onOpenSurvey }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { data, error, loading } = useLoad(async () => {
     const tasks = (await getMvpTaskQueue(ctx, actor)).filter(t => t.type === 'SURVEY' && t.orderId);
     const orders = await Promise.all(tasks.map(t => projectRepository(ctx).get(t.orderId!)));
     return tasks.map((t, i) => ({ task: t, order: orders[i] }));
   }, [ctx]);
-  if (loading && !data) return <Loading label="Loading surveys…" />;
+  if (loading && !data) return <Loading label={t('Loading surveys…')} />;
   if (error) return <ErrorNote message={error} />;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: TIME_ZONE });
   const isToday = (t: Task) => new Date(t.dueDate).toLocaleDateString('en-CA', { timeZone: TIME_ZONE }) <= today;
@@ -45,8 +46,8 @@ export const SurveyList: React.FC<{ user: User; onOpenSurvey: (orderId: string) 
   );
   return (
     <div className="space-y-4 max-w-xl mx-auto pb-24">
-      <h2 className="text-lg font-bold text-charcoal">My surveys</h2>
-      {rows.length === 0 && <Card className="p-6 text-sm text-warmgray">No surveys assigned to you.</Card>}
+      <h2 className="text-lg font-bold text-charcoal">{t('My surveys')}</h2>
+      {rows.length === 0 && <Card className="p-6 text-sm text-warmgray">{t('No surveys assigned to you.')}</Card>}
       {section('Today', rows.filter(r => isToday(r.task)))}
       {section('Upcoming', rows.filter(r => !isToday(r.task)))}
     </div>
@@ -61,6 +62,7 @@ const NUM_FIELDS: { k: keyof SurveyInput; label: string }[] = [
 
 export const SurveyForm: React.FC<{ user: User; orderId: string; onDone: () => void }> = ({ user, orderId, onDone }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const order = useLoad(() => projectRepository(ctx).get(orderId), [ctx, orderId]);
   const [nums, setNums] = useState<Record<string, string>>({});
@@ -87,33 +89,33 @@ export const SurveyForm: React.FC<{ user: User; orderId: string; onDone: () => v
 
   return (
     <form onSubmit={submit} className="space-y-3 max-w-xl mx-auto pb-24">
-      <h2 className="text-lg font-bold text-charcoal">Site survey</h2>
+      <h2 className="text-lg font-bold text-charcoal">{t('Site survey')}</h2>
       {order.data && <div className="text-sm text-warmgray">#{order.data.displayCode} · {order.data.displaySummary?.customerName} · {order.data.displaySummary?.siteAddress}</div>}
       {error && <ErrorNote message={error} />}
       <Card className="p-4 grid grid-cols-2 gap-3">
         {NUM_FIELDS.map(({ k, label }) => (
-          <div key={k}><label className={labelCls}>{label} *</label>
+          <div key={k}><label className={labelCls}>{t(label)} *</label>
             <input className={inputCls} inputMode="numeric" value={nums[k] ?? ''} onChange={e => setNums({ ...nums, [k]: e.target.value })} required /></div>
         ))}
       </Card>
       <Card className="p-4 space-y-3">
         {(['power', 'access', 'siteReadiness'] as const).map(k => (
-          <div key={k}><label className={labelCls}>{k === 'siteReadiness' ? 'Site readiness' : k[0].toUpperCase() + k.slice(1)}</label>
+          <div key={k}><label className={labelCls}>{t(k === 'siteReadiness' ? 'Site readiness' : k[0].toUpperCase() + k.slice(1))}</label>
             <input className={inputCls} value={text[k]} onChange={e => setText({ ...text, [k]: e.target.value })} /></div>
         ))}
-        <div><label className={labelCls}>Remarks</label><textarea className={inputCls} rows={2} value={text.remarks} onChange={e => setText({ ...text, remarks: e.target.value })} /></div>
-        <div><label className={labelCls}>Photos (at least 2) *</label>
+        <div><label className={labelCls}>{t('Remarks')}</label><textarea className={inputCls} rows={2} value={text.remarks} onChange={e => setText({ ...text, remarks: e.target.value })} /></div>
+        <div><label className={labelCls}>{t('Photos (at least 2) *')}</label>
           <PhotoInput ctx={ctx} actor={actor} target={{ orderId }} caption="Survey photo" photos={photos} onChange={setPhotos} /></div>
       </Card>
       <Card className="p-4 space-y-2">
-        <label className={labelCls}>Result *</label>
+        <label className={labelCls}>{t('Result *')}</label>
         {([['FEASIBLE', 'Feasible'], ['REQUIRES_CORRECTION', 'Requires correction by the customer'], ['NOT_FEASIBLE', 'Not feasible']] as const).map(([v, l]) => (
           <label key={v} className="flex items-center gap-2 text-sm p-2 rounded-lg bg-alabaster">
-            <input type="radio" name="result" className="w-5 h-5" checked={result === v} onChange={() => setResult(v)} />{l}
+            <input type="radio" name="result" className="w-5 h-5" checked={result === v} onChange={() => setResult(v)} />{t(l)}
           </label>
         ))}
       </Card>
-      <Button type="submit" variant="primary" fullWidth disabled={busy}>{busy ? 'Submitting…' : 'Submit survey'}</Button>
+      <Button type="submit" variant="primary" fullWidth disabled={busy}>{busy ? t('Saving…') : t('Submit survey')}</Button>
     </form>
   );
 };

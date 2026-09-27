@@ -4,6 +4,7 @@
  * key (D-18). Pure; no repository, no clock.
  * Run with: npx tsx scripts/mvp-i18n-check.ts
  */
+import { tr, UI_PHRASES } from '../src/mvp/i18nUi';
 import { check, done } from './mvp/fixtures';
 import { translateAttention, translateHealth, translateNav, translateNotification, translateStage, type Lang } from '../src/mvp/i18n';
 import { MVP_STAGES } from '../src/mvp/stage';
@@ -43,6 +44,16 @@ function main() {
 
   // A tab i18n.ts has no entry for still resolves, via the fallback passed in.
   check(translateNav('mr', 'MvpNotARealTab', 'Not a real tab') === 'Not a real tab', 'an unknown nav id falls back to the caller\'s label, not a crash');
+
+  // Field-staff and customer screen text (i18nUi.ts): every phrase has Marathi and Hindi, no duplicates.
+  const seen = new Set<string>();
+  const missing = UI_PHRASES.filter(([en, mr, hi]) => !en.trim() || !mr.trim() || !hi.trim());
+  const dupes = UI_PHRASES.filter(([en]) => (seen.has(en) ? true : (seen.add(en), false)));
+  check(missing.length === 0, `every screen phrase has Marathi and Hindi (${UI_PHRASES.length} phrases${missing.length ? `; missing: ${missing.map(m => m[0]).join(', ')}` : ''})`);
+  check(dupes.length === 0, `no phrase is listed twice${dupes.length ? ` (${dupes.map(d => d[0]).join(', ')})` : ''}`);
+  check(tr('mr', 'START') === 'सुरू करा' && tr('hi', 'Mark done') === 'पूरा हुआ', 'technician buttons translate to Marathi and Hindi');
+  check(tr('mr', 'Some untranslated admin text') === 'Some untranslated admin text', 'text without a translation stays in English (never blank)');
+  check(tr('en', 'START') === 'START', 'English stays English');
 
   done('mvp-i18n-check');
 }

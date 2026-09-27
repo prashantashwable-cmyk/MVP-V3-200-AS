@@ -19,11 +19,12 @@ import { listPeople } from '../services/people';
 import { purchaseOrderRepository } from '../../repository/entities';
 import { formatDate, formatInr } from '../format';
 import type { OrderViewExtraProps } from './MvpOrderView';
-import { PhotoInput, type SavedPhoto } from './PhotoInput';
-import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { EvidenceThumb, PhotoInput, type SavedPhoto } from './PhotoInput';
+import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx, useT } from './ui';
 
 export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const [photos, setPhotos] = useState<Record<string, SavedPhoto[]>>({});
   const [powerDate, setPowerDate] = useState('');
@@ -41,25 +42,25 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
     const forCustomer = user.role === 'admin';
     return (
       <Card className="p-4 space-y-3">
-        <SectionTitle>{forCustomer ? "Site readiness (on the customer's behalf)" : 'Get the site ready'}</SectionTitle>
-        <p className="text-sm">{forCustomer ? 'Due' : 'Please complete by'} <strong>{formatDate(ask.dueDate)}</strong>. Add a photo for each item{forCustomer ? ' (from the customer or your site visit)' : ''}.</p>
+        <SectionTitle>{forCustomer ? "Site readiness (on the customer's behalf)" : t('Get the site ready')}</SectionTitle>
+        <p className="text-sm">{forCustomer ? 'Due' : t('Please complete by')} <strong>{formatDate(ask.dueDate)}</strong>. {forCustomer ? 'Add a photo for each item (from the customer or your site visit)' : t('Add a photo for each item')}.</p>
         {error && <ErrorNote message={error} />}
         {READINESS_ITEMS.map(i => (
           <div key={i.key} className="p-3 rounded-xl bg-alabaster space-y-1">
-            <div className="text-sm font-semibold">{i.label}</div>
+            <div className="text-sm font-semibold">{t(i.label)}</div>
             <PhotoInput ctx={ctx} actor={actor} target={{ orderId: view.order.id, taskId: ask.id }} caption={i.label}
               photos={photos[i.key] ?? []} onChange={p => setPhotos({ ...photos, [i.key]: p })} />
             {i.key === 'powerAvailable' && (
-              <div><label className={labelCls}>…or the date power will be available</label>
+              <div><label className={labelCls}>{t('…or the date power will be available')}</label>
                 <input type="date" className={inputCls} value={powerDate} onChange={e => setPowerDate(e.target.value)} /></div>
             )}
           </div>
         ))}
-        <textarea className={inputCls} rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="Anything we should know (optional)" />
+        <textarea className={inputCls} rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('Anything we should know (optional)')} />
         <Button variant="primary" fullWidth disabled={busy} onClick={() => act(() => submitReadiness(ctx, actor, view.order.id, {
           items: Object.fromEntries(READINESS_ITEMS.map(i => [i.key, { ok: !!photos[i.key]?.length, photoId: photos[i.key]?.[0]?.id }])) as Record<ReadinessKey, { ok: boolean; photoId?: string }>,
           powerDate: powerDate || undefined, note,
-        }))}>{forCustomer ? 'Record the site as ready' : 'The site is ready — send to the Admin'}</Button>
+        }))}>{forCustomer ? 'Record the site as ready' : t('The site is ready — send to the Admin')}</Button>
       </Card>
     );
   }
@@ -69,7 +70,7 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
       <Card className="p-4 space-y-3">
         <SectionTitle>Verify site readiness</SectionTitle>
         {error && <ErrorNote message={error} />}
-        <div className="flex flex-wrap gap-2">{(evidence.data ?? []).map(d => d.dataUrl && <figure key={d.id} className="w-20"><img src={d.dataUrl} alt={d.caption} className="w-20 h-20 object-cover rounded-lg" /><figcaption className="text-[10px] text-warmgray truncate">{d.caption}</figcaption></figure>)}</div>
+        <div className="flex flex-wrap gap-2">{(evidence.data ?? []).map(d => <figure key={d.id} className="w-20"><EvidenceThumb ctx={ctx} doc={d} className="w-20 h-20" /><figcaption className="text-[10px] text-warmgray truncate">{d.caption}</figcaption></figure>)}</div>
         {data.powerDate && <div className="text-xs">Power available from {formatDate(data.powerDate)}</div>}
         {data.note && <div className="text-xs">Customer note: {data.note}</div>}
         {gate.data && !gate.data.allowed && (
@@ -91,6 +92,7 @@ export const ReadinessPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({
 
 const PoRow: React.FC<{ po: PurchaseOrder; user: User; onDone: () => void }> = ({ po, user, onDone }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const [status, setStatus] = useState(po.materialStatus ?? 'ORDERED');
   const [reason, setReason] = useState(po.delayReason ?? '');
@@ -118,6 +120,7 @@ const PoRow: React.FC<{ po: PurchaseOrder; user: User; onDone: () => void }> = (
 
 export const SupplyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ user, view, reload }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const show = user.role === 'admin' && ['SITE_READY', 'DELIVERY', 'INSTALLATION'].includes(view.stage);
   const pos = useLoad(() => (show ? listOrderPos(ctx, view.order.id) : Promise.resolve([])), [show, view.order.id, view.stage]);
@@ -176,6 +179,7 @@ export const SupplyPanel: React.FC<{ user: User } & OrderViewExtraProps> = ({ us
 
 export const SuppliersScreen: React.FC<{ user: User }> = ({ user }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const { run, busy, error } = useAction();
   const sups = useLoad(() => listSuppliers(ctx), [ctx]);
   const pos = useLoad(async () => (await purchaseOrderRepository(ctx).list()).filter(p => p.materialStatus && p.materialStatus !== 'DELIVERED'), [ctx]);

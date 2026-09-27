@@ -17,7 +17,7 @@ const PIPE_LABEL: Record<string, string> = { LEAD: 'Lead', QUALIFIED: 'Qualified
 export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) => void }> = ({ user, onOpenOrder }) => {
   const { ctx } = useMvpCtx(user);
   const lang = useMvpLang();
-  const { data, error, loading, reload } = useLoad(() => buildDashboard(ctx), [ctx]);
+  const { data, error, loading, reload } = useLoad(() => buildDashboard(ctx), [ctx], { every: 5 });
 
   if (loading && !data) return <Loading label="Loading dashboard…" />;
   if (error) return <ErrorNote message={`Could not load the dashboard: ${error}`} />;

@@ -20,7 +20,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value
 
 export const Reports: React.FC<{ user: User }> = ({ user }) => {
   const { ctx } = useMvpCtx(user);
-  const { data, error, loading } = useLoad(() => buildReports(ctx), [ctx]);
+  const { data, error, loading } = useLoad(() => buildReports(ctx), [ctx], { every: 5 });
   if (loading && !data) return <Loading label="Loading reports…" />;
   if (error) return <ErrorNote message={`Could not load reports: ${error}`} />;
   if (!data) return null;

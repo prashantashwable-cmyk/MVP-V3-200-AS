@@ -8,7 +8,7 @@ import {
   createLead, qualifyLead, assignSurveyor, updateLeadStatus, listLeadTasks, leadRepository, listOrderTasks, waiveSurveyFee, MvpError, submitSurvey,
 } from '../src/mvp/services/orderService';
 import { filterLeads, findDuplicateLeads, listLeadsFor, setFollowUp } from '../src/mvp/services/leadService';
-import { saveEvidence, validateEvidence } from '../src/mvp/services/evidenceService';
+import { getEvidence, getEvidenceFull, saveEvidence, validateEvidence } from '../src/mvp/services/evidenceService';
 import { paymentMilestoneRepository } from '../src/repository/entities';
 import { listAuditEventsForEntity } from '../src/lib/audit';
 import { leadStatus } from '../src/mvp/leadModel';
@@ -89,6 +89,14 @@ async function main() {
   check(!!validateEvidence({ dataUrl: big, contentType: 'image/jpeg' }), 'files over the limit are rejected');
   const doc = await saveEvidence(ctx, USERS.surveyor, { dataUrl: tiny, contentType: 'image/jpeg', orderId: order.id, caption: 'Pit' });
   check(doc.projectId === order.id && doc.kind === 'photo' && (await listAuditEventsForEntity(ctx, 'Document', doc.id)).length === 1, 'evidence saved to the order and audited');
+  check(doc.sizeBytes > 0 && !doc.dataUrl && !!doc.blobId, 'the full file is kept apart from the list record (photo previews only in lists)');
+  check(await getEvidenceFull(ctx, doc) === tiny, 'the full file loads on demand from its blob');
+  const withThumb = await saveEvidence(ctx, USERS.surveyor, { dataUrl: tiny, thumbnailDataUrl: tiny, contentType: 'image/jpeg', orderId: order.id, caption: 'Shaft' });
+  const listed = (await getEvidence(ctx, [withThumb.id]))[0];
+  check(listed.thumbnailDataUrl === tiny && !listed.dataUrl, 'the list record carries only the small preview');
+  const bigThumb = 'data:image/jpeg;base64,' + 'A'.repeat(60 * 1024);
+  check(!!validateEvidence({ dataUrl: tiny, contentType: 'image/jpeg', thumbnailDataUrl: bigThumb } as any), 'an oversized preview is rejected');
+  check(await getEvidenceFull(ctx, { dataUrl: tiny }) === tiny, 'older records with the photo inline still open');
 
   done('mvp-leads-survey-check');
 }

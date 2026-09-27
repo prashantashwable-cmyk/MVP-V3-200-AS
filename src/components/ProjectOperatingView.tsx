@@ -9,6 +9,7 @@ import { getProjectOperatingView, type ProjectOperatingView as ProjectOperatingV
 import type { Project } from '../domain/entities';
 import { isMvpMode } from '../mvp/mvpMode';
 import { MvpOrderView } from '../mvp/screens/MvpOrderView';
+import { RefreshEvery } from '../mvp/screens/ui';
 
 /**
  * Project-centric operating view — Phase 21.
@@ -208,7 +209,7 @@ export const ProjectOperatingView: React.FC<ProjectOperatingViewProps & {
   renderExtra?: React.ComponentProps<typeof MvpOrderView>['renderExtra'];
 }> = ({ user, orderId, onBack, renderExtra }) => {
   if (orderId !== undefined || isMvpMode()) {
-    return <MvpOrderView user={user} orderId={orderId ?? ''} onBack={onBack} renderExtra={renderExtra} />;
+    return <RefreshEvery minutes={3}><MvpOrderView user={user} orderId={orderId ?? ''} onBack={onBack} renderExtra={renderExtra} /></RefreshEvery>;
   }
   return <LegacyProjectOperatingView user={user} />;
 };

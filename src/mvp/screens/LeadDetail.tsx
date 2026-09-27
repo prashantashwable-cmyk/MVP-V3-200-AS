@@ -12,6 +12,7 @@ import { getEvidence } from '../services/evidenceService';
 import { leadStatus } from '../leadModel';
 import { formatDateTime } from '../format';
 import { ErrorNote, inputCls, labelCls, Loading, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+import { EvidenceThumb } from './PhotoInput';
 
 export const LeadDetailScreen: React.FC<{ user: User; leadId: string; onOpenOrder: (id: string) => void; onBack: () => void }> = ({ user, leadId, onOpenOrder, onBack }) => {
   const { ctx, actor } = useMvpCtx(user);
@@ -42,7 +43,7 @@ export const LeadDetailScreen: React.FC<{ user: User; leadId: string; onOpenOrde
         {lead.nextFollowUp && <div className="text-xs">Next follow-up: <strong>{formatDateTime(lead.nextFollowUp)}</strong></div>}
         {lead.lostReasonText && <div className="text-xs text-error">Lost: {lead.lostReasonText}</div>}
         {(photos.data ?? []).length > 0 && (
-          <div className="flex gap-2 flex-wrap">{photos.data!.map(p => p.dataUrl && <img key={p.id} src={p.dataUrl} alt="site" className="w-20 h-20 object-cover rounded-lg" />)}</div>
+          <div className="flex gap-2 flex-wrap">{photos.data!.map(p => <EvidenceThumb key={p.id} ctx={ctx} doc={p} className="w-20 h-20" />)}</div>
         )}
       </Card>
 

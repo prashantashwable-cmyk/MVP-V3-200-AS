@@ -180,6 +180,19 @@ async function refreshParticipants(ctx: MvpCtx, actor: MvpActor, orderId: string
   }
 }
 
+/**
+ * Records the assigned surveyor on the lead. firestore.rules let `leads.surveyorId` read and
+ * update the lead, which submitting the survey needs (it mirrors the lead to QUOTE, D-04).
+ * Without it every real survey submission was refused (multi-user emulator test finding).
+ */
+async function setLeadSurveyor(ctx: MvpCtx, order: OrderRecord, surveyorId: string): Promise<void> {
+  if (!order.sourceLeadId) return;
+  const repo = leadRepository(ctx);
+  const lead = await repo.get(order.sourceLeadId);
+  if (!lead || (lead as { surveyorId?: string }).surveyorId === surveyorId) return;
+  await repo.update(lead.id, { surveyorId, updatedAt: nowOf(ctx).toISOString() } as Partial<MvpLead>);
+}
+
 async function syncLeadStatus(ctx: MvpCtx, order: OrderRecord, status: MvpLeadStatus): Promise<void> {
   if (!order.sourceLeadId) return;
   const repo = leadRepository(ctx);
@@ -200,52 +213,95 @@ export interface ApplyResult {
  * (deduplicated, I-2), moves stage (forward only, I-4) and status, recomputes participants,
  * audits every change (I-3) and mirrors the lead status (D-04).
  */
+/** How long one person's order change may hold the order, and how long others wait for it. */
+const ORDER_LEASE_MS = 15_000;
+const ORDER_LEASE_WAIT_MS = 8_000;
+
 export async function applyEvent(
   ctx: MvpCtx, actor: MvpActor, orderId: string, event: MvpEvent,
   opts: { reason?: string; orderPatch?: Partial<OrderRecord> } = {},
 ): Promise<ApplyResult> {
-  const order = await loadOrder(ctx, orderId);
   const now = nowOf(ctx);
-  const before = snapshotOf(order);
-  const outcome = outcomeFor(event, before, now);
-  // Validate before any write, so a rejected event leaves no partial changes.
-  if (outcome.nextStage && !isForward(before.stage, outcome.nextStage)) {
-    throw new MvpError('invalid', `Stage cannot move back from ${before.stage} to ${outcome.nextStage} without an Admin override.`);
-  }
-  let tasks = await listOrderTasks(ctx, orderId);
-
-  const completed: Task[] = [];
-  for (const t of tasks) {
-    if (!isOpenTask(t)) continue;
-    if (outcome.cancelOpenTasks) {
-      completed.push(await setTaskStatus(ctx, t, 'CANCELLED'));
-    } else if (outcome.completeTypes.includes(t.type)) {
-      completed.push(await setTaskStatus(ctx, t, 'COMPLETED'));
+  // Validate, then CLAIM the order with a version-checked save before any other write. Two
+  // people changing the same order at the same moment (e.g. QC passes while the Admin cancels)
+  // used to interleave their task writes and leave an open task on a cancelled order
+  // (multi-user emulator test). Now the second one reloads, re-validates on the new state and
+  // either continues or stops cleanly without writing anything.
+  let order: OrderRecord;
+  let before: OrderSnapshot;
+  let outcome: ReturnType<typeof outcomeFor>;
+  const waitStarted = Date.now();
+  for (let attempt = 1; ; attempt++) {
+    order = await loadOrder(ctx, orderId);
+    before = snapshotOf(order);
+    if ((order.status ?? 'ACTIVE') === 'CANCELLED' && event.type !== 'EMERGENCY_RAISED') {
+      throw new MvpError('invalid', 'This order was cancelled, so it cannot be changed. Reload the screen.');
+    }
+    outcome = outcomeFor(event, before, now);
+    if (outcome.nextStage && !isForward(before.stage, outcome.nextStage)) {
+      throw new MvpError('invalid', `Stage cannot move back from ${before.stage} to ${outcome.nextStage} without an Admin override.`);
+    }
+    const lease = order as OrderRecord & { busyUntil?: string; busyBy?: string };
+    const busy = !!lease.busyUntil && Date.parse(lease.busyUntil) > Date.now() && lease.busyBy !== actor.userId;
+    if (busy || attempt > 1) {
+      if (Date.now() - waitStarted > ORDER_LEASE_WAIT_MS) {
+        throw new MvpError('invalid', 'Someone else is saving this order right now. Try again in a moment.');
+      }
+      await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
+      if (busy) continue;
+    }
+    try {
+      order = (await projectRepository(ctx).update(orderId, {
+        updatedAt: now.toISOString(), updatedBy: actor.userId,
+        busyUntil: new Date(Date.now() + ORDER_LEASE_MS).toISOString(), busyBy: actor.userId,
+      } as any, order.version ?? 0)) as OrderRecord;
+      break;
+    } catch (err: any) {
+      if (err?.code !== 'stale_write') throw err;
     }
   }
-  tasks = await listOrderTasks(ctx, orderId);
-
-  const openTypes = tasks.filter(isOpenTask).map(t => t.type);
+  // Everything below runs while this person holds the order's lease (released by the final save).
+  const completed: Task[] = [];
   const created: Task[] = [];
-  for (const s of dedupe(outcome.create, openTypes)) {
-    const task = await createTaskFromSpec(ctx, actor, { orderId }, s, [...tasks, ...created]);
-    if (task) created.push(task);
-  }
-
   const patch: Partial<OrderRecord> = { ...opts.orderPatch };
-  if (outcome.nextStage && outcome.nextStage !== before.stage) {
-    patch.stage = TO_PROJECT_STAGE[outcome.nextStage];
-  }
-  if (outcome.nextStatus && outcome.nextStatus !== before.status) patch.status = outcome.nextStatus;
-  // Customers may not change participantIds (firestore.rules); staff/Admin refresh them.
-  // The only customer event that assigns a uid is EMERGENCY_RAISED, whose technician works
-  // from the task and the service case (both readable by the assignee) instead.
-  const participants = computeParticipants(order, await listOrderTasks(ctx, orderId));
-  if (actor.role !== 'customer' && JSON.stringify(participants) !== JSON.stringify(order.participantIds ?? [])) {
-    patch.participantIds = participants;
-  }
+  let updated: OrderRecord;
+  try {
+    let tasks = await listOrderTasks(ctx, orderId);
 
-  const updated = await updateOrder(ctx, actor, orderId, patch);
+    for (const t of tasks) {
+      if (!isOpenTask(t)) continue;
+      if (outcome.cancelOpenTasks) {
+        completed.push(await setTaskStatus(ctx, t, 'CANCELLED'));
+      } else if (outcome.completeTypes.includes(t.type)) {
+        completed.push(await setTaskStatus(ctx, t, 'COMPLETED'));
+      }
+    }
+    tasks = await listOrderTasks(ctx, orderId);
+
+    const openTypes = tasks.filter(isOpenTask).map(t => t.type);
+    for (const s of dedupe(outcome.create, openTypes)) {
+      const task = await createTaskFromSpec(ctx, actor, { orderId }, s, [...tasks, ...created]);
+      if (task) created.push(task);
+    }
+
+    if (outcome.nextStage && outcome.nextStage !== before.stage) {
+      patch.stage = TO_PROJECT_STAGE[outcome.nextStage];
+    }
+    if (outcome.nextStatus && outcome.nextStatus !== before.status) patch.status = outcome.nextStatus;
+    // Customers may not change participantIds (firestore.rules); staff/Admin refresh them.
+    // The only customer event that assigns a uid is EMERGENCY_RAISED, whose technician works
+    // from the task and the service case (both readable by the assignee) instead.
+    const participants = computeParticipants(order, await listOrderTasks(ctx, orderId));
+    if (actor.role !== 'customer' && JSON.stringify(participants) !== JSON.stringify(order.participantIds ?? [])) {
+      patch.participantIds = participants;
+    }
+
+      updated = await updateOrder(ctx, actor, orderId, { ...patch, busyUntil: '', busyBy: '' } as Partial<OrderRecord>);
+  } catch (err) {
+    // Release the lease so nobody waits for it after a failed change.
+    await projectRepository(ctx).update(orderId, { busyUntil: '', busyBy: '' } as any).catch(() => undefined);
+    throw err;
+  }
 
   if (patch.stage) {
     await audit(ctx, actor, 'ORDER_STAGE_CHANGED', 'Project', orderId, orderId,
@@ -460,6 +516,7 @@ export async function assignSurveyor(ctx: MvpCtx, actor: MvpActor, orderId: stri
   const tasks = await listOrderTasks(ctx, orderId);
   const feeOpen = tasks.find(t => t.type === 'COLLECT_SURVEY_FEE' && isOpenTask(t));
   if (feeOpen) throw new MvpError('gate', 'Collect or waive the survey fee before assigning a surveyor (D-30).');
+  await setLeadSurveyor(ctx, order, surveyorId);
   const result = await applyEvent(ctx, actor, orderId, { type: 'SURVEYOR_ASSIGNED', surveyorId, date });
   await notify(ctx, surveyorId, 'mvp_survey_scheduled', orderId, `survey:${orderId}:${surveyorId}`);
   await notify(ctx, customerToken(order.customerId), 'mvp_survey_scheduled', orderId, `survey:${orderId}`);
@@ -570,6 +627,9 @@ export async function reassignTask(ctx: MvpCtx, actor: MvpActor, taskId: string,
   await audit(ctx, actor, 'TASK_REASSIGNED', 'Task', taskId, task.orderId, { assigneeId: task.assigneeId }, { assigneeId: assignee.id }, reason);
   if (task.orderId && task.type === 'INSTALLATION' && assignee.role === 'technician') {
     await syncInstallationJob(ctx, task.orderId, assignee.id);
+  }
+  if (task.orderId && task.type === 'SURVEY' && assignee.role === 'surveyor') {
+    await setLeadSurveyor(ctx, await loadOrder(ctx, task.orderId), assignee.id);
   }
   await notify(ctx, assignee.id, 'mvp_task_assigned', task.orderId, `${taskId}:reassign:${assignee.id}`);
   if (task.orderId) await refreshParticipants(ctx, actor, task.orderId);

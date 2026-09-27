@@ -542,7 +542,13 @@ export interface DocumentRecord {
   uploadedAt: string;
   version: number;
   // MVP (D-16 as changed in Step 02): evidence bytes stored inline, ≤ 900 KB.
+  // Deprecated for new records (kept for older ones): the full file now lives in
+  // `document_blobs/{blobId}` so listing an order's evidence stays small.
   dataUrl?: string;
+  /** Small JPEG preview (~240 px, ≤ 40 KB) shown in lists; the full file loads on tap. */
+  thumbnailDataUrl?: string;
+  /** Id of the `document_blobs` record that holds the full file. */
+  blobId?: string;
   caption?: string;
   taskId?: string;
   kind?: 'photo' | 'document';
