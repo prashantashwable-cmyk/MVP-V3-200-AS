@@ -356,6 +356,7 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
   - The assignee gives a new date and a reason, stored in `task.data.promise`.
   - The date must be later than the current due date, and at most `MAX_PROMISE_DAYS` (14) past the later of now and the due date.
   - The Admin is told at once. The due date the Admin set does not change.
+  - The Admin may also record a promise for someone, for example after a phone call.
   - The ladder holds its reminders until the promised date. A missed promise goes straight to L2 (the person and the Admin; the Owner after 72 h). A second request goes on the Admin's chase list.
 - **"I'm stuck"**: one of the 8 blocker reasons (`raiseBlocker`), routed as D-07 already does (customer reasons → the customer; others → the Admin). The task moves to "Waiting on someone", and the ladder chases the blocker, not the person.
 - **Look-ahead:** while an INSTALLATION task is open and not started, and the delivery payment is neither in nor waived nor overridden, the Admin gets "Installation cannot start yet". The chase list then offers a prefilled WhatsApp to the customer, before the technician is sent to a site where the `INSTALLATION_START` gate would refuse them.

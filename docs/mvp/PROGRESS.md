@@ -76,7 +76,7 @@
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
-| FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
+| FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
 Environment at baseline: Node v22.22.2, npm 10.9.7, OpenJDK 21.0.10, firebase-tools 15.31.0 (via `npx`), Chromium at `/opt/pw-browsers`.

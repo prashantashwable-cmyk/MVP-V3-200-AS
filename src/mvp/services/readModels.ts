@@ -17,7 +17,8 @@ import { computeProgress } from '../progress';
 import { DAY_GROUPS, dayGroupOf, promiseOf, type DayGroup } from '../followUp';
 import { MVP_STAGES, toMvpStage, MVP_STAGE_LABELS } from '../stage';
 import { leadStatus, type MvpLead } from '../leadModel';
-import { leadRepository, listOrderTasks, listOpenBlockers, type MvpActor, type MvpCtx, nowOf, actorTokens, queryTokens } from './orderService';
+import { leadRepository, listOrderTasks, listOpenBlockers, type MvpActor, type MvpCtx, nowOf, actorTokens } from './orderService';
+import { getMvpTaskQueue } from '../../services/workQueue';
 
 export type OrderRecord = Project & { version?: number };
 
@@ -300,9 +301,7 @@ export interface MyDayRow {
 
 export async function buildMyDay(ctx: MvpCtx, viewer: MvpActor): Promise<MyDayRow[]> {
   const now = nowOf(ctx);
-  const repo = taskRepository(ctx);
-  const lists = await Promise.all(queryTokens(viewer).map(t => repo.query({ assigneeId: t } as Partial<Task>)));
-  const tasks = [...new Map(lists.flat().filter(isOpenTask).map(t => [t.id, t])).values()];
+  const tasks = await getMvpTaskQueue(ctx, viewer); // the viewer's open tasks (D-06), same query as "Today"/Survey
   const orderIds = [...new Set(tasks.map(t => t.orderId).filter(Boolean) as string[])];
   const orders = new Map((await Promise.all(orderIds.map(id => projectRepository(ctx).get(id).catch(() => null))))
     .filter(Boolean).map(o => [o!.id as string, o as OrderRecord]));

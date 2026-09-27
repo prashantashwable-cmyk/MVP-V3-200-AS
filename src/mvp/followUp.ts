@@ -18,7 +18,7 @@ import { currentTask, isOpenTask } from './health';
 import { toMvpStage } from './stage';
 import { leadOwner, leadStatus, type MvpLead } from './leadModel';
 import {
-  AT_RISK_WINDOW_HOURS, BLOCKER_DUE_DAYS, CHASE_SNOOZE_HOURS, CUSTOMER_REMIND_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE,
+  AT_RISK_WINDOW_HOURS, BLOCKER_DUE_DAYS, MY_DAY_SOON_HOURS, CHASE_SNOOZE_HOURS, CUSTOMER_REMIND_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE,
   UNASSIGNED_ALERT_HOURS,
 } from './config';
 
@@ -310,6 +310,6 @@ export function dayGroupOf(t: Pick<Task, 'type' | 'status' | 'dueDate' | 'data'>
   if (due < now.getTime()) return 'LATE';
   const endOfToday = new Date(`${dayKeyOf(now)}T23:59:59.999+05:30`).getTime(); // TIME_ZONE is Asia/Kolkata
   if (due <= endOfToday) return 'TODAY';
-  if (due <= now.getTime() + 3 * 24 * HOUR) return 'SOON';
+  if (due <= now.getTime() + MY_DAY_SOON_HOURS * HOUR) return 'SOON';
   return 'LATER';
 }

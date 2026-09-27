@@ -61,6 +61,8 @@ export const CHASE_SNOOZE_HOURS = 20;
 export const CUSTOMER_REMIND_HOURS = 72;
 /** D-33: "Need more time" can move a promise at most this far ahead. */
 export const MAX_PROMISE_DAYS = 14;
+/** D-33 "My day": tasks due within this many hours (after today) show under "Next 3 days". */
+export const MY_DAY_SOON_HOURS = 72;
 
 /** D-15: minimum markup % before Admin approval is required (Owner's "minimum 20% margin"). */
 export const MIN_MARKUP_PCT = 20;
