@@ -4,7 +4,7 @@
  * the canonical repositories; no new collections, no analytics platform.
  */
 
-import type { AMC, Project, QuoteCost } from '../../domain/entities';
+import type { AMC, MvpStage, Project, QuoteCost, Task } from '../../domain/entities';
 import {
   amcRepository, installationJobRepository, paymentMilestoneRepository, projectRepository, quoteCostRepository,
   qcInspectionRepository, serviceCaseRepository, snagRepository, taskRepository,
@@ -85,6 +85,34 @@ export interface Reports {
   operations: { activeOrders: number; overdueTasks: number; blockedTasks: number; avgInstallDays: number | null };
   money: { booked: number; collected: number; outstanding: number; marginPct: number | null };
   quality: { qcPass: number; rework: number; complaints: number };
+  /** D-33: where the process is slow — per stage, never per person (no leaderboards). */
+  flow: StageFlow[];
+}
+
+export interface StageFlow {
+  stage: MvpStage;
+  done: number;
+  onTimePct: number;
+  avgDays: number;
+  plannedDays: number;
+}
+
+const DAY_MS = 86_400_000;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Tasks finished in the last `days` days, by stage: how many were on time, and days taken vs planned. Slowest first. */
+export function stageFlow(tasks: Pick<Task, 'orderId' | 'stage' | 'status' | 'createdAt' | 'completedAt' | 'dueDate'>[], now: Date, days = 30): StageFlow[] {
+  const since = now.getTime() - days * DAY_MS;
+  const done = tasks.filter(t => t.orderId && t.status === 'COMPLETED' && t.completedAt && new Date(t.completedAt).getTime() >= since);
+  const byStage = new Map<MvpStage, typeof done>();
+  for (const t of done) (byStage.get(t.stage) ?? byStage.set(t.stage, []).get(t.stage)!).push(t);
+  return [...byStage.entries()].map(([stage, list]) => {
+    const took = list.map(t => (new Date(t.completedAt!).getTime() - new Date(t.createdAt).getTime()) / DAY_MS);
+    const planned = list.map(t => (new Date(t.dueDate).getTime() - new Date(t.createdAt).getTime()) / DAY_MS);
+    const onTime = list.filter(t => new Date(t.completedAt!).getTime() <= new Date(t.dueDate).getTime()).length;
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    return { stage, done: list.length, onTimePct: Math.round((onTime / list.length) * 100), avgDays: round1(avg(took)), plannedDays: round1(avg(planned)) };
+  }).sort((a, b) => a.onTimePct - b.onTimePct || (b.avgDays - b.plannedDays) - (a.avgDays - a.plannedDays));
 }
 
 /** Reporting (spec §28): sales, operations, money, quality — four small tables, no analytics platform. */
@@ -123,5 +151,6 @@ export async function buildReports(ctx: MvpCtx): Promise<Reports> {
       rework: snags.length,
       complaints: cases.filter(c => c.kind === 'COMPLAINT').length,
     },
+    flow: stageFlow(tasks, new Date(now)),
   };
 }

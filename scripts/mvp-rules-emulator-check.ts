@@ -259,6 +259,10 @@ async function main() {
   ok(!(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the assignee cannot mark their own task "chased"');
   ok(!(await allowed(updateDoc(doc(db.owner, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the Owner (read-only) cannot mark it chased');
   ok(await allowed(updateDoc(doc(db.admin, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' })), 'D-32: the Admin marks it chased');
+  // D-33 "Need more time": the promise lives in the task's own `data`, which only its assignee (or the Admin) may write.
+  ok(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-10-08T12:00:00Z', count: 1, reason: 'crane', by: uid.tech2 } }, updatedAt: '2026-10-05', version: 1 })), 'D-33: the assignee records their promised date');
+  ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-12-01T12:00:00Z', count: 1, reason: 'x', by: uid.tech1 } } }))), 'D-33: someone else cannot promise on their behalf');
+  ok(!(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { dueDate: '2026-12-01' }))), 'D-33: the assignee still cannot move the Admin\'s due date');
   ok(await allowed(updateDoc(doc(db.sales, 'counters/orders'), { value: 6 })), 'the order counter moves by +1');
   ok(!(await allowed(updateDoc(doc(db.sales, 'counters/orders'), { value: 9 }))), 'the order counter cannot jump');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'counters/orders'), { value: 7 }))), 'a technician cannot touch the counter');

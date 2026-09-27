@@ -44,6 +44,9 @@ const en: MvpDict = {
     mvp_unassigned: { subject: 'Nobody has picked up a task', body: 'A task is waiting for someone to be assigned.' },
     mvp_blocker_aging: { subject: 'Blocker still open', body: 'A blocker has been open longer than its due time.' },
     mvp_lead_followup: { subject: 'Lead follow-up due', body: 'A lead is waiting for your follow-up call.' },
+    mvp_promise_made: { subject: 'More time asked', body: 'Someone asked for more time on a task and gave a new date.' },
+    mvp_promise_broken: { subject: 'Promised date missed', body: 'A task is still open after the date its owner promised.' },
+    mvp_gate_risk: { subject: 'Installation cannot start yet', body: 'Material is at site but the delivery payment is pending. Collect it before the technician goes.' },
   },
   nav: {
     MvpDashboard: 'Dashboard', MvpOwnerView: 'Overview', MvpOrders: 'Orders', MvpTasks: 'My tasks',
@@ -137,6 +140,7 @@ export function digestLine(data: Record<string, number> | undefined): string | u
   const parts: [string, number | undefined][] = [
     ['overdue', data.overdue], ['escalated', data.escalated], ['blockers open too long', data.blockers],
     ['customers late', data.customers], ['orders with no next action', data.noNextAction], ['lead calls due', data.leads],
+    ['promised dates missed', data.promisesBroken], ['installations waiting for payment', data.gateRisks],
   ];
   const shown = parts.filter(([, n]) => (n ?? 0) > 0).map(([label, n]) => `${n} ${label}`);
   return shown.length ? shown.join(' · ') : 'Nothing was late at this check.';

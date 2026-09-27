@@ -9,7 +9,10 @@ import { runS1 } from './mvp/scenario';
 import type { Blocker, Task } from '../src/domain/entities';
 import { chaseList, digestCounts, followUpsFor, notificationsFor, type FollowUpOrder } from '../src/mvp/followUp';
 import { listChases, listMyNotifications, markChased, scanMyFollowUps, scanTaskNotifications } from '../src/mvp/services/notify';
-import { completeTask, listOrderTasks } from '../src/mvp/services/orderService';
+import { completeTask, listOrderTasks, promiseTask, raiseBlocker } from '../src/mvp/services/orderService';
+import { dayGroupOf, promiseOf } from '../src/mvp/followUp';
+import { buildMyDay } from '../src/mvp/services/readModels';
+import { stageFlow } from '../src/mvp/services/reports';
 import { notificationRepository } from '../src/repository/entities';
 import type { MvpLead } from '../src/mvp/leadModel';
 import { setPersonPhone, usersRepository } from '../src/mvp/services/people';
@@ -168,9 +171,102 @@ async function demoScan() {
   check(!after.some(r => r.taskId === install.id) && r2.items >= 0, 'finished task: off the chase list and no more reminders');
 }
 
+async function assistantPure() {
+  // D-33 promise: the ladder waits for the person's own date, then escalates a missed one.
+  const promised = (atInHours: number, count = 1) => ({ promise: { at: new Date(NOW.getTime() + atInHours * HOUR).toISOString(), count, reason: 'waiting for crane', by: 'u_tech' } });
+  const kept = run([task({ id: 'p', dueInHours: -30, data: promised(24) })]).filter(f => f.taskId === 'p');
+  check(kept.length === 0, 'promise not yet due: no reminders, no escalation, even though the task is 30 h late');
+  const broken = run([task({ id: 'p', dueInHours: -30, data: promised(-2) })]).filter(f => f.taskId === 'p');
+  check(broken[0]?.kind === 'BROKEN_PROMISE' && broken[0].level === 2, 'promise missed by 2 h: straight to L2');
+  check(notificationsFor(broken[0], NOW).map(n => `${n.audience}:${n.templateId}`).sort().join() === 'role:admin:mvp_promise_broken,u_tech:mvp_task_overdue', 'missed promise: the person and the Admin are told');
+  const again = run([task({ id: 'p', dueInHours: -30, data: promised(24, 2) })]).filter(f => f.taskId === 'p');
+  check(again[0]?.kind === 'PROMISED_AGAIN' && again[0].level === 2 && notificationsFor(again[0], NOW).length === 0, 'second "more time": on the Admin\'s chase list (no extra bell)');
+  check(!promiseOf({ data: { promise: { at: 'not a date' } } } as any), 'a malformed promise is ignored');
+
+  // D-33 look-ahead: installation open, delivery payment not in → collect before the visit.
+  const inst = [task({ id: 'i', type: 'INSTALLATION', dueInHours: 200 })];
+  const ms = (status: string, waived = false) => [{ orderId: 'o1', kind: 'DELIVERY', status, waived }] as any;
+  const risk = (m: any, o = order('o1')) => followUpsFor({ orders: [o], tasks: inst, openBlockers: [], leads: [], milestones: m, now: NOW }).filter(f => f.kind === 'GATE_RISK');
+  check(risk(ms('PENDING')).length === 1 && risk(ms('PENDING'))[0].level === 2, 'installation waiting for delivery payment: flagged to the Admin before the visit');
+  check(notificationsFor(risk(ms('PENDING'))[0], NOW)[0]?.templateId === 'mvp_gate_risk', 'look-ahead notice: "Installation cannot start yet"');
+  check(risk(ms('PAID')).length === 0 && risk(ms('PENDING', true)).length === 0, 'paid or waived: no warning');
+  check(risk(ms('PENDING'), { ...order('o1'), gateOverrides: { INSTALLATION_START: { reason: 'x' } } }).length === 0, 'Admin override of the gate: no warning');
+  check(followUpsFor({ orders: [order('o1')], tasks: [task({ id: 'i', type: 'INSTALLATION', status: 'IN_PROGRESS', dueInHours: 200 })], openBlockers: [], leads: [], milestones: ms('PENDING'), now: NOW }).every(f => f.kind !== 'GATE_RISK'), 'already started: no warning');
+
+  // D-33 customer reminder before the due date.
+  const ct = (h: number) => run([task({ id: 'c', type: 'SITE_READINESS', assigneeId: 'customer:c1', assigneeRole: 'customer', dueInHours: h })]).filter(f => f.kind === 'CUSTOMER_REMINDER');
+  check(ct(48).length === 1 && ct(48)[0].level === 1, 'customer task due in 48 h: on the chase list to remind them');
+  check(ct(100).length === 0 && ct(-5).length === 0, 'not yet (100 h) or already late (handled as "customer waiting")');
+  check(notificationsFor(ct(48)[0], NOW).length === 0, 'the reminder is sent by the Admin (WhatsApp), not the bell');
+
+  // D-33 My day groups.
+  const g = (p: Partial<Task> & { dueInHours: number }) => dayGroupOf(task({ id: 'g', ...p }) as Task, NOW);
+  check(g({ type: 'EMERGENCY_RESPONSE', dueInHours: 1 }) === 'EMERGENCY' && g({ dueInHours: -1 }) === 'LATE' && g({ dueInHours: 5 }) === 'TODAY', 'My day: emergency, late, today');
+  check(g({ dueInHours: 40 }) === 'SOON' && g({ dueInHours: 200 }) === 'LATER' && g({ status: 'BLOCKED', dueInHours: -5 }) === 'WAITING', 'My day: next 3 days, later, waiting on someone');
+  check(g({ dueInHours: -10, data: promised(30) }) === 'SOON', 'My day: a promise moves the task to its promised day');
+
+  // D-33 where work is slow: per stage, slowest first.
+  const doneTask = (stage: string, tookDays: number, planDays: number) => ({
+    orderId: 'o1', stage, status: 'COMPLETED', createdAt: new Date(NOW.getTime() - 20 * 24 * HOUR).toISOString(),
+    completedAt: new Date(NOW.getTime() - (20 - tookDays) * 24 * HOUR).toISOString(), dueDate: new Date(NOW.getTime() - (20 - planDays) * 24 * HOUR).toISOString(),
+  }) as any;
+  const flow = stageFlow([doneTask('SITE_READY', 19, 14), doneTask('SITE_READY', 12, 14), doneTask('QUOTE', 1, 2), { ...doneTask('QUOTE', 1, 2), status: 'CANCELLED' }], NOW);
+  check(flow[0].stage === 'SITE_READY' && flow[0].onTimePct === 50 && flow[0].avgDays === 15.5 && flow[0].plannedDays === 14, `slowest stage first: site ready 50% on time, 15.5 of 14 days (got ${JSON.stringify(flow[0])})`);
+  check(flow[1].stage === 'QUOTE' && flow[1].done === 1 && flow[1].onTimePct === 100, 'cancelled tasks are not counted');
+}
+
+async function assistantDemo() {
+  const clock = new Clock();
+  const ctx = demoCtx(clock, USERS.admin);
+  const s = await runS1(ctx, clock, 12);
+  const install = (await listOrderTasks(ctx, s.orderId)).find(t => t.type === 'INSTALLATION' && t.status === 'TODO')!;
+  clock.advanceMinutes((new Date(install.dueDate).getTime() - clock.now().getTime()) / 60_000 + 120); // 2 h late
+  const refuse = async (fn: () => Promise<unknown>) => { try { await fn(); return false; } catch { return true; } };
+  const inDays = (d: number) => new Date(clock.now().getTime() + d * 24 * HOUR).toISOString();
+  check(await refuse(() => promiseTask(ctx, USERS.tech2, install.id, inDays(2), 'x')), 'someone else cannot promise for this task');
+  check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(-1), 'x')), 'a promised date must be in the future');
+  check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(20), 'x')), 'more than 14 days needs the Admin to re-plan');
+  {
+    // Not late yet: "more time" is measured from the due date, not from today.
+    const c2 = new Clock();
+    const ctx2 = demoCtx(c2, USERS.admin);
+    const s2 = await runS1(ctx2, c2, 12);
+    const t2 = (await listOrderTasks(ctx2, s2.orderId)).find(t => t.type === 'INSTALLATION' && t.status === 'TODO')!;
+    const afterDue = (d: number) => new Date(new Date(t2.dueDate).getTime() + d * 24 * HOUR).toISOString();
+    check(await refuse(() => promiseTask(ctx2, USERS.tech1, t2.id, new Date(new Date(t2.dueDate).getTime() - HOUR).toISOString(), 'x')), 'a "new" date before the current due date is refused');
+    const p2 = await promiseTask(ctx2, USERS.tech1, t2.id, afterDue(3), 'Crane only after the 20th');
+    check(promiseOf(p2)?.count === 1, 'a task due in 3 weeks can still get 3 more days (cap counts from the due date)');
+    check(await refuse(() => promiseTask(ctx2, USERS.tech1, t2.id, afterDue(15), 'x')), 'but not more than 14 days past the due date');
+  }
+  check(await refuse(() => promiseTask(ctx, USERS.tech1, install.id, inDays(2), '  ')), 'a reason is required');
+  await promiseTask(ctx, USERS.tech1, install.id, inDays(2), 'Crane only available Thursday');
+  check((await listMyNotifications(ctx, USERS.admin)).some(n => n.templateId === 'mvp_promise_made' && n.projectId === s.orderId), 'the Admin is told at once that more time was asked');
+  await scanTaskNotifications(ctx);
+  check(!(await listMyNotifications(ctx, USERS.tech1, 500)).some(n => n.templateId === 'mvp_task_overdue' && n.projectId === s.orderId), 'while the promise holds, the technician is not nagged');
+  let mine = await buildMyDay(ctx, USERS.tech1);
+  const row = mine.find(r => r.task.id === install.id);
+  check(row?.group === 'SOON' && !!row.promisedAt && /^AE-\d{4}$/.test(row.orderCode ?? ''), `My day shows the promised date with the order code (${row?.group} ${row?.orderCode})`);
+
+  clock.advanceDays(3); // promise missed
+  await scanTaskNotifications(ctx);
+  check((await listMyNotifications(ctx, USERS.admin)).some(n => n.templateId === 'mvp_promise_broken' && n.projectId === s.orderId), 'missed promise: the Admin is told');
+  check((await listChases(ctx)).some(r => r.taskId === install.id && r.kind === 'BROKEN_PROMISE'), 'missed promise: on the chase list');
+  mine = await buildMyDay(ctx, USERS.tech1);
+  check(mine.find(r => r.task.id === install.id)?.group === 'LATE', 'My day: late again');
+
+  await promiseTask(ctx, USERS.tech1, install.id, inDays(1), 'Crane broke down');
+  check((await listChases(ctx)).some(r => r.taskId === install.id && r.kind === 'PROMISED_AGAIN'), 'second request for more time: the Admin sees it');
+
+  await raiseBlocker(ctx, USERS.tech1, { orderId: s.orderId, taskId: install.id, reason: 'POWER_UNAVAILABLE', description: 'No 3-phase at site' });
+  mine = await buildMyDay(ctx, USERS.tech1);
+  check(mine.find(r => r.task.id === install.id)?.group === 'WAITING', '"I\'m stuck": the task moves to "Waiting on someone"');
+}
+
 async function main() {
   await pureRules();
   await demoScan();
+  await assistantPure();
+  await assistantDemo();
   done('mvp-followup-check');
 }
 
