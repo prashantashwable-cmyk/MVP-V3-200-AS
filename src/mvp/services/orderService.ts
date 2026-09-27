@@ -24,7 +24,8 @@ import { runIdempotent } from '../../lib/idempotency';
 import { outcomeFor, dedupe, TASK_TITLES, type MvpEvent, type OrderSnapshot, type TaskSpec, type Assignee } from '../rules';
 import { toMvpStage, TO_PROJECT_STAGE, isForward, stageIndex } from '../stage';
 import { isOpenTask } from '../health';
-import { BLOCKER_DUE_DAYS, DUE_DAYS, SURVEY_FEE_INR } from '../config';
+import { BLOCKER_DUE_DAYS, DUE_DAYS, MAX_PROMISE_DAYS, SURVEY_FEE_INR } from '../config';
+import { promiseOf } from '../followUp';
 import { addDays } from '../format';
 import { notify } from './notify';
 import { leadOwner, leadStatus, LEGACY_STAGE_FOR, type MvpLead, type MvpLeadStatus } from '../leadModel';
@@ -61,6 +62,17 @@ export function actorTokens(actor: MvpActor): string[] {
   const tokens = [actor.userId, `role:${actor.role}`];
   if (actor.role === 'customer' && actor.customerId) tokens.push(customerToken(actor.customerId));
   return tokens;
+}
+
+/**
+ * The assignee tokens a viewer may QUERY tasks by. firestore.rules can prove a list of tasks
+ * assigned to the viewer's own uid / customer token, and Admin/Owner may list anything — but a
+ * staff member cannot list a whole role's tasks (`role:technician`): that query is refused, and
+ * one refused query failed the whole task list on real Firestore (found by mvp:multiuser, D-33).
+ * Tasks left on a role are the Admin's to assign; the follow-up ladder flags them (D-32).
+ */
+export function queryTokens(actor: MvpActor): string[] {
+  return actorTokens(actor).filter(t => !t.startsWith('role:') || actor.role === 'admin' || actor.role === 'owner');
 }
 
 export function isAssignee(task: Pick<Task, 'assigneeId'>, actor: MvpActor): boolean {
@@ -608,6 +620,34 @@ export async function setTaskInProgress(ctx: MvpCtx, actor: MvpActor, taskId: st
   if (task.status !== 'TODO') return task;
   const updated = await setTaskStatus(ctx, task, 'IN_PROGRESS');
   await audit(ctx, actor, 'TASK_STARTED', 'Task', taskId, task.orderId, { status: 'TODO' }, { status: 'IN_PROGRESS' });
+  return updated;
+}
+
+/**
+ * D-33 "Need more time": the assignee gives their own new date and a reason instead of going
+ * silent. The due date the Admin set stays as it is; the follow-up ladder (followUp.ts) holds
+ * its reminders until the promised date, then treats a missed promise as escalated. Stored in
+ * `task.data.promise` (a key the assignee may already write). The Admin is told at once.
+ */
+export async function promiseTask(ctx: MvpCtx, actor: MvpActor, taskId: string, promisedAt: string, reason: string): Promise<Task> {
+  const task = await taskRepository(ctx).get(taskId);
+  if (!task) throw new MvpError('not_found', `Task ${taskId} not found.`);
+  if (!isOpenTask(task)) throw new MvpError('invalid', 'This task is already closed.');
+  if (actor.role !== 'admin' && !isAssignee(task, actor)) throw new MvpError('forbidden', 'This task is assigned to someone else.');
+  const why = requireText(reason, 'A reason');
+  const at = new Date(promisedAt);
+  const now = nowOf(ctx);
+  if (Number.isNaN(at.getTime()) || at.getTime() <= now.getTime()) throw new MvpError('invalid', 'Choose a date in the future.');
+  if (at.getTime() > addDays(now, MAX_PROMISE_DAYS).getTime()) {
+    throw new MvpError('invalid', `Choose a date within ${MAX_PROMISE_DAYS} days, or ask the Admin to re-plan the task.`);
+  }
+  const previous = promiseOf(task);
+  const promise = { at: at.toISOString(), count: (previous?.count ?? 0) + 1, reason: why, by: actor.userId };
+  const updated = await taskRepository(ctx).update(taskId, {
+    data: { ...(task.data ?? {}), promise }, updatedAt: now.toISOString(),
+  }, task.version ?? 0);
+  await audit(ctx, actor, 'TASK_PROMISED', 'Task', taskId, task.orderId, { dueDate: task.dueDate, promise: previous?.at ?? null }, { promisedAt: promise.at, count: promise.count }, why);
+  await notify(ctx, 'role:admin', 'mvp_promise_made', task.orderId, `promise:${taskId}:${promise.count}`);
   return updated;
 }
 

@@ -457,6 +457,22 @@ async function main() {
   const escAfter = (await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000)).filter((n: any) => n.templateId === 'mvp_escalated' && n.projectId === f2).length;
   ok(real.code === 0 && /Follow-up run done/.test(real.out) && escAfter === 1, `robot real run: done, and still one escalation (already sent today) (${escAfter})`);
 
+    // D-33 assistant, on the real rules: the technician asks for more time from their own phone.
+  area = 'H assistant';
+  const promised = await people.tech1.try('promiseTask', '$ctx', '$actor', ft.id, new Date(Date.now() + 2 * 86_400_000).toISOString(), 'Crane only on Thursday');
+  ok(promised.ok, `technician's "Need more time" saves through the Firestore rules (${promised.ok ? 'ok' : promised.error!.message.slice(0, 80)})`);
+  const otherPromise = await people.tech2.try('promiseTask', '$ctx', '$actor', ft.id, new Date(Date.now() + 86_400_000).toISOString(), 'x');
+  ok(!otherPromise.ok, 'another technician cannot promise on their behalf');
+  const adminSees = (await people.admin.call('listMyNotifications', '$ctx', '$actor', 1000)).some((n: any) => n.templateId === 'mvp_promise_made' && n.projectId === f2);
+  ok(adminSees, 'the Admin is told that more time was asked');
+  for (const who of ['tech1', 'surveyor', 'qc'] as const) {
+    const q = await people[who].try('getMvpTaskQueue', '$ctx', '$actor');
+    ok(q.ok, `${who}'s task list ("My tasks" / Today) loads on real Firestore (${q.ok ? q.result.length + ' tasks' : q.error!.message.slice(0, 60)})`);
+  }
+  const day = await people.tech1.try('buildMyDay', '$ctx', '$actor');
+  const dayRow = day.ok ? day.result.find((r: any) => r.task.id === ft.id) : null;
+  ok(!!dayRow && dayRow.group === 'SOON' && !!dayRow.orderCode, `the technician's "My day" loads on real Firestore and shows the promised date (${day.ok ? dayRow?.group : day.error!.message.slice(0, 60)})`);
+
     // ---- Summary ----
   area = 'summary';
   const byArea: Record<string, { ok: number; fail: number }> = {};

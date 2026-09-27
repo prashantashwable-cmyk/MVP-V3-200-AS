@@ -13,19 +13,22 @@
  * so running the scan many times a day never repeats a reminder.
  */
 
-import type { Blocker, OrderStatus, Task } from '../domain/entities';
+import type { Blocker, OrderStatus, PaymentMilestone, Task } from '../domain/entities';
 import { currentTask, isOpenTask } from './health';
 import { toMvpStage } from './stage';
 import { leadOwner, leadStatus, type MvpLead } from './leadModel';
 import {
-  AT_RISK_WINDOW_HOURS, BLOCKER_DUE_DAYS, CHASE_SNOOZE_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE, UNASSIGNED_ALERT_HOURS,
+  AT_RISK_WINDOW_HOURS, BLOCKER_DUE_DAYS, CHASE_SNOOZE_HOURS, CUSTOMER_REMIND_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE,
+  UNASSIGNED_ALERT_HOURS,
 } from './config';
 
 const HOUR = 60 * 60 * 1000;
 
 export type FollowUpKind =
   | 'DUE_SOON' | 'OVERDUE' | 'EMERGENCY_LATE' | 'UNASSIGNED' | 'BLOCKER_AGING'
-  | 'CUSTOMER_WAITING' | 'NO_NEXT_ACTION' | 'LEAD_FOLLOW_UP';
+  | 'CUSTOMER_WAITING' | 'NO_NEXT_ACTION' | 'LEAD_FOLLOW_UP'
+  // D-33 assistant rungs.
+  | 'BROKEN_PROMISE' | 'PROMISED_AGAIN' | 'GATE_RISK' | 'CUSTOMER_REMINDER';
 export type FollowUpLevel = 0 | 1 | 2 | 3;
 
 export interface FollowUp {
@@ -46,13 +49,33 @@ export interface FollowUp {
   hoursLate: number;
   /** When the Admin last chased it from the chase list. */
   lastChasedAt?: string;
+  /** D-33: the date the assignee promised, if they asked for more time. */
+  promisedAt?: string;
 }
+
+/** D-33: "Need more time" — the assignee's own new date, kept on the task's `data`. */
+export interface TaskPromise {
+  at: string;
+  count: number;
+  reason: string;
+  by: string;
+}
+
+export function promiseOf(t: Pick<Task, 'data'>): TaskPromise | undefined {
+  const p = (t.data as { promise?: TaskPromise } | undefined)?.promise;
+  return p && typeof p.at === 'string' && !Number.isNaN(new Date(p.at).getTime()) ? p : undefined;
+}
+
+/** Same text as gates.ts GATE_MESSAGES.INSTALLATION_START (not imported: that file imports services). */
+export const INSTALLATION_GATE_TEXT = 'Waiting for delivery payment';
 
 export interface FollowUpOrder {
   id: string;
   stage: string;
   status?: OrderStatus;
   displayCode?: string;
+  /** D-14 Admin gate overrides; an overridden gate is not a risk. */
+  gateOverrides?: Partial<Record<string, unknown>>;
 }
 
 export interface FollowUpInput {
@@ -60,6 +83,8 @@ export interface FollowUpInput {
   tasks: Task[];
   openBlockers: Blocker[];
   leads: MvpLead[];
+  /** D-33 look-ahead: payment milestones, to see a closed installation gate before the site visit. */
+  milestones?: Pick<PaymentMilestone, 'orderId' | 'kind' | 'status' | 'waived'>[];
   now: Date;
 }
 
@@ -103,8 +128,32 @@ export function followUpsFor(input: FollowUpInput): FollowUp[] {
       out.push({ key: `EMERGENCY_LATE:${t.id}`, kind: 'EMERGENCY_LATE', level: 3, personId: t.assigneeId, hoursLate: late, ...base });
       continue;
     }
+    const customer = t.assigneeId.startsWith('customer:');
+    if (customer && late <= 0 && late > -CUSTOMER_REMIND_HOURS) {
+      // D-33: remind the customer before it is late — the Admin sends it from the chase list.
+      out.push({ key: `CUSTOMER_REMINDER:${t.id}`, kind: 'CUSTOMER_REMINDER', level: 1, personId: t.assigneeId, hoursLate: 0, ...base });
+    }
+    if (t.type === 'INSTALLATION' && t.status === 'TODO' && (order.status ?? 'ACTIVE') === 'ACTIVE' && input.milestones &&
+        !order.gateOverrides?.INSTALLATION_START) {
+      const delivery = input.milestones.find(m => m.orderId === order.id && m.kind === 'DELIVERY');
+      if (delivery && delivery.status !== 'PAID' && !delivery.waived) {
+        // D-33 look-ahead: the technician would be refused at "start" — collect first.
+        out.push({ key: `GATE_RISK:${t.id}`, kind: 'GATE_RISK', level: 2, personId: 'role:admin', hoursLate: 0, ...base, what: INSTALLATION_GATE_TEXT });
+      }
+    }
+    const promise = promiseOf(t);
+    if (promise) {
+      // D-33: the person asked for more time. Hold the nagging until their own date; then
+      // their broken promise goes straight to the Admin. A second request is flagged too.
+      const pastPromise = hoursPast(promise.at, now);
+      if (pastPromise > 0) {
+        out.push({ key: `BROKEN_PROMISE:${t.id}:${promise.count}`, kind: 'BROKEN_PROMISE', level: late >= ESCALATE_OWNER_HOURS ? 3 : 2, personId: t.assigneeId, hoursLate: pastPromise, ...base, promisedAt: promise.at });
+      } else if (promise.count >= 2) {
+        out.push({ key: `PROMISED_AGAIN:${t.id}:${promise.count}`, kind: 'PROMISED_AGAIN', level: 2, personId: t.assigneeId, hoursLate: Math.max(0, late), ...base, promisedAt: promise.at });
+      }
+      continue;
+    }
     if (late > 0) {
-      const customer = t.assigneeId.startsWith('customer:');
       const level: FollowUpLevel = late >= ESCALATE_OWNER_HOURS ? 3 : late >= ESCALATE_ADMIN_HOURS || customer ? 2 : 1;
       out.push({ key: `${customer ? 'CUSTOMER_WAITING' : 'OVERDUE'}:${t.id}`, kind: customer ? 'CUSTOMER_WAITING' : 'OVERDUE', level, personId: t.assigneeId, hoursLate: late, ...base });
     } else if (late > -AT_RISK_WINDOW_HOURS && t.status === 'TODO') {
@@ -148,7 +197,7 @@ export function followUpsFor(input: FollowUpInput): FollowUp[] {
 
 export type FollowUpTemplate =
   | 'mvp_task_due' | 'mvp_task_overdue' | 'mvp_escalated' | 'mvp_unassigned' | 'mvp_blocker_aging'
-  | 'mvp_lead_followup' | 'mvp_emergency';
+  | 'mvp_lead_followup' | 'mvp_emergency' | 'mvp_promise_broken' | 'mvp_gate_risk';
 
 export interface FollowUpNotice {
   audience: string;
@@ -201,6 +250,17 @@ export function notificationsFor(f: FollowUp, now: Date): FollowUpNotice[] {
     case 'NO_NEXT_ACTION':
       add('role:admin', 'mvp_escalated', 'l2');
       break;
+    case 'BROKEN_PROMISE':
+      if (personReachable) add(person, 'mvp_task_overdue', 'broken');
+      add('role:admin', 'mvp_promise_broken', 'l2');
+      if (f.level >= 3) add('role:owner', 'mvp_escalated', 'l3');
+      break;
+    case 'GATE_RISK':
+      add('role:admin', 'mvp_gate_risk', 'l2');
+      break;
+    case 'PROMISED_AGAIN': // the Admin was told when the promise was made; this is for the chase list
+    case 'CUSTOMER_REMINDER': // sent by the Admin from the chase list (WhatsApp), not the bell
+      break;
     case 'LEAD_FOLLOW_UP':
       if (personReachable) add(person, 'mvp_lead_followup', 'lead');
       if (f.level >= 2) add('role:admin', 'mvp_lead_followup', 'l2');
@@ -221,16 +281,35 @@ export interface DigestCounts {
   customers: number;
   noNextAction: number;
   leads: number;
+  promisesBroken: number;
+  gateRisks: number;
 }
 
 export function digestCounts(items: FollowUp[]): DigestCounts {
   const n = (p: (f: FollowUp) => boolean) => items.filter(p).length;
   return {
-    overdue: n(f => f.kind === 'OVERDUE' || f.kind === 'EMERGENCY_LATE'),
-    escalated: n(f => f.level >= 2 && f.kind !== 'NO_NEXT_ACTION'),
+    overdue: n(f => f.kind === 'OVERDUE' || f.kind === 'EMERGENCY_LATE' || f.kind === 'BROKEN_PROMISE'),
+    escalated: n(f => f.level >= 2 && f.kind !== 'NO_NEXT_ACTION' && f.kind !== 'GATE_RISK'),
     blockers: n(f => f.kind === 'BLOCKER_AGING'),
     customers: n(f => f.kind === 'CUSTOMER_WAITING'),
     noNextAction: n(f => f.kind === 'NO_NEXT_ACTION'),
     leads: n(f => f.kind === 'LEAD_FOLLOW_UP'),
+    promisesBroken: n(f => f.kind === 'BROKEN_PROMISE'),
+    gateRisks: n(f => f.kind === 'GATE_RISK'),
   };
+}
+
+/** D-33 "My day": where an open task sits on its assignee's day. A promise replaces the due date. */
+export type DayGroup = 'EMERGENCY' | 'LATE' | 'TODAY' | 'SOON' | 'LATER' | 'WAITING';
+export const DAY_GROUPS: DayGroup[] = ['EMERGENCY', 'LATE', 'TODAY', 'SOON', 'WAITING', 'LATER'];
+
+export function dayGroupOf(t: Pick<Task, 'type' | 'status' | 'dueDate' | 'data'>, now: Date): DayGroup {
+  if (t.type === 'EMERGENCY_RESPONSE') return 'EMERGENCY';
+  if (t.status === 'BLOCKED') return 'WAITING';
+  const due = new Date(promiseOf(t)?.at ?? t.dueDate).getTime();
+  if (due < now.getTime()) return 'LATE';
+  const endOfToday = new Date(`${dayKeyOf(now)}T23:59:59.999+05:30`).getTime(); // TIME_ZONE is Asia/Kolkata
+  if (due <= endOfToday) return 'TODAY';
+  if (due <= now.getTime() + 3 * 24 * HOUR) return 'SOON';
+  return 'LATER';
 }

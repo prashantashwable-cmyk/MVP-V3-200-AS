@@ -27,7 +27,7 @@ import type { ControlTowerCategory } from './controlTower';
 import type { Project, ProjectStage, Task } from '../domain/entities';
 import { taskRepository } from '../repository/entities';
 import { isOpenTask } from '../mvp/health';
-import { actorTokens, type MvpActor } from '../mvp/services/orderService';
+import { queryTokens, type MvpActor } from '../mvp/services/orderService';
 
 /** Stages a project can sit in indefinitely without it meaning anything
  * is wrong — no work item is generated for these. */
@@ -103,7 +103,7 @@ export async function getWorkQueueItems(ctx: RepositoryContext): Promise<WorkQue
  */
 export async function getMvpTaskQueue(ctx: RepositoryContext, actor: MvpActor): Promise<Task[]> {
   const repo = taskRepository(ctx);
-  const results = await Promise.all(actorTokens(actor).map(t => repo.query({ assigneeId: t } as Partial<Task>)));
+  const results = await Promise.all(queryTokens(actor).map(t => repo.query({ assigneeId: t } as Partial<Task>)));
   const byId = new Map<string, Task>();
   for (const t of results.flat()) byId.set(t.id, t);
   return [...byId.values()]

@@ -12,6 +12,7 @@ import type { User } from '../../types';
 import { Card } from '../../components/Common';
 import { buildReports } from '../services/reports';
 import { formatInr } from '../format';
+import { MVP_STAGE_LABELS } from '../stage';
 import { ErrorNote, Loading, SectionTitle, useLoad, useMvpCtx } from './ui';
 
 const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -59,6 +60,16 @@ export const Reports: React.FC<{ user: User }> = ({ user }) => {
         <Row label="QC pass" value={data.quality.qcPass} />
         <Row label="Rework" value={data.quality.rework} />
         <Row label="Complaints" value={data.quality.complaints} />
+      </Card>
+
+      <Card className="p-4">
+        <SectionTitle>Where work is slow (last 30 days)</SectionTitle>
+        <p className="text-xs text-warmgray mb-1">Finished tasks by stage, slowest first. By stage, not by person.</p>
+        {data.flow.length === 0 && <p className="text-xs text-warmgray">Not enough finished work yet.</p>}
+        {data.flow.map(f => (
+          <Row key={f.stage} label={`${MVP_STAGE_LABELS[f.stage]} (${f.done})`}
+            value={<span className={f.onTimePct < 70 ? 'text-error' : ''}>{f.onTimePct}% on time · took {f.avgDays} d (plan {f.plannedDays} d)</span>} />
+        ))}
       </Card>
     </div>
   );

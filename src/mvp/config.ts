@@ -57,6 +57,10 @@ export const ESCALATE_OWNER_HOURS = 72;
 export const UNASSIGNED_ALERT_HOURS = 4;
 /** "Chased" on the Admin's chase list hides the row this long (so tomorrow's run shows it again). */
 export const CHASE_SNOOZE_HOURS = 20;
+/** D-33: customer tasks show on the chase list this many hours before they are due. */
+export const CUSTOMER_REMIND_HOURS = 72;
+/** D-33: "Need more time" can move a promise at most this far ahead. */
+export const MAX_PROMISE_DAYS = 14;
 
 /** D-15: minimum markup % before Admin approval is required (Owner's "minimum 20% margin"). */
 export const MIN_MARKUP_PCT = 20;

@@ -24,8 +24,17 @@ const LEVEL_STYLE: Record<number, string> = {
 };
 
 const LEVEL_LABEL: Record<number, string> = { 3: 'Owner alerted', 2: 'Escalated', 1: 'Late' };
+const KIND_LABEL: Partial<Record<ChaseRow['kind'], string>> = {
+  BROKEN_PROMISE: 'Promise missed', PROMISED_AGAIN: 'Asked for more time again', GATE_RISK: 'Collect payment',
+  CUSTOMER_REMINDER: 'Remind', UNASSIGNED: 'Nobody assigned', NO_NEXT_ACTION: 'No next action',
+};
 
-function lateText(hours: number): string {
+function lateText(hours: number, row?: ChaseRow): string {
+  if (row?.kind === 'GATE_RISK') return 'before the site visit';
+  if (row?.kind === 'CUSTOMER_REMINDER' && row.dueDate) {
+    const inH = (new Date(row.dueDate).getTime() - Date.now()) / 3_600_000;
+    return inH < 24 ? `due in ${Math.max(1, Math.floor(inH))} h` : `due in ${Math.floor(inH / 24)} days`;
+  }
   if (hours < 1) return 'due now';
   if (hours < 48) return `${Math.floor(hours)} h late`;
   return `${Math.floor(hours / 24)} days late`;
@@ -35,6 +44,7 @@ function lateText(hours: number): string {
 export function chaseMessage(row: ChaseRow, lang: Lang): string | undefined {
   const code = row.orderCode ? `${row.orderCode}: ` : '';
   const due = row.dueDate ? formatDateTime(row.dueDate) : '';
+  const promised = row.promisedAt ? formatDateTime(row.promisedAt) : '';
   const t: Record<Lang, Partial<Record<ChaseRow['kind'], string>>> = {
     en: {
       OVERDUE: `${code}"${row.what}" was due ${due}. Please finish it today, or mark what is stopping you in the app.`,
@@ -42,6 +52,10 @@ export function chaseMessage(row: ChaseRow, lang: Lang): string | undefined {
       CUSTOMER_WAITING: `Namaste. For your lift (${row.orderCode ?? ''}), "${row.what}" is pending from your side since ${due}. Please complete it or reply here if you need help. — All India Elevators`,
       BLOCKER_AGING: `${code}the problem "${row.what}" is still open. What do you need to clear it?`,
       LEAD_FOLLOW_UP: `Lead ${row.what}: the follow-up call was due ${due}. Please call and update the app.`,
+      BROKEN_PROMISE: `${code}you said "${row.what}" would be done by ${promised}. What is stopping it? Please update the app today.`,
+      PROMISED_AGAIN: `${code}"${row.what}" has been moved twice. Let's talk today about what is stopping it.`,
+      CUSTOMER_REMINDER: `Namaste. A reminder for your lift (${row.orderCode ?? ''}): "${row.what}" is due by ${due}. Please complete it, or reply here if you need help. — All India Elevators`,
+      GATE_RISK: `Namaste. The material for your lift (${row.orderCode ?? ''}) has reached the site. Installation starts once the delivery payment is received. Please share the payment details. — All India Elevators`,
     },
     mr: {
       OVERDUE: `${code}"${row.what}" हे काम ${due} पर्यंत होणे अपेक्षित होते. कृपया आज पूर्ण करा, किंवा काय अडचण आहे ते ॲपमध्ये नोंदवा.`,
@@ -49,6 +63,10 @@ export function chaseMessage(row: ChaseRow, lang: Lang): string | undefined {
       CUSTOMER_WAITING: `नमस्कार. तुमच्या लिफ्टसाठी (${row.orderCode ?? ''}) "${row.what}" हे ${due} पासून तुमच्याकडून बाकी आहे. कृपया पूर्ण करा किंवा मदत हवी असल्यास येथे उत्तर द्या. — ऑल इंडिया एलिव्हेटर्स`,
       BLOCKER_AGING: `${code}"${row.what}" ही अडचण अजून सुटलेली नाही. ती सोडवण्यासाठी काय हवे आहे?`,
       LEAD_FOLLOW_UP: `लीड ${row.what}: फॉलो-अप कॉल ${due} ला करायचा होता. कृपया फोन करून ॲपमध्ये नोंद करा.`,
+      BROKEN_PROMISE: `${code}तुम्ही "${row.what}" ${promised} पर्यंत पूर्ण करतो म्हणाला होतात. काय अडचण आहे? कृपया आज ॲपमध्ये नोंद करा.`,
+      PROMISED_AGAIN: `${code}"${row.what}" ची तारीख दोनदा पुढे गेली आहे. काय अडचण आहे यावर आज बोलूया.`,
+      CUSTOMER_REMINDER: `नमस्कार. तुमच्या लिफ्टसाठी (${row.orderCode ?? ''}) आठवण: "${row.what}" ${due} पर्यंत करायचे आहे. कृपया पूर्ण करा किंवा मदत हवी असल्यास येथे उत्तर द्या. — ऑल इंडिया एलिव्हेटर्स`,
+      GATE_RISK: `नमस्कार. तुमच्या लिफ्टचे (${row.orderCode ?? ''}) साहित्य साइटवर पोहोचले आहे. डिलिव्हरी पेमेंट मिळाल्यावर इन्स्टॉलेशन सुरू होईल. कृपया पेमेंटची माहिती पाठवा. — ऑल इंडिया एलिव्हेटर्स`,
     },
     hi: {
       OVERDUE: `${code}"${row.what}" ${due} तक होना था. कृपया आज पूरा करें, या ऐप में बताएं कि क्या रुकावट है.`,
@@ -56,6 +74,10 @@ export function chaseMessage(row: ChaseRow, lang: Lang): string | undefined {
       CUSTOMER_WAITING: `नमस्ते. आपकी लिफ्ट (${row.orderCode ?? ''}) के लिए "${row.what}" ${due} से आपकी ओर से बाकी है. कृपया पूरा करें या मदद चाहिए तो यहाँ जवाब दें. — ऑल इंडिया एलिवेटर्स`,
       BLOCKER_AGING: `${code}"${row.what}" वाली रुकावट अभी भी खुली है. इसे हटाने के लिए क्या चाहिए?`,
       LEAD_FOLLOW_UP: `लीड ${row.what}: फ़ॉलो-अप कॉल ${due} को करना था. कृपया फ़ोन करके ऐप में अपडेट करें.`,
+      BROKEN_PROMISE: `${code}आपने कहा था "${row.what}" ${promised} तक हो जाएगा. क्या रुकावट है? कृपया आज ऐप में अपडेट करें.`,
+      PROMISED_AGAIN: `${code}"${row.what}" की तारीख दो बार आगे बढ़ चुकी है. आज बात करते हैं कि क्या रुकावट है.`,
+      CUSTOMER_REMINDER: `नमस्ते. आपकी लिफ्ट (${row.orderCode ?? ''}) के लिए याद दिलाना: "${row.what}" ${due} तक करना है. कृपया पूरा करें या मदद चाहिए तो यहाँ जवाब दें. — ऑल इंडिया एलिवेटर्स`,
+      GATE_RISK: `नमस्ते. आपकी लिफ्ट (${row.orderCode ?? ''}) का सामान साइट पर पहुँच गया है. डिलीवरी भुगतान मिलने के बाद इंस्टॉलेशन शुरू होगा. कृपया भुगतान की जानकारी भेजें. — ऑल इंडिया एलिवेटर्स`,
     },
   };
   return t[lang][row.kind] ?? t.en[row.kind];
@@ -92,7 +114,7 @@ export const ChaseList: React.FC<{ user: User; onOpenOrder: (id: string) => void
             <button className="w-full text-left cursor-pointer" onClick={() => row.orderId && onOpenOrder(row.orderId)} disabled={!row.orderId}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold text-sm">{row.personName}</span>
-                <span className={`text-[10px] font-bold uppercase ${row.level >= 3 ? 'text-error' : 'text-[#B8873D]'}`}>{LEVEL_LABEL[row.level] ?? ''} · {lateText(row.hoursLate)}</span>
+                <span className={`text-[10px] font-bold uppercase ${row.level >= 3 ? 'text-error' : 'text-[#B8873D]'}`}>{KIND_LABEL[row.kind] ?? LEVEL_LABEL[row.level] ?? ''} · {lateText(row.hoursLate, row)}</span>
               </div>
               <div className="text-xs text-warmgray mt-0.5">{row.orderCode ? `#${row.orderCode} · ` : ''}{row.what}</div>
             </button>

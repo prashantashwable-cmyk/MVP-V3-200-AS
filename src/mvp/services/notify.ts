@@ -15,7 +15,7 @@
  */
 
 import type { Blocker, NotificationRecord, Task } from '../../domain/entities';
-import { blockerRepository, notificationRepository, projectRepository, taskRepository } from '../../repository/entities';
+import { blockerRepository, notificationRepository, paymentMilestoneRepository, projectRepository, taskRepository } from '../../repository/entities';
 import { getRepository } from '../../repository';
 import { sendNotification } from '../../services/notificationService';
 import type { RepositoryContext } from '../../repository/types';
@@ -41,7 +41,8 @@ export type MvpNotification =
   | 'mvp_task_assigned' | 'mvp_task_due' | 'mvp_task_overdue' | 'mvp_survey_scheduled' | 'mvp_quote_ready'
   | 'mvp_payment_due' | 'mvp_installation_scheduled' | 'mvp_qc_required' | 'mvp_handover_ready' | 'mvp_amc_reminder'
   | 'mvp_blocker_raised' | 'mvp_emergency' | 'mvp_daily_digest'
-  | 'mvp_escalated' | 'mvp_unassigned' | 'mvp_blocker_aging' | 'mvp_lead_followup';
+  | 'mvp_escalated' | 'mvp_unassigned' | 'mvp_blocker_aging' | 'mvp_lead_followup'
+  | 'mvp_promise_made' | 'mvp_promise_broken' | 'mvp_gate_risk';
 
 export async function notify(
   ctx: RepositoryContext,
@@ -76,14 +77,15 @@ export async function markNotificationRead(ctx: MvpCtx, notificationId: string):
 
 /** Everything the follow-up ladder (D-32) is chasing right now. Admin/Owner (or the robot) only. */
 export async function loadFollowUps(ctx: MvpCtx): Promise<FollowUp[]> {
-  const [projects, tasks, openBlockers, leads] = await Promise.all([
+  const [projects, tasks, openBlockers, leads, milestones] = await Promise.all([
     projectRepository(ctx).list(),
     taskRepository(ctx).list(),
     blockerRepository(ctx).query({ status: 'OPEN' } as Partial<Blocker>),
     leadRepository(ctx).list() as Promise<MvpLead[]>,
+    paymentMilestoneRepository(ctx).list(),
   ]);
-  const orders = projects.filter(p => !!p.displayCode || !!p.status);
-  return followUpsFor({ orders, tasks, openBlockers, leads, now: nowOf(ctx) });
+  const orders = projects.filter(p => !!p.displayCode || !!p.status) as FollowUpOrder[];
+  return followUpsFor({ orders, tasks, openBlockers, leads, milestones, now: nowOf(ctx) });
 }
 
 export interface ScanResult { items: number; sent: number; digest: DigestCounts }
@@ -169,7 +171,11 @@ export async function listChases(ctx: MvpCtx): Promise<ChaseRow[]> {
     const lead = f.leadId ? leadById.get(f.leadId) : undefined;
     let personName = ROLE_NAMES[f.personId] ?? (f.personId.startsWith('role:') ? `Any ${f.personId.slice(5)}` : 'Unknown person');
     let phone: string | undefined;
-    if (f.personId.startsWith('customer:')) {
+    if (f.kind === 'GATE_RISK') {
+      // The Admin collects the delivery payment from the customer before the technician goes.
+      personName = order?.displaySummary?.customerName ? `Customer: ${order.displaySummary.customerName}` : 'Customer';
+      phone = tenDigits(order?.displaySummary?.customerPhone);
+    } else if (f.personId.startsWith('customer:')) {
       personName = order?.displaySummary?.customerName ? `Customer: ${order.displaySummary.customerName}` : 'Customer';
       phone = tenDigits(order?.displaySummary?.customerPhone);
     } else if (f.kind === 'LEAD_FOLLOW_UP' && lead) {
