@@ -1,15 +1,16 @@
 # REUSE MAP: existing code to use before writing new code
 
-> Built from a read-only scan of commit `fc505b8` on 2026-09-24. Step 01 must **verify every row** and correct it in the audit.
+> Built from a read-only scan of commit `fc505b8` on 2026-09-24. **Verified and corrected in Step 01 (2026-09-24)**: see `MVP_SIMPLIFICATION_AUDIT.md` §10. Corrected rows carry a "Step 01:" note.
 > **Rule for every step:** check this map before creating any file. A new screen or service needs a one-line reason in the PR saying why reuse didn't fit.
 
 ## Legend: which store the code uses today
 | Mark | Meaning | Typical effort |
 |---|---|---|
 | ◆ | **Canonical.** Already reads and writes the shared Firestore repository. | Use as-is or extend. Cheapest. |
-| ★ | **Dual-write bridged.** Writes already reach canonical Firestore, but reads still come from the legacy localStorage store. | **Switch its reads to canonical.** Very cheap. Built by the old pack, phases 15–18. |
+| ★ | **Dual-write bridged.** Some writes also reach canonical Firestore, but reads still come from the legacy localStorage store. **Step 01:** the canonical writes are best-effort shadows (soft-fail) and need the legacy Lead **and** Deal in the same browser; deals live only in localStorage. | **Switch reads to canonical and replace the bridge call with a direct service call.** Cheap to medium. Built by the old pack, phases 15–18. |
 | ○ | **Legacy only.** Reads and writes browser localStorage through `DbManager`. | Rewire it, or build a thin new screen (see the rule below). |
 | □ | **UI only.** No persistence found; probably local state or mock data. | Wire the UI to canonical entities. |
+| ◐ | **Step 01 addition. Legacy API, Firestore-backed.** Goes through `DbManager`, but for real (non-demo) sessions leads and users persist to Firestore `leads`/`users` in the legacy shape. | Reuse the store; replace other `DbManager` reads (deals, users list). |
 
 ## The size rule (this is what saves the most work)
 Reuse **services and components** before whole screens. A legacy-only (○) screen may be over about 600 lines and do far more than the MVP needs. Examples: `LeadInbox` has 1,646 lines, `LeadFollowUpScheduler` 1,653, `PaymentStageScheduleSetup` 1,303 and `EmergencyEscalationAlert` 1,135.
@@ -45,22 +46,22 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 |---|---|---|---|---|
 | Lead detail | `LeadDetail.tsx` | ★ | 1,211 | Switch reads; trim fields to spec §13 |
 | My Leads / pipeline | `LeadKanban.tsx` | ★ | 1,113 | Switch reads; hide scoring and AI parts |
-| New Lead form | `LeadInbox.tsx` | ○ | 1,646 | **Thin new form.** Reuse its inputs and styles. |
-| Follow-ups | `LeadFollowUpScheduler.tsx` | ○ | 1,653 | **Thin new list** (a query on `next_followup`) |
+| New Lead form | `LeadInbox.tsx` | ◐ (Step 01: leads Firestore-backed) | 1,646 | **Thin new form.** Reuse its inputs and styles. |
+| Follow-ups | `LeadFollowUpScheduler.tsx` | ◐ (Step 01) | 1,653 | **Thin new list** (a query on `next_followup`) |
 | Survey form | `SiteVisitVerification.tsx` | ○ | 790 | Rewire, or thin new form with the §15 fields |
 | Camera | `CameraCapture.tsx` | □ | 322 | As-is |
-| Lead store helper | `src/lib/firestoreLeads.ts` | ? | — | Verify whether it is canonical. Reuse it if so. |
+| Lead store helper | `src/lib/firestoreLeads.ts` | ◐ | 39 | **Step 01:** real and shared, legacy `Lead` shape; non-admins are scoped by `surveyorId`. Reuse as the MVP lead store (audit R-1). |
 
 ## Step 06: Quote, booking and payments
 | Need | Reuse | Mark | Lines | Mode |
 |---|---|---|---|---|
-| Quote builder | `QuotePricing.tsx` | □ | 549 | Wire the UI to canonical `Quote`/`QuoteVersion` |
-| Customer quote view | `QuotationPreview.tsx` | □ | 622 | Wire it; strip cost fields |
+| Quote builder | `QuotePricing.tsx` | ○ | 549 | Wire the UI to canonical `Quote`/`QuoteVersion`. **Step 01:** reads its spec from localStorage; GST 18% and an 18% margin floor are hard-coded ⚖ |
+| Customer quote view | `QuotationPreview.tsx` | □ | 622 | Wire it; strip cost fields. Step 01: hard-coded mock array |
 | Margin settings | `PricingRulesMarginConfig.tsx` | □ | 534 | Only if it maps cheaply onto `src/mvp/config.ts`; otherwise hide it |
-| Margin approval | `DiscountApprovalWorkflow.tsx` | □ | 761 | Reuse the UI with `ApprovalRequest` and APPROVE_MARGIN |
+| Margin approval | `DiscountApprovalWorkflow.tsx` | □ (Step 01: mock array) | 761 | Reuse the UI with `ApprovalRequest` and APPROVE_MARGIN |
 | Payment milestones | `PaymentStageScheduleSetup.tsx` | ○ | 1,303 | **Thin new milestone panel** on the Order View |
 | Payment verification | `PaymentCollectionDashboard.tsx` | ★ | 1,103 | Switch reads; add verify/reject |
-| Online payment | `OnlinePaymentCheckout.tsx` | ★ | 662 | Keep only if the audit shows the gateway is real; otherwise hide |
+| Online payment | `OnlinePaymentCheckout.tsx` | ★ | 662 | **Step 01: gateway is simulated (`setTimeout`, 90% random success); `paymentGateway.ts` is unconfigured. Hide.** |
 
 ## Step 07: Site-ready, supplier and delivery
 | Need | Reuse | Mark | Lines | Mode |
@@ -81,7 +82,7 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 | TODAY home | `TechnicianHomeMyJobsScreen.tsx` | ○ | 408 | Rewire to tasks |
 | 11-item checklist | `InstallationSopChecklistScreen.tsx` | ○ | 406 | Rewire; set the items to spec §18 |
 | Blockers | `IssueBlockerReportingScreen.tsx` | ○ | 441 | Rewire to the `Blocker` entity with 8 reasons |
-| Offline and uploads | `src/offline/outbox.ts`, `mediaUpload.ts` | ◆ | — | Reuse if they work with canonical writes |
+| Offline and uploads | `src/offline/outbox.ts`, `mediaUpload.ts` | ◆ | — | Reuse. **Step 01:** there is no storage transport (`FirebaseStorageTransport` throws) and no Firebase Storage anywhere, so one must be built |
 
 ## Step 09: QC, handover, AMC and emergency
 | Need | Reuse | Mark | Lines | Mode |
@@ -98,25 +99,25 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 ## Step 10: Customer, owner, notifications, reports, languages
 | Need | Reuse | Mark | Lines | Mode |
 |---|---|---|---|---|
-| Customer home | `CustomerHomeDashboardScreen.tsx` + `services/portalWorkSummary.ts` | ◆/○ mixed | 375 | Finish moving it to canonical; the service is canonical |
-| Documents | `CustomerDocumentVaultScreen.tsx` | ◆/○ mixed | 268 | Finish moving it to canonical |
+| Customer home | `CustomerHomeDashboardScreen.tsx` + `services/portalWorkSummary.ts` | ○ + ◆ | 375 | Step 01: the screen is legacy-only (no canonical import); the service is canonical but unused by any screen. Rewire |
+| Documents | `CustomerDocumentVaultScreen.tsx` | ○ | 268 | Step 01: legacy-only. Rewire to `DocumentRecord` |
 | Support and complaints | `CustomerSupportTicketScreen.tsx` → canonical `ServiceCase` | ○ | 495 | Rewire |
 | Notification centre | `CustomerNotificationCenterScreen.tsx` + `services/notificationService.ts` | ○ + ◆ | 389 | Rewire the UI to `NotificationRecord` |
 | Reports | `RevenueProfitAnalytics.tsx`, `SalesFunnelAnalytics.tsx` | ○ | 1,398 / 1,031 | **Thin new report tables.** Reuse only their chart components. |
-| Languages | `src/lib/language.ts` (en/mr/hi exist) | ○ | — | Decouple from `DbManager`; add the MVP keys |
+| Languages | `src/lib/language.ts` (en/mr/hi exist) | ○ | — | Decouple from `DbManager` (Step 01: only one call, saving the language preference); add the MVP keys |
 
 ## Step 11: Security and compliance
 | Need | Reuse | Mark | Mode |
 |---|---|---|---|
 | Compliance documents | `ComplianceCertificationScreen.tsx` (★, 515 lines) + `DocumentRecord` | ★ | Switch reads; add the D-27 list |
-| Demo bypass guard | `src/lib/demoCredentials.ts` + `scripts/production-bundle-bypass-check.ts` | ◆ | Keep; must pass |
+| Demo bypass guard | `src/lib/demoCredentials.ts` + `scripts/production-bundle-bypass-check.ts` | ◆ | Keep; must pass. **Step 01:** the "Try as Role" buttons (`App.tsx:1459+`) are not build-gated; add them |
 | Rules and hardening | `firestore.rules`, `scripts/security-hardening-check.ts`, `destructive-action-safety-check.ts`, `hard-gate-attack-test.ts` | ◆ | Extend for the new collections |
 | Bundle size | `scripts/code-splitting-check.ts` | ◆ | Keep hidden screens out of the MVP bundles |
 
 ## Step 12: Tests (don't write from scratch)
 | Existing | What it already proves | Reuse for |
 |---|---|---|
-| `scripts/full-company-simulation.ts` | One project through the full lifecycle via the real screen bridges, **including QC fail → snag → rework → reinspection → pass** (48 assertions) | Adapt it for S1 and S4 |
+| `scripts/full-company-simulation.ts` | One project through the full lifecycle via the bridge service functions (Step 01: not the screens themselves), **including QC fail → snag → rework → reinspection → pass** (48 assertions) | Adapt it for S1 and S4 |
 | `scripts/final-e2e-acceptance.ts` | One project through the canonical service layer | Base for the S1 service-level check |
 | `project-operating-view-check.ts`, `work-queue-check.ts` | Order View and next-action logic | Extend for progress, health and tasks |
 | `transactional-idempotency-concurrency-test.ts` | Concurrent writes and idempotency | Double-accept and duplicate-task checks |
