@@ -145,6 +145,7 @@ export interface ChaseRow extends FollowUp {
   orderCode?: string;
 }
 
+// Same rule as orderService.normalizeIndianMobile, copied to keep this file free of runtime cycles.
 const tenDigits = (phone: string | undefined): string | undefined => {
   const d = (phone ?? '').replace(/[\s-]/g, '').replace(/^(\+91|0091|91(?=\d{10}$)|0)/, '');
   return /^[6-9]\d{9}$/.test(d) ? d : undefined;

@@ -335,3 +335,9 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
   - Buttons: WhatsApp (a `wa.me` link with the message prefilled in the Admin's app language; nothing is sent until the Admin presses Send), Call, and "Chased".
   - "Chased" is Admin-only and audited. It hides the row for `CHASE_SNOOZE_HOURS` (20).
   - The Admin records staff mobiles on the Users screen, because Google sign-in gives none. ⚖ VERIFY the customer message wording.
+- **Owner approval for the robot (2026-09-27):** asked "Should it also chase people automatically at 9 AM and 5 PM when nobody has it open?", the Owner chose "Yes, 9 AM + 5 PM", whose stated terms were: a GitHub scheduled job, one robot Admin login the Owner creates, and 2 GitHub secrets. That covers:
+  - a scheduled job that writes reminder notifications (and nothing else) to the live project
+  - a password-based robot Admin account, which needs **Email/Password sign-in enabled in Firebase Authentication**
+- **The Owner makes the Firebase change themselves** (OWNER_STEPS §5). No session changes Firebase settings, and no session runs the robot against live data.
+- Until the secrets exist, a scheduled run prints a notice and writes nothing.
+- On the first live run each task may get one extra "overdue" reminder, because the reminder key format changed (`overdue:<id>` became `overdue:OVERDUE:<id>`). This is harmless.

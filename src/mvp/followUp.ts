@@ -18,7 +18,7 @@ import { currentTask, isOpenTask } from './health';
 import { toMvpStage } from './stage';
 import { leadOwner, leadStatus, type MvpLead } from './leadModel';
 import {
-  BLOCKER_DUE_DAYS, CHASE_SNOOZE_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE, UNASSIGNED_ALERT_HOURS,
+  AT_RISK_WINDOW_HOURS, BLOCKER_DUE_DAYS, CHASE_SNOOZE_HOURS, ESCALATE_ADMIN_HOURS, ESCALATE_OWNER_HOURS, TIME_ZONE, UNASSIGNED_ALERT_HOURS,
 } from './config';
 
 const HOUR = 60 * 60 * 1000;
@@ -107,7 +107,7 @@ export function followUpsFor(input: FollowUpInput): FollowUp[] {
       const customer = t.assigneeId.startsWith('customer:');
       const level: FollowUpLevel = late >= ESCALATE_OWNER_HOURS ? 3 : late >= ESCALATE_ADMIN_HOURS || customer ? 2 : 1;
       out.push({ key: `${customer ? 'CUSTOMER_WAITING' : 'OVERDUE'}:${t.id}`, kind: customer ? 'CUSTOMER_WAITING' : 'OVERDUE', level, personId: t.assigneeId, hoursLate: late, ...base });
-    } else if (late > -24 && t.status === 'TODO') {
+    } else if (late > -AT_RISK_WINDOW_HOURS && t.status === 'TODO') {
       out.push({ key: `DUE_SOON:${t.id}`, kind: 'DUE_SOON', level: 0, personId: t.assigneeId, hoursLate: 0, ...base });
     }
   }
