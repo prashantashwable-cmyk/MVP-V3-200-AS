@@ -55,7 +55,7 @@ export const TechToday: React.FC<{ user: User; onOpenOrder: (orderId: string) =>
             <div className="text-xs text-warmgray flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{order?.displaySummary?.siteAddress || '—'}</div>
           </button>
           {order?.displaySummary?.customerPhone && (
-            <a href={`tel:${order.displaySummary.customerPhone}`} className="text-xs text-royalemerald font-semibold inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5" />Call customer</a>
+            <a href={`tel:${order.displaySummary.customerPhone}`} className="text-sm text-royalemerald font-semibold inline-flex items-center gap-1.5 min-h-[44px] pr-3"><Phone className="w-4 h-4" />Call customer</a>
           )}
         </Card>
       ))}

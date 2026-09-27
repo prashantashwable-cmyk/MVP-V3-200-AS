@@ -30,7 +30,7 @@ export const LeadDetailScreen: React.FC<{ user: User; leadId: string; onOpenOrde
 
   return (
     <div className="space-y-3 max-w-xl mx-auto pb-24">
-      <button onClick={onBack} className="text-xs font-semibold text-warmgray cursor-pointer">← Back</button>
+      <button onClick={onBack} className="text-xs font-semibold text-warmgray cursor-pointer min-h-[40px] pr-3">← Back</button>
       {error && <ErrorNote message={error} />}
       <Card className="p-4 space-y-2">
         <div className="flex justify-between"><h2 className="text-lg font-bold">{lead.contactInfo.name}</h2><span className="text-xs font-bold text-warmgray">{status}</span></div>

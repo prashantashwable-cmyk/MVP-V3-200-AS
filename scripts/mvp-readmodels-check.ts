@@ -10,6 +10,7 @@ import { buildOrderView, buildDashboard, bucketsFor, listOrdersFor } from '../sr
 import { listOrderTasks, listOpenBlockers, raiseBlocker, completeTask, cancelOrder } from '../src/mvp/services/orderService';
 import { paymentMilestoneRepository, projectRepository, purchaseOrderRepository } from '../src/repository/entities';
 import { isOpenTask } from '../src/mvp/health';
+import { raiseEmergency } from '../src/mvp/services/emergencyService';
 
 async function main() {
   const clock = new Clock();
@@ -113,6 +114,10 @@ async function main() {
   const dash2 = await buildDashboard(ctx);
   check(!dash2.attention.some(g => g.orders.some(o => o.id === s7.orderId)), 'a cancelled order is not in Needs Attention');
   check(dash2.orders.find(o => o.id === s7.orderId)?.health !== 'BLOCKED', 'a cancelled order is not shown as Blocked');
+  // …but a life-safety emergency on it still escalates (D-28).
+  await raiseEmergency(ctx, USERS.admin, s7.orderId, { description: 'Lift stuck between floors' });
+  const dash3 = await buildDashboard(ctx);
+  check(dash3.attention.find(g => g.bucket === 'emergency')?.orders.some(o => o.id === s7.orderId) === true, 'an emergency on a cancelled order still shows under Emergency');
 
   done('mvp-readmodels-check');
 }
