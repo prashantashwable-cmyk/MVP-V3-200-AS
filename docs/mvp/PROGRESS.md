@@ -75,7 +75,7 @@
 | 12 | Test and Verify (Phases D and E) | TODO | | | |
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
-| FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 55/55, 42/42 legacy, build PASS |
+| FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | TODO | | | Approved plan, next |
 
 ## Commands (filled in by Step 00)
@@ -483,8 +483,8 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Checks:**
   - lint PASS
   - `mvp:checks` 875 OK, including the new `mvp-followup-check.ts` (48)
-  - `mvp:rules` PASS (+4 D-32 tests)
-  - `mvp:multiuser` PASS, with a new section G (11): 4 phones scan at once with no duplicates, the chase list and "Chased" work on real Firestore, and the robot works (no login gives a notice, a non-Admin is refused, dry run sends nothing, a real run doesn't duplicate)
+  - `mvp:rules` 120/120 (+4 D-32 tests)
+  - `mvp:multiuser` 56/56, with a new section G (11): 4 phones scan at once with no duplicates, the chase list and "Chased" work on real Firestore, and the robot works (no login gives a notice, a non-Admin is refused, dry run sends nothing, a real run doesn't duplicate)
   - legacy 42/42
   - `npm run build` PASS
 - **Screenshots:** `docs/mvp/screenshots/step-12/` 01–05.
