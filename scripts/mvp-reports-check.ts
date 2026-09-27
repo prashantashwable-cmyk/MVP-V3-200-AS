@@ -85,7 +85,8 @@ async function main() {
   const digestCount1 = (await notesRepo.list()).filter((n: any) => n.templateId === 'mvp_daily_digest').length;
   await scanTaskNotifications(ctx);
   const digestCount2 = (await notesRepo.list()).filter((n: any) => n.templateId === 'mvp_daily_digest').length;
-  check(digestCount1 === 1 && digestCount2 === 1, `the daily digest fires exactly once per day (got ${digestCount1} then ${digestCount2})`);
+  // D-32: one digest a day each for the Admin and the Owner.
+  check(digestCount1 === 2 && digestCount2 === 2, `the daily digest fires exactly once per day per audience (got ${digestCount1} then ${digestCount2})`);
 
   await assertInvariants(ctx, overdueOrder.orderId, 'reports-check');
 

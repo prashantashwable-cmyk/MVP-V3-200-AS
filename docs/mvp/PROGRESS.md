@@ -75,6 +75,8 @@
 | 12 | Test and Verify (Phases D and E) | TODO | | | |
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
+| FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 55/55, 42/42 legacy, build PASS |
+| FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | TODO | | | Approved plan, next |
 
 ## Commands (filled in by Step 00)
 Environment at baseline: Node v22.22.2, npm 10.9.7, OpenJDK 21.0.10, firebase-tools 15.31.0 (via `npx`), Chromium at `/opt/pw-browsers`.
@@ -454,3 +456,36 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Claude tried to fast-forward `claude/mvp-step-11-security-hardening` to publish the fixes to the phone link; the session's permission check refused it, so it is left to the Owner (step 1 above).
 - **Checks:** lint PASS; `mvp:checks` 827 OK; `mvp:rules` 116/116; `mvp:multiuser` 45/45; legacy 42/42; `npm run build` PASS.
 
+### FU-1 Follow-up manager, D-32 (2026-09-27), branch `claude/mvp-step-12-follow-up-manager`
+- **The Owner's request:** "App itself act as manager and assistance also for followup completion of work". The approved plan splits it into FU-1 Manager (this) and FU-2 Assistant (next).
+- **Problems found before building:**
+  - Reminders only went out when an Admin/Owner opened the app, and only to the bell.
+  - Nothing escalated.
+  - Role-only tasks, blockers, late customers and lead follow-up dates were never chased.
+  - The daily summary was empty.
+  - Staff had no phone numbers on file, because Google sign-in gives none.
+- **Built:**
+  - `src/mvp/followUp.ts`: the ladder (pure).
+  - `notify.ts`:
+    - the full scan, now with the ladder and digest counts
+    - `scanMyFollowUps`, each person's own reminder check
+    - `listChases` and `markChased`
+  - The bell runs the check for everyone, on load and then hourly.
+  - The chase list card (`ChaseList.tsx`) on the Admin dashboard.
+  - A mobile field on the Users screen (`setPersonPhone`, audited).
+  - The robot `scripts/mvp-followup-run.ts` plus `.github/workflows/mvp-followup.yml` (cron 03:30/11:30 UTC; checks out the deploy branch; a notice rather than a failure until its secrets exist).
+  - Notification templates `mvp_escalated`, `mvp_unassigned`, `mvp_blocker_aging` and `mvp_lead_followup` (en/mr/hi).
+- **Data (all additive, optional):**
+  - `Task.lastChasedAt`, `Blocker.lastChasedAt`, `MvpLead.lastChasedAt`
+  - `NotificationRecord.data` (the digest counts)
+  - `users.phone` is now set by the Admin
+- **No `firestore.rules` change:** the existing rules already allow exactly this. The new emulator tests prove the assignee and the Owner cannot mark work chased, and the Admin can.
+- **Checks:**
+  - lint PASS
+  - `mvp:checks` 875 OK, including the new `mvp-followup-check.ts` (48)
+  - `mvp:rules` PASS (+4 D-32 tests)
+  - `mvp:multiuser` PASS, with a new section G (11): 4 phones scan at once with no duplicates, the chase list and "Chased" work on real Firestore, and the robot works (no login gives a notice, a non-Admin is refused, dry run sends nothing, a real run doesn't duplicate)
+  - legacy 42/42
+  - `npm run build` PASS
+- **Screenshots:** `docs/mvp/screenshots/step-12/` 01–05.
+- **Owner action to switch the robot on:** `docs/mvp/OWNER_STEPS.md` §5. GitHub runs schedules only from `main`, so the workflow file must also be on `main` (the same pattern as `mobile-preview-pages.yml`).

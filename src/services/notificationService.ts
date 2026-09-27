@@ -60,6 +60,11 @@ const TEMPLATES: Record<string, NotificationTemplate> = {
   mvp_blocker_raised: { id: 'mvp_blocker_raised', subject: 'Blocker raised', body: 'A blocker was raised on an order.' },
   mvp_emergency: { id: 'mvp_emergency', subject: 'EMERGENCY', body: 'A lift emergency was reported. Respond now.' },
   mvp_daily_digest: { id: 'mvp_daily_digest', subject: 'Daily summary', body: 'Your daily summary is ready on the dashboard.' },
+  // D-32 follow-up ladder (src/mvp/followUp.ts).
+  mvp_escalated: { id: 'mvp_escalated', subject: 'Escalated: work is late', body: 'An order task is well past its due date. Please chase it.' },
+  mvp_unassigned: { id: 'mvp_unassigned', subject: 'Nobody has picked up a task', body: 'A task is waiting for someone to be assigned.' },
+  mvp_blocker_aging: { id: 'mvp_blocker_aging', subject: 'Blocker still open', body: 'A blocker has been open longer than its due time.' },
+  mvp_lead_followup: { id: 'mvp_lead_followup', subject: 'Lead follow-up due', body: 'A lead is waiting for your follow-up call.' },
 };
 
 /** MVP: lets the notification bell show a template's text without duplicating it. */
@@ -127,6 +132,8 @@ export interface SendNotificationInput {
   /** Anchors idempotency — e.g. `${paymentId}:day-3` so a retried/
    * redelivered trigger for the SAME logical reminder never re-sends. */
   dedupeKey: string;
+  /** MVP (D-32): small numbers shown with the text (e.g. the daily digest's counts). */
+  data?: Record<string, number>;
   transports?: Partial<Record<NotificationChannel, ChannelTransport>>;
 }
 
@@ -153,6 +160,7 @@ export async function sendNotification(ctx: RepositoryContext, input: SendNotifi
         status: deliveryResult.status === 'delivered' ? 'delivered' : deliveryResult.status === 'failed' ? 'failed' : 'queued',
         idempotencyKey: `${input.templateId}:${input.dedupeKey}:${channel}`,
         createdAt: new Date().toISOString(),
+        ...(input.data ? { data: input.data } : {}),
       });
     }
     await recordAuditEvent(ctx, {

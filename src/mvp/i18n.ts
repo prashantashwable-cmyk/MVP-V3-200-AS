@@ -40,6 +40,10 @@ const en: MvpDict = {
     mvp_handover_ready: { subject: 'Handover ready', body: 'QC has passed; the lift is ready for handover.' },
     mvp_emergency: { subject: 'EMERGENCY', body: 'A lift emergency was reported. Respond now.' },
     mvp_daily_digest: { subject: 'Daily summary', body: 'Your daily summary is ready on the dashboard.' },
+    mvp_escalated: { subject: 'Escalated: work is late', body: 'An order task is well past its due date. Please chase it.' },
+    mvp_unassigned: { subject: 'Nobody has picked up a task', body: 'A task is waiting for someone to be assigned.' },
+    mvp_blocker_aging: { subject: 'Blocker still open', body: 'A blocker has been open longer than its due time.' },
+    mvp_lead_followup: { subject: 'Lead follow-up due', body: 'A lead is waiting for your follow-up call.' },
   },
   nav: {
     MvpDashboard: 'Dashboard', MvpOwnerView: 'Overview', MvpOrders: 'Orders', MvpTasks: 'My tasks',
@@ -64,6 +68,9 @@ const mr: MvpDict = {
     mvp_task_assigned: { subject: 'नवीन काम नेमले', body: 'तुम्हाला एक काम नेमले आहे.' },
     mvp_task_overdue: { subject: 'काम उशीर झाले', body: 'तुमचे एक काम उशीर झाले आहे.' },
     mvp_emergency: { subject: 'आपत्कालीन', body: 'लिफ्ट बिघाडाची तक्रार आली आहे. लवकर प्रतिसाद द्या.' },
+    mvp_task_due: { subject: 'काम लवकरच देय', body: 'तुमचे एक काम २४ तासांत पूर्ण करायचे आहे.' },
+    mvp_blocker_aging: { subject: 'अडथळा अजून सुटलेला नाही', body: 'एक अडथळा ठरलेल्या वेळेपेक्षा जास्त काळ उघडा आहे.' },
+    mvp_lead_followup: { subject: 'ग्राहकाला फोन करायचा आहे', body: 'एक लीड तुमच्या फॉलो-अप कॉलची वाट पाहत आहे.' },
   },
   nav: {
     MvpDashboard: 'डॅशबोर्ड', MvpOwnerView: 'आढावा', MvpOrders: 'ऑर्डर्स', MvpTasks: 'माझी कामे',
@@ -87,6 +94,9 @@ const hi: MvpDict = {
     mvp_task_assigned: { subject: 'नया काम सौंपा गया', body: 'आपको एक काम सौंपा गया है.' },
     mvp_task_overdue: { subject: 'काम में देरी', body: 'आपका एक काम देर हो गया है.' },
     mvp_emergency: { subject: 'आपातकाल', body: 'लिफ्ट खराबी की सूचना मिली है. तुरंत जवाब दें.' },
+    mvp_task_due: { subject: 'काम जल्द देय', body: 'आपका एक काम 24 घंटे में पूरा करना है.' },
+    mvp_blocker_aging: { subject: 'रुकावट अभी भी खुली है', body: 'एक रुकावट तय समय से ज़्यादा देर से खुली है.' },
+    mvp_lead_followup: { subject: 'ग्राहक को फ़ोन करना है', body: 'एक लीड आपके फ़ॉलो-अप कॉल की प्रतीक्षा में है.' },
   },
   nav: {
     MvpDashboard: 'डैशबोर्ड', MvpOwnerView: 'सारांश', MvpOrders: 'ऑर्डर', MvpTasks: 'मेरे काम',
@@ -119,4 +129,15 @@ export function translateNotification(lang: Lang, templateId: MvpNotification): 
   if (localized) return localized;
   const template = getNotificationTemplate(templateId);
   return template ? { subject: template.subject, body: template.body } : undefined;
+}
+
+/** D-32: the daily digest's text carries the real counts (stored on the notification). */
+export function digestLine(data: Record<string, number> | undefined): string | undefined {
+  if (!data) return undefined;
+  const parts: [string, number | undefined][] = [
+    ['overdue', data.overdue], ['escalated', data.escalated], ['blockers open too long', data.blockers],
+    ['customers late', data.customers], ['orders with no next action', data.noNextAction], ['lead calls due', data.leads],
+  ];
+  const shown = parts.filter(([, n]) => (n ?? 0) > 0).map(([label, n]) => `${n} ${label}`);
+  return shown.length ? shown.join(' · ') : 'Nothing was late at this check.';
 }

@@ -8,9 +8,28 @@ import type { User } from '../../types';
 import type { CanonicalUserRole } from '../../domain/entities';
 import { Button, Card } from '../../components/Common';
 import { createInvite, listCustomersForInvite, listInvites } from '../services/invites';
-import { listPeople } from '../services/people';
+import { listPeople, setPersonPhone, type Person } from '../services/people';
 import { formatDate } from '../format';
 import { ErrorNote, inputCls, labelCls, SectionTitle, useAction, useLoad, useMvpCtx } from './ui';
+
+/** D-32: the mobile the chase list uses for WhatsApp / call (Google sign-in gives none). */
+const PhoneCell: React.FC<{ person: Person; onSave: (phone: string) => Promise<boolean> }> = ({ person, onSave }) => {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(person.phone ?? '');
+  if (!editing) {
+    return (
+      <button onClick={() => setEditing(true)} className="text-xs font-semibold text-royalemerald cursor-pointer min-h-[40px] px-1">
+        {person.phone ? person.phone : 'Add mobile'}
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1">
+      <input aria-label={`Mobile for ${person.name}`} className={`${inputCls} w-36`} inputMode="tel" value={value} onChange={e => setValue(e.target.value)} placeholder="98xxxxxxxx" />
+      <Button variant="primary" onClick={() => onSave(value).then(ok => { if (ok) setEditing(false); })}>Save</Button>
+    </span>
+  );
+};
 
 const ROLES: CanonicalUserRole[] = ['admin', 'owner', 'sales', 'surveyor', 'technician', 'qc', 'customer', 'supplier'];
 
@@ -72,8 +91,16 @@ export const UsersScreen: React.FC<{ user: User }> = ({ user }) => {
 
       <Card className="p-4">
         <SectionTitle>Signed in</SectionTitle>
+        <p className="text-xs text-warmgray mb-1">Add each person's mobile so the chase list can WhatsApp or call them.</p>
         <ul className="divide-y divide-[#f0ebe2]">
-          {(people.data ?? []).map(p => <li key={p.id} className="py-2 text-sm">{p.name} · <strong>{p.role}</strong>{p.status && p.status !== 'active' ? ` · ${p.status}` : ''}</li>)}
+          {(people.data ?? []).map(p => (
+            <li key={p.id} className="py-2 text-sm flex flex-wrap items-center justify-between gap-2">
+              <span>{p.name} · <strong>{p.role}</strong>{p.status && p.status !== 'active' ? ` · ${p.status}` : ''}</span>
+              {p.role !== 'customer' && (
+                <PhoneCell person={p} onSave={phone => run(() => setPersonPhone(ctx, actor, p.id, phone)).then(ok => { if (ok) people.reload(); return !!ok; })} />
+              )}
+            </li>
+          ))}
         </ul>
       </Card>
     </div>

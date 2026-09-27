@@ -13,6 +13,8 @@ export interface MvpLead extends Lead {
   liftRequirement?: string;
   notes?: string;
   nextFollowUp?: string;
+  /** D-32: when the Admin last chased this lead's owner from the chase list. */
+  lastChasedAt?: string;
   mvpStatus?: MvpLeadStatus;
   projectId?: string;
   consentAt?: string;

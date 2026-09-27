@@ -11,6 +11,7 @@ import { buildDashboard, PIPELINE_COLUMNS, type DashboardOrder } from '../servic
 import { formatDateTime } from '../format';
 import { ErrorNote, HealthBadge, Loading, SectionTitle, useLoad, useMvpCtx, useMvpLang } from './ui';
 import { translateAttention, translateStage } from '../i18n';
+import { ChaseList } from './ChaseList';
 
 const PIPE_LABEL: Record<string, string> = { LEAD: 'Lead', QUALIFIED: 'Qualified', SURVEY: 'Survey', QUOTE: 'Quote', BOOKED: 'Booked', SITE_READY: 'Site ready', DELIVERY: 'Delivery', INSTALLATION: 'Installation', QC: 'QC', HANDOVER: 'Handover', AMC: 'AMC' };
 
@@ -42,6 +43,8 @@ export const AdminDashboard: React.FC<{ user: User; onOpenOrder: (id: string) =>
         <h2 className="text-lg font-bold text-charcoal">{user.role === 'owner' ? 'Company overview' : 'Admin dashboard'}</h2>
         <button onClick={reload} className="text-xs text-warmgray flex items-center gap-1 cursor-pointer min-h-[40px] px-2"><RefreshCw className="w-3.5 h-3.5" />Refresh</button>
       </div>
+
+      <ChaseList user={user} onOpenOrder={onOpenOrder} />
 
       <Card className="p-4">
         <SectionTitle right={<CalendarClock className="w-4 h-4 text-warmgray" />}>Today</SectionTitle>

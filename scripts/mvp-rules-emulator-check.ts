@@ -253,6 +253,12 @@ async function main() {
   ok(await allowed(getDoc(doc(db.admin, 'notifications/n2'))), 'role:admin notifications reach the admin');
   ok(await allowed(updateDoc(doc(db.tech1, 'notifications/n1'), { readAt: '2026-10-01' })), 'the audience can mark it read');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'notifications/n1'), { templateId: 'x' }))), 'the audience cannot edit it');
+  // D-32 follow-up ladder: the self-scan writes the person's own reminder; only the Admin marks work "chased".
+  ok(await allowed(setDoc(doc(db.tech2, 'notifications/notif_mvp_task_overdue_self'), { id: 'notif_mvp_task_overdue_self', audienceUserId: uid.tech2, templateId: 'mvp_task_overdue', channel: 'in_app', status: 'delivered', idempotencyKey: 'k', createdAt: '2026-10-05' })), 'D-32: a technician\'s app writes their own overdue reminder');
+  await seed('tasks/ord1__INSTALLATION__fu', { id: 'ord1__INSTALLATION__fu', orderId: 'ord1', type: 'INSTALLATION', stage: 'INSTALLATION', assigneeId: uid.tech2, assigneeRole: 'technician', status: 'TODO', dueDate: '2026-10-01', version: 0 });
+  ok(!(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the assignee cannot mark their own task "chased"');
+  ok(!(await allowed(updateDoc(doc(db.owner, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the Owner (read-only) cannot mark it chased');
+  ok(await allowed(updateDoc(doc(db.admin, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' })), 'D-32: the Admin marks it chased');
   ok(await allowed(updateDoc(doc(db.sales, 'counters/orders'), { value: 6 })), 'the order counter moves by +1');
   ok(!(await allowed(updateDoc(doc(db.sales, 'counters/orders'), { value: 9 }))), 'the order counter cannot jump');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'counters/orders'), { value: 7 }))), 'a technician cannot touch the counter');
