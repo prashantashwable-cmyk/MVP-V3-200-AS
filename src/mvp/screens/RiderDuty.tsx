@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Flame, Navigation, Play, RotateCcw, Square, Trophy, Wallet } from 'lucide-react';
+import { Building2, Flame, Navigation, Play, RotateCcw, Square, Trophy, Wallet } from 'lucide-react';
 import { Card } from '../../components/Common';
 import type { MvpActor, MvpCtx } from '../services/orderService';
 import { getMyRouteToday, saveRoutePoints, startDuty, type RiderBoard, type RiderRoute } from '../services/riderService';
@@ -14,6 +14,7 @@ import { COMMISSION_ON_BOOKING_INR, COMMISSION_PER_CONFIRMED_INR, COVERAGE_CELL_
 import type { Fix } from '../geo';
 import { formatInr } from '../format';
 import { ErrorNote, useT } from './ui';
+import { PLANNED_COLOR, PlannedRow } from './PlannedProjects';
 
 /** Records the route while on duty: a point every ROUTE_MIN_MOVE_M, saved every few minutes. */
 export function useDuty(ctx: MvpCtx, actor: MvpActor, fix: Fix | null, onSaved: () => void) {
@@ -146,6 +147,21 @@ export const RiderProgress: React.FC<{ board: RiderBoard | null; me: string; her
         ) : <div className="text-xs text-warmgray">{t('Record a few sites and the app will suggest where to go next.')}</div>}
         <div className="text-xs text-warmgray pt-1">{t('Area covered')}: {board.totalAreaKm2} km²</div>
       </Card>
+      {(() => {
+        // D-36: planned buildings in (or past) their lift window that no rider has recorded yet.
+        const due = board.planned.filter(p => !p.visitedScoutId && ['WINDOW', 'LATE', 'OVERDUE'].includes(p.phase))
+          .map(p => ({ p, km: here ? Math.round(distanceM(here, p) / 100) / 10 : null }))
+          .sort((a, b) => (a.p.phase === 'WINDOW' ? 0 : 1) - (b.p.phase === 'WINDOW' ? 0 : 1) || (a.km ?? 0) - (b.km ?? 0))
+          .slice(0, 5);
+        if (!due.length) return null;
+        return (
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-bold flex items-center gap-1"><Building2 className="w-4 h-4" style={{ color: PLANNED_COLOR }} />{t('Planned buildings due for a lift')}</div>
+            <div className="text-xs text-warmgray">{t('Registered projects whose completion date says the lift shaft should be ready about now. Go and record the site.')}</div>
+            {due.map(({ p, km }) => <PlannedRow key={p.id} p={p} km={km} />)}
+          </Card>
+        );
+      })()}
       {board.revisit.length > 0 && (
         <Card className="p-4 space-y-2">
           <div className="text-sm font-bold flex items-center gap-1"><RotateCcw className="w-4 h-4 text-[#7c3aed]" />{t('Go back: may be ready now')}</div>

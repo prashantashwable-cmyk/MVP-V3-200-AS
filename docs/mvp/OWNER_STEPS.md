@@ -61,6 +61,15 @@ Also on the **Users** screen: tap **Add mobile** next to each staff member. The 
 4. **Sales** sees every new site in **Sightings**, calls the number on the board photo, and taps **Make it a lead** once the builder agrees.
 5. **Commission** amounts are ₹50 per confirmed site and ₹1,000 when it is booked. Tell Claude if you want different amounts. Check TDS with your CA before the first payout (Reports → Rider commission).
 
+## 7. Add planned building projects (about 10 min per list)
+1. **Permission first (⚖):** MahaRERA's lists may be reused only with its permission. Write to MahaRERA, or ask your lawyer, before copying its search results in. Lists you already own (brochures, newspaper launches, your own contacts' projects) can go in any time.
+2. **In a spreadsheet**, keep these columns with a header line: **Project name, Registration no, Promoter, Address, PIN code, Proposed completion date, Floors**. Latitude and Longitude are optional but make it exact. Phone numbers and e-mails are ignored.
+3. **In the app** (as Admin): **Sightings** → **Planned projects** → copy the cells and paste them → **Check the list**.
+   - The app finds each address on the map (about one per second) and shows what will be added or updated.
+   - Fix any "not found" rows by adding latitude/longitude, then tap **Save**.
+4. **Check the lift window** (currently 15 to 4 months before completion) against your last few orders, and tell Claude if it should change.
+5. **Repeat monthly:** re-pasting the same list only updates changed dates; nothing is duplicated.
+
 ## Decisions already taken (change any of them by telling Claude)
 - **Marathi and Hindi for field screens:** done for the technician, surveyor, QC and customer screens and the shared order screen. Admin screens stay English. A native speaker should review the wording (`src/mvp/i18nUi.ts`).
 - **Access after a person finishes their last task:** kept as it is. Staff see an order only while they have an open task on it; Admin and Owner always see everything. This keeps customer data visible to the fewest people.

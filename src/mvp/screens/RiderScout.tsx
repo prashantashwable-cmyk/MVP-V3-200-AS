@@ -24,6 +24,8 @@ import { buildRiderBoard } from '../services/riderService';
 import { DutyBar, mapLayersFor, RiderProgress, useDuty } from './RiderDuty';
 import { HEAT_SETTINGS } from '../services/riderService';
 import { whyHere, type WhyHere } from '../heat';
+import { PLANNED_COLOR, PlannedRow, phaseText } from './PlannedProjects';
+import type { ProspectView } from '../services/prospectService';
 
 const SiteMap = lazy(() => import('./SiteMap'));
 
@@ -75,6 +77,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
   const [layer, setLayer] = useState<'chances' | 'covered'>('chances');
   const [why, setWhy] = useState<(WhyHere & { lat: number; lng: number }) | null>(null);
   const [picked, setPicked] = useState<SiteScout | null>(null);
+  const [plannedPick, setPlannedPick] = useState<ProspectView | null>(null);
   const mine = useLoad(() => listMySightings(ctx, actor), [ctx]);
   const board = useLoad(() => buildRiderBoard(ctx, actor), [ctx], { every: 1 });
   const duty = useDuty(ctx, actor, fix, () => board.reload());
@@ -203,13 +206,20 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
                   const rv = board.data!.revisit.some(r => r.id === s.id);
                   return { id: rv ? `rv_${s.id}` : `hs_${s.id}`, lat: s.lat, lng: s.lng, color: rv ? '#7c3aed' : STATUS_COLOR[s.status],
                     label: `${s.address ?? ''} · ${rv ? t('Go back: may be ready now') : t(s.bookedAt ? 'booked' : s.status === 'NEW' ? 'With Sales' : s.status === 'CONVERTED' ? 'Became a lead' : 'Not useful')}` };
-                })
+                }).concat((board.data?.planned ?? []).filter(p => !p.visitedScoutId).map(p => ({
+                  // D-36 planned projects nobody has visited yet (teal).
+                  id: `pl_${p.id}`, lat: p.lat, lng: p.lng, color: PLANNED_COLOR, label: `${p.name} · ${phaseText(p, t)}`,
+                })))
               : list.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, color: STATUS_COLOR[s.status], label: `${s.address} · ${t(s.status === 'NEW' ? 'With Sales' : s.status === 'CONVERTED' ? 'Became a lead' : 'Not useful')}` }))}
             me={fix} route={duty.route?.points ?? []}
             areas={layer === 'covered' ? mapLayersFor(board.data ?? null) : []}
             heat={layer === 'chances' ? board.data?.heat ?? null : null}
-            onMapClick={layer === 'chances' && board.data?.heat ? at => setWhy({ ...whyHere(board.data!.heatSightings, board.data!.ridden, board.data!.heat!, at, new Date(), HEAT_SETTINGS), ...at }) : undefined}
-            onPick={id => setPicked(list.find(s => s.id === id || `hs_${s.id}` === id || `rv_${s.id}` === id) ?? null)} />
+            onMapClick={layer === 'chances' && board.data?.heat ? at => setWhy({ ...whyHere(board.data!.heatSightings, board.data!.ridden, board.data!.heat!, at, new Date(), HEAT_SETTINGS, board.data!.plannedHeat), ...at }) : undefined}
+            onPick={id => {
+              if (id.startsWith('pl_')) { setPicked(null); setPlannedPick(board.data?.planned.find(p => `pl_${p.id}` === id) ?? null); return; }
+              setPlannedPick(null);
+              setPicked(list.find(s => s.id === id || `hs_${s.id}` === id || `rv_${s.id}` === id) ?? null);
+            }} />
           {layer === 'chances' && (
             <div className="mt-2 space-y-1">
               <div className="flex items-center gap-2 text-[11px] text-warmgray">
@@ -217,7 +227,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
                 <span className="h-2.5 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(205,226,251,0.4), #86b6ef, #3987e5, #256abf, #104281)' }} />
                 <span>{t('More likely')}</span>
               </div>
-              <div className="text-[11px] text-warmgray">{t('Tap the map to see why. Dashed line: your route today. Purple: go back, may be ready now.')}</div>
+              <div className="text-[11px] text-warmgray">{t('Tap the map to see why. Dashed line: your route today. Purple: go back, may be ready now. Teal: planned building, not visited yet.')}</div>
             </div>
           )}
           {why && (
@@ -225,7 +235,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
               <div className="text-sm font-bold text-[#1c5cab]">{why.heat >= 0.8 ? t('Very likely') : why.heat >= 0.55 ? t('Likely') : why.heat >= 0.2 ? t('Worth a look') : t('Unlikely')} · {Math.round(why.heat * 100)}/100</div>
               <div className="text-[11px] text-warmgray">{t('Score compared with the best spot on the map (100), not a guarantee.')}</div>
               <div className="text-xs text-charcoal">{t('Within 1.5 km')}: {why.booked} {t('booked')} · {why.leads} {t('became leads')} · {why.waiting} {t('with Sales')} · {why.notReady} {t('not ready yet')} · {why.noLuck} {t('not useful')}</div>
-              <div className="text-xs text-warmgray">{t('Ridden here recently')}: {why.daysRiddenRecently} {t('days')}</div>
+              <div className="text-xs text-warmgray">{t('Ridden here recently')}: {why.daysRiddenRecently} {t('days')}{why.planned ? ` · ${why.planned} ${t('planned buildings due for a lift')}` : ''}</div>
               <a href={`https://www.google.com/maps/dir/?api=1&destination=${why.lat.toFixed(5)},${why.lng.toFixed(5)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[#1c5cab] min-h-[40px]"><Navigation className="w-4 h-4" />{t('Directions')}</a>
             </Card>
           )}
@@ -237,6 +247,14 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
       {picked && <SightingCard s={picked} onClose={() => setPicked(null)} />}
+      {plannedPick && (
+        <PlannedRow p={plannedPick}>
+          <div className="flex justify-between items-center">
+            <span className="text-[11px] text-warmgray">{t('Planned project')} · {plannedPick.source}</span>
+            <button onClick={() => setPlannedPick(null)} className="min-h-[40px] px-3 text-xs font-bold text-warmgray cursor-pointer">{t('Close')}</button>
+          </div>
+        </PlannedRow>
+      )}
       <RiderProgress board={board.data ?? null} me={actor.userId} here={fix} />
     </div>
   );

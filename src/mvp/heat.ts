@@ -30,6 +30,9 @@ export interface HeatSettings {
 export type HeatSighting = Pick<SiteScout, 'lat' | 'lng' | 'status' | 'createdAt'> &
   Partial<Pick<SiteScout, 'bookedAt' | 'rejectReason' | 'floors' | 'reviewedAt' | 'id' | 'address'>>;
 
+/** D-36: a planned project (registered, not yet seen by a rider) and how strongly it pulls. */
+export interface PlannedPoint { lat: number; lng: number; weight: number }
+
 export interface HeatGrid {
   south: number; west: number; north: number; east: number;
   rows: number; cols: number;
@@ -73,9 +76,13 @@ export function effortMap(days: { day: string; cells: string[] }[], now: Date, h
  * so it never computes more than ~6,400 cells on a phone.
  */
 export function heatGrid(
-  sightings: HeatSighting[], ridden: { day: string; cells: string[] }[], now: Date, st: HeatSettings,
+  sightings: HeatSighting[], ridden: { day: string; cells: string[] }[], now: Date, st: HeatSettings, planned: PlannedPoint[] = [],
 ): HeatGrid | null {
-  const ev = sightings.map(s => ({ s, e: evidenceOf(s, now, st) })).filter(x => Math.abs(x.e) > 0.01);
+  const ev = [
+    ...sightings.map(s => ({ s: s as { lat: number; lng: number }, e: evidenceOf(s, now, st) })),
+    // Planned projects don't fade (their date is in the future); their weight is set by the lift window.
+    ...planned.map(p => ({ s: p, e: p.weight })),
+  ].filter(x => Math.abs(x.e) > 0.01);
   if (!ev.some(x => x.e > 0)) return null;
   const margin = 2000;
   const lats = ev.map(x => x.s.lat);
@@ -147,11 +154,14 @@ export interface WhyHere {
   notReady: number;
   noLuck: number;
   daysRiddenRecently: number;
+  /** D-36: planned projects within 1.5 km that are in or near their lift window. */
+  planned: number;
 }
 
 /** Plain-language reasons for the heat at one point (what the rider sees when tapping the map). */
 export function whyHere(
   sightings: HeatSighting[], ridden: { day: string; cells: string[] }[], grid: HeatGrid, at: { lat: number; lng: number }, now: Date, st: HeatSettings,
+  planned: PlannedPoint[] = [],
 ): WhyHere {
   const near = sightings.filter(s => distanceM(s, at) <= 1500);
   const effort = effortMap(ridden, now, st.halfLifeDays);
@@ -163,6 +173,7 @@ export function whyHere(
     notReady: near.filter(s => s.status === 'REJECTED' && s.rejectReason === 'NOT_READY_YET').length,
     noLuck: near.filter(s => s.status === 'REJECTED' && s.rejectReason !== 'NOT_READY_YET').length,
     daysRiddenRecently: Math.round((effort.get(cellKey(at.lat, at.lng, st.effortCellM)) ?? 0) * 10) / 10,
+    planned: planned.filter(p => p.weight >= 1 && distanceM(p, at) <= 1500).length,
   };
 }
 

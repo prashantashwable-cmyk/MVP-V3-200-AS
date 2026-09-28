@@ -133,3 +133,14 @@ export const HEAT_WEIGHTS = {
 } as const;
 /** A site closed as "not ready yet" is suggested for a revisit after this many days. */
 export const REVISIT_AFTER_DAYS = 30;
+/**
+ * D-36 planned projects: the lift is usually ordered between these many months before the
+ * project's proposed completion date (structure up, before finishing). ⚖ VERIFY against the
+ * Owner's own past orders and change here.
+ */
+export const LIFT_WINDOW_FROM_MONTHS = 15;
+export const LIFT_WINDOW_TO_MONTHS = 4;
+/** D-36: a planned project's pull on the heatmap (a found site is 1.5–5), by lift-window phase. */
+export const PLANNED_HEAT_WEIGHTS = { WINDOW: 2.5, LATE: 1.2, OVERDUE: 0.8, UNKNOWN: 0.8, EARLY: 0.3 } as const;
+/** A sighting this close to a planned project counts as "a rider has been there". */
+export const PROSPECT_MATCH_RADIUS_M = 150;

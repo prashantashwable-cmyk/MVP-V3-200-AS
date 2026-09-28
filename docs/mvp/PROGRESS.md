@@ -79,6 +79,7 @@
 | RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | mvp:checks 938 OK, mvp:rules PASS (+13), mvp:multiuser 63/63, 42/42 legacy, build PASS |
 | RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | DONE | MVP Rider 2 PR | 2026-09-28 | mvp:checks 967 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
 | RD-3 | Opportunity heatmap for riders (D-35) | DONE | MVP Rider 3 PR | 2026-09-28 | mvp:checks 983 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
+| RD-4 | Planned projects and the lift window (D-36) | DONE | MVP Rider 4 PR | 2026-09-28 | mvp:checks 1011 OK, mvp:rules 155/155, mvp:multiuser 77/77, 42/42 legacy, build PASS |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
@@ -580,3 +581,41 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - Demo: one site closed "not ready yet" 40 days ago.
 - **Checks:** 16 heatmap checks in `mvp-scouting-check.ts`, 75 in total.
 - **Screenshots:** `docs/mvp/screenshots/rider-3/` 01–03.
+
+### RD-4 Planned projects and the lift window, D-36 (2026-09-28), branch `claude/mvp-rider-4-planned-projects`
+- **The Owner said** "Go" on the MahaRERA import offered after RD-3.
+- **Terms checked first:**
+  - MahaRERA's site is blocked from the build session.
+  - GIGW (the standard government-website policy) allows reproduction only with permission.
+  - So there is no scraper. The Admin pastes a list instead, with a ⚖ VERIFY note on the screen.
+- **The main point:** a registered project tells us *when*, not just where. Its completion date gives a lift window (15–4 months before, ⚖ VERIFY). Riders go when the shaft should be ready: not too early (a wasted trip), not too late (the lift is already ordered).
+- **Built:**
+  - `src/mvp/prospects.ts` (pure):
+    - List parser: commas or tabs, columns matched loosely, quoted commas kept, phone and e-mail columns ignored.
+    - Indian date parser.
+    - `liftPhase`, `visitedBy`, `sameProject`.
+  - `services/prospectService.ts`: `importProspects` (Admin only, dry run first, idempotent), `dismissProspect` (reason required, never deleted), `listProspects`, `viewProspects`, `plannedHeat`.
+  - `heat.ts`: `heatGrid` and `whyHere` accept planned points. With no sightings at all, planned projects alone make a heatmap, so a new city starts warm.
+  - `riderService.buildRiderBoard`: carries planned projects and their pull.
+  - `geo.findPlace`: Nominatim search, India only.
+  - `screens/PlannedProjects.tsx`:
+    - The Admin's import (paste or file → find on map → preview → save).
+    - A list sorted "lift window now" first, with directions.
+    - Dismiss.
+  - Sightings inbox: a new **Planned projects** tab.
+  - The rider's screen:
+    - Teal pins on the Best-chances map.
+    - A **Planned buildings due for a lift** card (up to 5, nearest first).
+    - "Why here" counts planned buildings.
+  - `firestore.rules`: a new `site_prospects` block (Admin writes; Sales/Owner read; no delete). It is a new collection, and no existing access is widened.
+  - 16 Marathi/Hindi phrases.
+  - Demo: 5 made-up projects, one per phase.
+- **Checks:**
+  - 28 planned-project checks in `mvp-scouting-check.ts` (103 in total).
+  - +8 rules tests.
+  - +5 multi-user tests (section J: the real rules, and the rider's board loads with planned projects).
+- **Screenshots:** `docs/mvp/screenshots/rider-4/` 01–06.
+- **Open items:**
+  - MahaRERA permission (Owner).
+  - The lift-window months need checking against real orders (Owner).
+  - Address lookups are capped at 100 per paste, one per second (OpenStreetMap fair use, ⚖ VERIFY). Bigger lists need Latitude/Longitude columns.

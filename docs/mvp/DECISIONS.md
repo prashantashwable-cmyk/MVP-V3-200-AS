@@ -401,3 +401,31 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - **Next levers (not built):**
   - Importing MahaRERA registered projects (address, proposed completion date) would be the strongest predictor of where lift shafts will be ready. ⚖ VERIFY the terms of use before importing.
   - Sales' call outcomes by area are also a candidate.
+
+**D-36 Planned projects and the lift window (Owner, 2026-09-28: "Go" on the MahaRERA import).**
+- **No scraping.** MahaRERA's site could not be checked from this build session (blocked), and the standard Government of India website copyright policy (GIGW) allows reproduction only "after taking proper permission". So the app does not fetch MahaRERA automatically.
+  - Instead, the **Admin pastes a list**: from MahaRERA's project search (⚖ VERIFY: get MahaRERA's permission first), or from any list the Owner already has (builder brochures, newspaper launches, the Owner's own knowledge).
+- **Kept:** project name, registration number, promoter company, address, PIN code, proposed completion date and floors. **Phone numbers and e-mails in the list are ignored on purpose**: nobody at the site has agreed to be contacted (D-04). The rider visits and Sales asks for consent, as with any sighting.
+- **The lift window.** A lift is usually ordered **15 to 4 months before the proposed completion date** (⚖ VERIFY against the Owner's own orders; `config.ts`). Each project gets a phase:
+
+  | Phase | Meaning | Pull on the heatmap |
+  |---|---|---|
+  | Lift window now | 15–4 months before completion | 2.5 |
+  | Completing soon | under 4 months: the lift may already be ordered | 1.2 |
+  | Past its date | registered dates slip often: may be delayed, check | 0.8 |
+  | No date | | 0.8 |
+  | Too early | more than 15 months away | 0.3 |
+
+  - Taller buildings pull more, up to double.
+  - A planned project does not fade with time: its phase changes instead.
+- **When a rider records a site within 150 m of a planned project**, the project counts as visited, drops to the bottom of the list and stops pulling the heat. The real sighting takes over.
+- **Imports are safe to repeat:**
+  - A project is matched by registration number, or else by the same name (any capitals) within 150 m.
+  - A re-import updates changed fields, such as a new completion date.
+  - The Admin always sees a dry-run preview (new / updated / unchanged / not found on the map) before saving.
+  - Removing a project needs a reason, and the project is dismissed, not deleted.
+- **Addresses are placed on the map** through OpenStreetMap's Nominatim search, restricted to India. A list can also carry its own Latitude and Longitude columns.
+  - Lookups run at most one per second, including the retry by name and PIN code.
+  - Each paste looks up at most 100 addresses. A bigger list must bring its own coordinates.
+  - ⚖ VERIFY: Nominatim is for light use only. For regular bulk imports, use the Google geocoder with the Owner's key, or lists that already carry coordinates. The map shows the OpenStreetMap attribution.
+- **Access** (`site_prospects`): the Admin writes; Sales (riders) and the Owner read; nobody deletes.

@@ -17,6 +17,8 @@ import { runS1 } from './mvp/scenario';
 import { evidenceOf, heatAt, heatColor, heatGrid, hotspots, revisits, whyHere } from '../src/mvp/heat';
 import { HEAT_SETTINGS } from '../src/mvp/services/riderService';
 import { getRepository } from '../src/repository';
+import { liftPhase, parseDate, parseProspectList, visitedBy } from '../src/mvp/prospects';
+import { dismissProspect, importProspects, listProspects, plannedHeat, viewProspects } from '../src/mvp/services/prospectService';
 
 const JPEG = `data:image/jpeg;base64,${'A'.repeat(4000)}`;
 const photo = (kind: 'SITE' | 'SHAFT' | 'BOARD') => ({ kind, dataUrl: JPEG, contentType: 'image/jpeg', previewDataUrl: JPEG });
@@ -93,6 +95,7 @@ async function main() {
 
   await part2();
   part3();
+  await part4();
   done('mvp-scouting-check');
 }
 
@@ -234,4 +237,89 @@ function part3() {
   const far = heatGrid([site(18.3, 73.6), site(18.7, 74.1)], [], now, S)!;
   check(far.rows * far.cols <= 6400 * 1.1 && far.cellM > S.cellM, `sites 60 km apart: bigger cells, still phone-sized (${far.rows}×${far.cols}, ${far.cellM} m)`);
   check(heatColor(0)[3] === 0 && heatColor(1)[2] > heatColor(1)[0] && heatColor(1)[3] > heatColor(0.3)[3], 'colour: transparent at 0, dark blue and more opaque as the chance rises');
+}
+
+async function part4() {
+  // --- D-36 planned projects: paste a list, lift window, safe re-import, pull on the heat ---
+  check(parseDate('31/12/2027') === '2027-12-31' && parseDate('2027-12-31') === '2027-12-31' && parseDate('Dec 2027') === '2027-12-31' &&
+    parseDate('12/2027') === '2027-12-31' && parseDate('15-Mar-2028') === '2028-03-15' && parseDate('31/02/2027') === undefined && parseDate('soon') === undefined,
+    'dates: 31/12/2027, 2027-12-31, Dec 2027, 12/2027, 15-Mar-2028 understood; 31/02 and words refused');
+  const csv = [
+    'Sr No,Project Name,MahaRERA Registration No,Promoter Name,Project Address,Pin Code,Proposed Completion Date,Mobile,Email',
+    '1,Sky Towers,P52100011111,ABC Developers LLP,"Survey 12, Tathawade, Pune",411033,31/12/2027,9822000000,a@b.in',
+    '2,,P52100022222,X,Wakad,411057,31/12/2027,,',
+    '3,Green Park,p5210 0033333,Y,"Balewadi, Pune",4110,Dec 2027,,',
+    '4,No Place,P52100044444,Z,,,,,',
+  ].join('\n');
+  const parsed = parseProspectList(csv);
+  check(parsed.rows.length === 2 && parsed.rows[0].name === 'Sky Towers' && parsed.rows[0].regNo === 'P52100011111' && parsed.rows[0].promoter === 'ABC Developers LLP' &&
+    parsed.rows[0].address === 'Survey 12, Tathawade, Pune' && parsed.rows[0].pincode === '411033' && parsed.rows[0].completion === '2027-12-31',
+    'a MahaRERA-style list: columns matched by name (quoted commas kept)');
+  check(parsed.rows[1].regNo === 'P52100033333' && parsed.rows[1].pincode === undefined && parsed.errors.length === 3,
+    `registration number tidied; a bad PIN, a row with no name and a row with no address are reported (${JSON.stringify(parsed.errors)})`);
+  check(!JSON.stringify(parsed.rows).includes('9822000000') && !JSON.stringify(parsed.rows).includes('a@b.in'), 'phone numbers and e-mails in the list are never kept (no consent, D-04)');
+  const tabs = parseProspectList('Project\tLatitude\tLongitude\tFloors\nHill View\t18.516\t73.778\t9');
+  check(tabs.rows.length === 1 && tabs.rows[0].lat === 18.516 && tabs.rows[0].floors === 9, 'a copy from a spreadsheet (tabs) with latitude/longitude works without an address');
+  check(parseProspectList('Name,Phone\nA,1').errors.length === 1, 'no address and no latitude/longitude columns: refused with a clear message');
+
+  const now = new Date('2026-10-01T04:30:00Z');
+  const ph = (m: number) => liftPhase(new Date(now.getTime() + m * 30.44 * 86_400_000).toISOString().slice(0, 10), now, 15, 4).phase;
+  check(ph(24) === 'EARLY' && ph(10) === 'WINDOW' && ph(5) === 'WINDOW' && ph(2) === 'LATE' && ph(-6) === 'OVERDUE' && liftPhase(undefined, now, 15, 4).phase === 'UNKNOWN',
+    'lift window: 24 months away too early; 10 and 5 months in the window; 2 months late; past its date "check"; no date unknown');
+
+  const clock = new Clock();
+  clock.advanceDays(70); // after parts 1–3 (the demo repository is shared)
+  const ctx = demoCtx(clock, USERS.admin);
+  const inMonths = (m: number) => new Date(clock.now().getTime() + m * 30.44 * 86_400_000).toISOString().slice(0, 10);
+  const P = { lat: 18.62, lng: 73.745 };
+  const Q = { lat: 18.66, lng: 73.80 }; // ~6 km away
+  const rows = [
+    { line: 2, name: 'Sky Towers', regNo: 'P1', address: 'Tathawade', ...P, completion: inMonths(8), floors: 14 },
+    { line: 3, name: 'Far Future', regNo: 'P2', address: 'Ravet', ...Q, completion: inMonths(40) },
+    { line: 4, name: 'Nowhere', regNo: 'P3', address: 'Unknown street' },
+  ];
+  check(await refuse(() => importProspects(ctx, USERS.sales, rows, { source: 'x', dryRun: true })), 'only the Admin imports planned projects');
+  const dry = await importProspects(ctx, USERS.admin, rows, { source: 'MahaRERA', dryRun: true });
+  check(dry.added.length === 2 && dry.noLocation.length === 1 && (await listProspects(ctx, USERS.admin)).length === 0, 'the check (dry run) shows 2 new + 1 not on the map, and saves nothing');
+  const first = await importProspects(ctx, USERS.admin, rows, { source: 'MahaRERA', dryRun: false });
+  check(first.added.length === 2 && first.added[0].id === 'prj_P1' && first.added[0].status === 'OPEN', 'saved: 2 projects');
+  const again = await importProspects(ctx, USERS.admin, [...rows, rows[0]], { source: 'MahaRERA', dryRun: false });
+  check(again.added.length === 0 && again.updated.length === 0 && again.unchanged === 3, 'the same list again (even with a row twice): nothing duplicated');
+  const moved = await importProspects(ctx, USERS.admin, [{ ...rows[0], completion: inMonths(12) }], { source: 'MahaRERA', dryRun: false });
+  check(moved.updated.length === 1 && moved.updated[0].completion === inMonths(12), 'a re-import with a new completion date updates the project (dates slip)');
+  const same = await importProspects(ctx, USERS.admin, [{ line: 2, name: 'sky towers ', address: 'x', lat: P.lat + 0.0005, lng: P.lng }], { source: 'other', dryRun: true });
+  check(same.added.length === 0, 'without a registration number: the same name (any capitals) within 150 m is the same project');
+  const other = await importProspects(ctx, USERS.admin, [
+    { line: 2, name: 'Sky Towers Annexe', address: 'x', lat: P.lat + 0.0005, lng: P.lng },
+    { line: 3, name: 'Sky Towers', address: 'x', lat: P.lat + 0.02, lng: P.lng },
+  ], { source: 'other', dryRun: true });
+  check(other.added.length === 2, '…a different name next door, or the same name 2 km away, is a new project');
+
+  const list = await listProspects(ctx, USERS.sales);
+  check(list.length === 2 && list[0].name === 'Sky Towers' && list[0].phase === 'WINDOW' && list[1].phase === 'EARLY', 'Sales/riders see them, "lift window now" first');
+  check(await refuse(() => listProspects(ctx, USERS.tech1)), 'technicians do not see planned projects');
+  const pull = plannedHeat(list);
+  check(pull[0].weight > pull[1].weight * 5, `a project in its lift window pulls the heat far more than one years away (${pull.map(p => p.weight.toFixed(2))})`);
+  const hg = heatGrid([], [], clock.now(), HEAT_SETTINGS, pull)!;
+  check(hg && heatAt(hg, P.lat, P.lng) > 0.9, 'with no sightings at all, planned projects alone make a heatmap (a new city starts warm)');
+  const w = whyHere([], [], hg, P, clock.now(), HEAT_SETTINGS, pull);
+  check(w.planned === 1, '"why here" counts planned buildings due for a lift');
+
+  // A rider records a site there: it counts as visited, and the paper record stops pulling.
+  const rider: MvpActor = { userId: 'u_rider4', role: 'sales', name: 'Rider Raju' };
+  const s = await createSighting(ctx, rider, { lat: P.lat + 0.0008, lng: P.lng, address: 'Tathawade', photo: photo('SITE') });
+  const after = await listProspects(ctx, rider);
+  check(after.find(p => p.name === 'Sky Towers')!.visitedScoutId === s.id && after[after.length - 1].name === 'Sky Towers', 'a sighting within 150 m marks it "a rider has recorded this site" and moves it down');
+  check(plannedHeat(after).length === 1, 'a visited project no longer pulls the heat (the real sighting does)');
+  check(visitedBy({ ...P, createdAt: '2099-01-01' }, [{ ...P, createdAt: '2026-01-01' }], 150) === undefined, 'a sighting from before the project was added does not count as a visit');
+  const board = await buildRiderBoard(ctx, rider);
+  check(board.planned.length === 2 && board.plannedHeat.length === 1, 'the rider\'s board carries the planned projects and their pull');
+
+  check(await refuse(() => dismissProspect(ctx, USERS.sales, 'prj_P2', 'no')), 'only the Admin removes a planned project');
+  check(await refuse(() => dismissProspect(ctx, USERS.admin, 'prj_P2', ' ')), 'removing needs a reason');
+  await dismissProspect(ctx, USERS.admin, 'prj_P2', 'Cancelled by the builder');
+  check((await listProspects(ctx, USERS.admin)).length === 1, 'a removed project is hidden (kept, not deleted)');
+  const audit = await getRepository<any>('audit_logs', ctx).list();
+  check(audit.some(a => a.action === 'PROSPECTS_IMPORTED') && audit.some(a => a.action === 'PROSPECT_DISMISSED'), 'imports and removals are in the audit trail');
+  check(viewProspects([], [], now).length === 0, 'no planned projects: nothing shown');
 }
