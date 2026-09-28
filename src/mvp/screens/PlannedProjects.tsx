@@ -31,6 +31,9 @@ export function phaseText(p: Pick<ProspectView, 'phase' | 'monthsToCompletion'>,
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+/** Nominatim's fair-use policy: at most one lookup per second, light use only. ⚖ VERIFY for heavy use. */
+const LOOKUP_GAP_MS = 1100;
+const MAX_ADDRESS_LOOKUPS = 100;
 
 export const PlannedRow: React.FC<{ p: ProspectView; km?: number | null; children?: React.ReactNode }> = ({ p, km, children }) => {
   const t = useT();
@@ -91,13 +94,18 @@ const Import: React.FC<{ user: User; onDone: () => void }> = ({ user, onDone }) 
     setErrors(parsed.errors);
     // Rows without latitude/longitude: look the address up (about one per second).
     const need = parsed.rows.filter(r => r.lat === undefined);
+    // OpenStreetMap's free lookup is for light use: a big list must bring its own coordinates.
+    if (need.length > MAX_ADDRESS_LOOKUPS) {
+      throw new Error(t(`More than ${MAX_ADDRESS_LOOKUPS} rows have no Latitude/Longitude. Add those two columns for a list this big, or paste it in parts.`));
+    }
     setFinding({ done: 0, total: need.length });
     for (let i = 0; i < need.length; i++) {
       const r = need[i];
-      const hit = await findPlace([r.address, r.pincode].filter(Boolean).join(', ')) ?? (r.pincode ? await findPlace(`${r.name}, ${r.pincode}`) : null);
+      if (i > 0) await sleep(LOOKUP_GAP_MS);
+      let hit = await findPlace([r.address, r.pincode].filter(Boolean).join(', '));
+      if (!hit && r.pincode) { await sleep(LOOKUP_GAP_MS); hit = await findPlace(`${r.name}, ${r.pincode}`); }
       if (hit) { r.lat = hit.lat; r.lng = hit.lng; }
       setFinding({ done: i + 1, total: need.length });
-      if (i < need.length - 1) await sleep(1100);
     }
     setFinding(null);
     setRows(parsed.rows);

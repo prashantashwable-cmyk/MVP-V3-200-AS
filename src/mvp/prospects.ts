@@ -15,6 +15,7 @@
  */
 
 import { distanceM, validLatLng } from './scouting';
+import { PLANNED_HEAT_WEIGHTS } from './config';
 
 export type ProspectStatus = 'OPEN' | 'DISMISSED';
 
@@ -178,8 +179,8 @@ export function liftPhase(completion: string | undefined, now: Date, fromMonths:
   return { phase: 'OVERDUE', months };
 }
 
-/** How strongly a planned project pulls the heatmap (relative to a found site), by phase. */
-export const PHASE_WEIGHT: Record<LiftPhase, number> = { WINDOW: 2.5, LATE: 1.2, OVERDUE: 0.8, UNKNOWN: 0.8, EARLY: 0.3 };
+/** How strongly a planned project pulls the heatmap (relative to a found site), by phase (config.ts). */
+export const PHASE_WEIGHT: Record<LiftPhase, number> = PLANNED_HEAT_WEIGHTS;
 /** Riders see the most useful first. */
 export const PHASE_ORDER: Record<LiftPhase, number> = { WINDOW: 0, LATE: 1, OVERDUE: 2, UNKNOWN: 3, EARLY: 4 };
 

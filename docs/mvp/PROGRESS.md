@@ -618,4 +618,4 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Open items:**
   - MahaRERA permission (Owner).
   - The lift-window months need checking against real orders (Owner).
-  - Nominatim is fine for tens of addresses a day; a bigger import should include latitude/longitude columns.
+  - Address lookups are capped at 100 per paste, one per second (OpenStreetMap fair use, ⚖ VERIFY). Bigger lists need Latitude/Longitude columns.

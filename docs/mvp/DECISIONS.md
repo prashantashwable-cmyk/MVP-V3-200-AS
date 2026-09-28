@@ -424,5 +424,8 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
   - A re-import updates changed fields, such as a new completion date.
   - The Admin always sees a dry-run preview (new / updated / unchanged / not found on the map) before saving.
   - Removing a project needs a reason, and the project is dismissed, not deleted.
-- **Addresses are placed on the map** through OpenStreetMap's Nominatim search, one lookup per second (its fair-use limit), restricted to India. A list can also carry its own Latitude and Longitude columns.
+- **Addresses are placed on the map** through OpenStreetMap's Nominatim search, restricted to India. A list can also carry its own Latitude and Longitude columns.
+  - Lookups run at most one per second, including the retry by name and PIN code.
+  - Each paste looks up at most 100 addresses. A bigger list must bring its own coordinates.
+  - ⚖ VERIFY: Nominatim is for light use only. For regular bulk imports, use the Google geocoder with the Owner's key, or lists that already carry coordinates. The map shows the OpenStreetMap attribution.
 - **Access** (`site_prospects`): the Admin writes; Sales (riders) and the Owner read; nobody deletes.
