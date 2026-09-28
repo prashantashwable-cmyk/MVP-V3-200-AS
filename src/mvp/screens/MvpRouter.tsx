@@ -22,6 +22,8 @@ import { TechToday } from './InstallationPanels';
 import { OwnerView } from './OwnerView';
 import { Reports } from './Reports';
 import { UsersScreen } from './UsersScreen';
+import { RiderScout } from './RiderScout';
+import { SightingsInbox } from './SightingsInbox';
 import { NotificationBell } from './Bell';
 import { MvpAutoRefresh, useLastRefresh, useT } from './ui';
 
@@ -102,6 +104,10 @@ export const MvpRouter: React.FC<MvpRouterProps> = ({ user, activeTab, setActive
         return <SurveyList user={user} onOpenSurvey={openSurvey} />;
       case 'MvpSurvey':
         return <SurveyForm user={user} orderId={orderId} onDone={() => setActiveTab('MvpSurveys')} />;
+      case 'MvpScout':
+        return <RiderScout user={user} />;
+      case 'MvpSightings':
+        return <SightingsInbox user={user} onOpenLead={openLead} />;
       case 'MvpSettings':
       default:
         return <MvpSettings user={user} onLogout={onLogout} languageSection={languageSection} />;

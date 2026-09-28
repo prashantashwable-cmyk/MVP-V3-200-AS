@@ -76,6 +76,8 @@
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
+| RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | See step note |
+| RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | TODO | | | |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
@@ -126,6 +128,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 2026-09-24 | D-16 | Evidence inline in Firestore `documents` (≤ 900 KB) instead of Storage | Storage rules can't check participants here (plan §10) |
 | 2026-09-24 | D-12 (addition) | Participant model via `Project.participantIds` | Needed for rules-based per-order access |
 | 2026-09-24 | D-21 | Pilot = Vercel | Audit default; live today |
+| 2026-09-28 | CLAUDE.md "Do NOT build in Phase 1: gamification, coins or leaderboards" | **Owner approved a rider leaderboard and commission** (D-34), for field scouting only | Owner's own request and answer ("Yes, add leaderboard") |
 | 2026-09-24 | D-08 (row "Survey REQUIRES_CORRECTION") | When the customer completes the correction, create ASSIGN_SURVEYOR → Admin (one-click re-assign) instead of SURVEY directly | A customer's action must not grant a surveyor access to the order (firestore.rules, Step 03 scope-guard fix) |
 
 ## Open issues / known gaps
@@ -508,3 +511,33 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - **Found by the multi-user test:** issue 35 (staff task lists failed on real Firestore). Fixed.
 - **Data:** no new fields. The promise lives in the existing `task.data`, which the assignee may already write. **No `firestore.rules` change** (3 new emulator tests prove it).
 - **Screenshots:** `docs/mvp/screenshots/step-13/` 01–05.
+
+### RD-1 Field scouting part 1, D-34 (2026-09-28), branch `claude/mvp-rider-1-site-scouting`
+- **The Owner's request:** a rider on a bike finds construction sites with a ready lift shaft, captures GPS, photos and a number, and the address is found automatically; the leads go to Sales automatically; everything is on a map. (Route, area covered, "where next", commission and leaderboard come in RD-2.)
+- **Design:**
+  - A **sighting** (`site_scouts`) is not a lead: nobody at the site has agreed to be contacted yet. Sales sees every sighting at once, calls, and with consent converts it (`createLead`, source "Field scouting", `scoutId`/`scoutedBy` kept for the commission). Otherwise Sales closes it with a reason.
+  - A rider can never confirm their own sighting. This is enforced in both the service and the rules.
+- **Built:**
+  - `src/mvp/scouting.ts` (types, distance, nearby duplicates).
+  - `services/scoutService.ts`.
+  - The rider screen `RiderScout.tsx`:
+    - GPS and address are automatic; the first photo saves.
+    - Shaft photo, board photo and number are one tap each.
+    - A site already recorded within 60 m in the last 90 days is flagged before saving.
+    - If there was no address at capture, the app retries quietly.
+    - A map and list of the rider's own sightings.
+  - The Sales inbox `SightingsInbox.tsx`: list and map, photos with tap-to-enlarge, call, directions, make it a lead, or not useful.
+  - `SiteMap.tsx`: Leaflet, which was already a dependency, with OpenStreetMap tiles, loaded lazily.
+  - `geo.ts`: the address comes from our server's `/api/maps/geocode` when there is one, otherwise from OpenStreetMap Nominatim.
+  - Tabs: Sales gets "Scout sites" and "Sightings"; Admin and Owner get "Sightings".
+  - 31 Marathi/Hindi phrases.
+  - Demo: 5 sightings around Pune by "Rider Ravi".
+- **Data (additive):**
+  - A new collection `site_scouts`.
+  - `MvpLead.scoutId` and `MvpLead.scoutedBy`.
+- **Rules:** new `site_scouts` rules only; no existing access is widened. Full photos stay private to the rider and Admin/Owner, and the sighting carries a readable preview (≤ 100 KB) so Sales can read the board number.
+- **Checks:**
+  - `mvp-scouting-check.ts`: 30 checks.
+  - `mvp:rules`: +13 D-34 tests.
+- **Not verifiable in this session:** map tiles and addresses, because the session's network blocks openstreetmap.org. On phones they load normally, and without an address the sighting keeps its GPS coordinates.
+- **Screenshots:** `docs/mvp/screenshots/rider-1/` 01–06.

@@ -14,6 +14,7 @@ import { confirmSiteReady, createSupplier, markMaterialReceived, raisePo, READIN
 import { saveEvidence } from './services/evidenceService';
 import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from './services/installationService';
 import { submitQcDecision } from './services/qcHandoverService';
+import { convertSightingToLead, createSighting, rejectSighting } from './services/scoutService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -151,6 +152,22 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   await submitQcDecision(ctx, qc, o6.id, {
     decision: 'PASS', tests: { mechanical: true, electrical: true, safety: true, testRun: true }, remarks: 'All systems tested OK.',
   });
+
+  // D-34 field scouting: a rider's sightings around Pune (3 still with Sales, 1 became a lead,
+  // 1 not useful), so the rider's and Sales' maps have something to show.
+  const rider: MvpActor = { userId: 'demo_rider', role: 'sales', name: 'Rider Ravi' };
+  await usersRepository(ctx).create({ id: rider.userId, name: 'Rider Ravi', role: 'sales', status: 'active' });
+  const shot = { kind: 'SITE' as const, dataUrl: DEMO_PNG, contentType: 'image/png', previewDataUrl: DEMO_PNG };
+  const spots: [number, number, string][] = [
+    [18.5596, 73.7799, 'Baner Road, Baner, Pune'], [18.5975, 73.7629, 'Wakad Chowk, Wakad, Pune'],
+    [18.5912, 73.7389, 'Phase 1, Hinjewadi, Pune'], [18.5515, 73.9476, 'Kharadi Bypass, Kharadi, Pune'],
+    [18.5089, 73.9260, 'Magarpatta Road, Hadapsar, Pune'],
+  ];
+  const seen = [];
+  for (const [lat, lng, address] of spots) seen.push(await createSighting(ctx, rider, { lat, lng, accuracyM: 15, address, photo: shot }));
+  const salesPerson: MvpActor = { ...sales, name: DEMO_PEOPLE.sales.name };
+  await convertSightingToLead(ctx, salesPerson, seen[3].id, { name: 'Mr. Jagtap (site engineer)', phone: '9822000077', consent: true, floors: 11 });
+  await rejectSighting(ctx, salesPerson, seen[4].id, 'ALREADY_HAS_LIFT');
 
   return { customerId: o3.customerId };
 }

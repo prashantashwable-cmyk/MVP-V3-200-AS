@@ -43,8 +43,17 @@ export async function compressPhoto(dataUrl: string): Promise<string> {
 
 /** A ~240 px JPEG preview for lists; the full photo is fetched only when tapped. */
 export async function makeThumbnail(dataUrl: string): Promise<string> {
+  return shrinkPhoto(dataUrl, 240, MAX_THUMBNAIL_BYTES);
+}
+
+/** D-34: a readable preview (e.g. the builder's board with a phone number) within `maxBytes`. */
+export async function makePreview(dataUrl: string, maxBytes: number, side = 960): Promise<string> {
+  return shrinkPhoto(dataUrl, side, maxBytes);
+}
+
+async function shrinkPhoto(dataUrl: string, startSide: number, maxBytes: number): Promise<string> {
   const img = await loadImage(dataUrl);
-  let side = 240;
+  let side = startSide;
   let quality = 0.6;
   for (let attempt = 0; attempt < 6; attempt++) {
     const scale = Math.min(1, side / Math.max(img.width, img.height));
@@ -53,7 +62,7 @@ export async function makeThumbnail(dataUrl: string): Promise<string> {
     canvas.height = Math.max(1, Math.round(img.height * scale));
     canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
     const out = canvas.toDataURL('image/jpeg', quality);
-    if (dataUrlBytes(out) <= MAX_THUMBNAIL_BYTES) return out;
+    if (dataUrlBytes(out) <= maxBytes) return out;
     quality = Math.max(0.3, quality - 0.1);
     side = Math.round(side * 0.8);
   }

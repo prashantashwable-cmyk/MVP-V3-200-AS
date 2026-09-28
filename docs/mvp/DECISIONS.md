@@ -362,3 +362,14 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
 - **Look-ahead:** while an INSTALLATION task is open and not started, and the delivery payment is neither in nor waived nor overridden, the Admin gets "Installation cannot start yet". The chase list then offers a prefilled WhatsApp to the customer, before the technician is sent to a site where the `INSTALLATION_START` gate would refuse them.
 - **Customer reminders:** customer tasks due within `CUSTOMER_REMIND_HOURS` (72) appear on the chase list with a friendly prefilled WhatsApp, sent by the Admin. Nothing is sent to customers automatically. ⚖ VERIFY the wording.
 - **"Where work is slow"** (Reports): finished tasks over the last 30 days, by stage: on-time %, and days taken vs planned. It is per stage and never per person (no leaderboards, no scoring of people).
+
+**D-34 Field scouting by riders (Owner, 2026-09-28).**
+- **Who and what:** a rider (role `sales`) records **sightings** of construction sites whose lift shaft is ready: GPS, an address looked up automatically, site / shaft / board photos, and an optional number.
+- **Sightings are not leads.** They reach Sales automatically. Sales calls, and converts a sighting into a lead **only with the person's consent**; otherwise it is closed with one of 6 reasons.
+- **No self-confirmation:** a rider never confirms their own sighting.
+- **Duplicates:** a sighting within 60 m of another in the last 90 days is flagged before saving.
+- **Owner decisions:**
+  1. **Leaderboard:** approved, an explicit exception to the Phase-1 "no gamification" rule. It is a weekly ranking of riders by confirmed sightings and area covered.
+  2. **Commission:** a small amount per sighting that Sales confirms as a lead, plus a bonus when that lead becomes a booked order. The amounts are in `config.ts`. ⚖ VERIFY the TDS/tax treatment of commission.
+  3. **Route tracking:** only while the rider is "On duty" and the app is open. No background tracking.
+- **"Where to find more leads"** will be rule-based (areas near confirmed sites that nobody has covered recently), never AI.

@@ -13,6 +13,9 @@ export interface MvpLead extends Lead {
   liftRequirement?: string;
   notes?: string;
   nextFollowUp?: string;
+  /** D-34: the field sighting this lead came from, and the rider who found it (commission). */
+  scoutId?: string;
+  scoutedBy?: string;
   /** D-32: when the Admin last chased this lead's owner from the chase list. */
   lastChasedAt?: string;
   mvpStatus?: MvpLeadStatus;

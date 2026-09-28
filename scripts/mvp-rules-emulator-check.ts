@@ -14,6 +14,7 @@ import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'fireba
 import {
   getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where,
   type Firestore,
+  deleteDoc,
 } from 'firebase/firestore';
 
 const PROJECT = 'demo-aie-mvp';
@@ -86,11 +87,11 @@ async function allowed(p: Promise<unknown>): Promise<boolean> {
 
 async function main() {
   // ---- Users ----
-  const emails = ['admin', 'owner', 'sales', 'surveyor', 'tech1', 'tech2', 'qc', 'cust', 'cust2', 'newbie', 'invited', 'invadmin'].map(k => `${k}@test.example`);
+  const emails = ['admin', 'owner', 'sales', 'sales2', 'surveyor', 'tech1', 'tech2', 'qc', 'cust', 'cust2', 'newbie', 'invited', 'invadmin'].map(k => `${k}@test.example`);
   const uid: Record<string, string> = {};
   for (const e of emails) uid[e.split('@')[0]] = await authUser(e);
   const roles: Record<string, [string, string?]> = {
-    admin: ['admin'], owner: ['owner'], sales: ['sales'], surveyor: ['surveyor'], tech1: ['technician'], tech2: ['technician'],
+    admin: ['admin'], owner: ['owner'], sales: ['sales'], sales2: ['sales'], surveyor: ['surveyor'], tech1: ['technician'], tech2: ['technician'],
     qc: ['qc'], cust: ['customer', 'C1'], cust2: ['customer', 'C2'],
   };
   for (const [k, [role, customerId]] of Object.entries(roles)) {
@@ -259,6 +260,22 @@ async function main() {
   ok(!(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the assignee cannot mark their own task "chased"');
   ok(!(await allowed(updateDoc(doc(db.owner, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' }))), 'D-32: the Owner (read-only) cannot mark it chased');
   ok(await allowed(updateDoc(doc(db.admin, 'tasks/ord1__INSTALLATION__fu'), { lastChasedAt: '2026-10-05' })), 'D-32: the Admin marks it chased');
+  // D-34 field scouting: riders create their own sightings; Sales/Admin/Owner read them; another
+  // salesperson (never the rider) or the Admin converts or rejects them.
+  const scout = (id: string, by: string, extra: Record<string, unknown> = {}) => ({ id, scoutedBy: by, scoutedByName: 'x', lat: 18.55, lng: 73.78, address: 'Baner', photos: [], status: 'NEW', createdAt: '2026-10-05', updatedAt: '2026-10-05', version: 0, ...extra });
+  ok(await allowed(setDoc(doc(db.sales, 'site_scouts/sc1'), scout('sc1', uid.sales))), 'D-34: a rider (sales) records a sighting');
+  ok(!(await allowed(setDoc(doc(db.sales, 'site_scouts/sc2'), scout('sc2', uid.sales2)))), 'D-34: a rider cannot record one in someone else\'s name');
+  ok(!(await allowed(setDoc(doc(db.tech1, 'site_scouts/sc3'), scout('sc3', uid.tech1)))), 'D-34: a technician cannot record sightings');
+  ok(!(await allowed(setDoc(doc(db.sales, 'site_scouts/sc4'), scout('sc4', uid.sales, { status: 'CONVERTED' })))), 'D-34: a sighting starts as NEW');
+  ok(await allowed(getDocs(collection(db.sales2, 'site_scouts'))) && await allowed(getDocs(collection(db.owner, 'site_scouts'))), 'D-34: Sales and the Owner see all sightings');
+  ok(!(await allowed(getDocs(collection(db.tech1, 'site_scouts')))) && !(await allowed(getDocs(collection(db.cust, 'site_scouts')))), 'D-34: technicians and customers cannot list sightings');
+  ok(await allowed(updateDoc(doc(db.sales, 'site_scouts/sc1'), { phone: '9822011122', updatedAt: '2026-10-05', version: 1 })), 'D-34: the rider adds the number to their own new sighting');
+  ok(!(await allowed(updateDoc(doc(db.sales, 'site_scouts/sc1'), { status: 'CONVERTED', reviewedBy: uid.sales, leadId: 'l1' }))), 'D-34: the rider cannot confirm their own sighting (commission)');
+  ok(!(await allowed(updateDoc(doc(db.sales2, 'site_scouts/sc1'), { phone: '9000000000' }))), 'D-34: another salesperson cannot edit the rider\'s details');
+  ok(!(await allowed(updateDoc(doc(db.sales2, 'site_scouts/sc1'), { status: 'CONVERTED', reviewedBy: uid.sales, leadId: 'l1' }))), 'D-34: the reviewer must record themself as the reviewer');
+  ok(await allowed(updateDoc(doc(db.sales2, 'site_scouts/sc1'), { status: 'CONVERTED', reviewedBy: uid.sales2, reviewedAt: '2026-10-05', leadId: 'l1', updatedAt: '2026-10-05', version: 2 })), 'D-34: another salesperson converts it');
+  ok(!(await allowed(updateDoc(doc(db.sales, 'site_scouts/sc1'), { notes: 'x' }))), 'D-34: once handled, the rider cannot change it');
+  ok(!(await allowed(deleteDoc(doc(db.admin, 'site_scouts/sc1')))), 'D-34: sightings are never deleted');
   // D-33 "Need more time": the promise lives in the task's own `data`, which only its assignee (or the Admin) may write.
   ok(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-10-08T12:00:00Z', count: 1, reason: 'crane', by: uid.tech2 } }, updatedAt: '2026-10-05', version: 1 })), 'D-33: the assignee records their promised date');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-12-01T12:00:00Z', count: 1, reason: 'x', by: uid.tech1 } } }))), 'D-33: someone else cannot promise on their behalf');

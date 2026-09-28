@@ -98,3 +98,9 @@ export const TIME_ZONE = 'Asia/Kolkata';
 
 /** Number of installation checklist items (spec §18). */
 export const CHECKLIST_ITEM_COUNT = 11;
+
+/** D-34 field scouting: a sighting within this distance and time of another is flagged as a likely duplicate. */
+export const SCOUT_DUPLICATE_RADIUS_M = 60;
+export const SCOUT_DUPLICATE_DAYS = 90;
+/** D-34: the readable photo preview kept on each sighting (Sales reads the builder's number from it). */
+export const MAX_SCOUT_PREVIEW_BYTES = 100 * 1024;
