@@ -76,7 +76,7 @@
 | 13 | Implementation report and roadmap (Phase F) | TODO | | | |
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
-| RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | See step note |
+| RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | mvp:checks 938 OK, mvp:rules PASS (+13), mvp:multiuser 63/63, 42/42 legacy, build PASS |
 | RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | TODO | | | |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
