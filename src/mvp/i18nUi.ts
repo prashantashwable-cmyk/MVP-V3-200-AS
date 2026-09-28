@@ -278,6 +278,7 @@ const PHRASES: [string, string, string][] = [
   ['not useful', 'उपयोगी नाही', 'उपयोगी नहीं'],
   ['Ridden here recently', 'इथे नुकतेच फिरले', 'यहाँ हाल में घूमे'],
   ['days', 'दिवस', 'दिन'],
+  ['Score compared with the best spot on the map (100), not a guarantee.', 'नकाशावरील सर्वोत्तम जागेशी (100) तुलना केलेला गुण; खात्री नाही.', 'नक्शे की सबसे अच्छी जगह (100) से तुलना में अंक; गारंटी नहीं.'],
 ];
 
 const TABLE: Record<'mr' | 'hi', Record<string, string>> = { mr: {}, hi: {} };

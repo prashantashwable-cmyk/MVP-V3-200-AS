@@ -222,7 +222,8 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
           )}
           {why && (
             <Card className="p-3 mt-2 space-y-1 border-[#256abf]/40">
-              <div className="text-sm font-bold text-[#1c5cab]">{why.heat >= 0.8 ? t('Very likely') : why.heat >= 0.55 ? t('Likely') : why.heat >= 0.2 ? t('Worth a look') : t('Unlikely')} ({Math.round(why.heat * 100)}%)</div>
+              <div className="text-sm font-bold text-[#1c5cab]">{why.heat >= 0.8 ? t('Very likely') : why.heat >= 0.55 ? t('Likely') : why.heat >= 0.2 ? t('Worth a look') : t('Unlikely')} · {Math.round(why.heat * 100)}/100</div>
+              <div className="text-[11px] text-warmgray">{t('Score compared with the best spot on the map (100), not a guarantee.')}</div>
               <div className="text-xs text-charcoal">{t('Within 1.5 km')}: {why.booked} {t('booked')} · {why.leads} {t('became leads')} · {why.waiting} {t('with Sales')} · {why.notReady} {t('not ready yet')} · {why.noLuck} {t('not useful')}</div>
               <div className="text-xs text-warmgray">{t('Ridden here recently')}: {why.daysRiddenRecently} {t('days')}</div>
               <a href={`https://www.google.com/maps/dir/?api=1&destination=${why.lat.toFixed(5)},${why.lng.toFixed(5)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[#1c5cab] min-h-[40px]"><Navigation className="w-4 h-4" />{t('Directions')}</a>
