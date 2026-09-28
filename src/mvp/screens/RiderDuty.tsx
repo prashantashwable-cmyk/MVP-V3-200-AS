@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Navigation, Play, Square, Trophy, Wallet } from 'lucide-react';
+import { Flame, Navigation, Play, RotateCcw, Square, Trophy, Wallet } from 'lucide-react';
 import { Card } from '../../components/Common';
 import type { MvpActor, MvpCtx } from '../services/orderService';
 import { getMyRouteToday, saveRoutePoints, startDuty, type RiderBoard, type RiderRoute } from '../services/riderService';
@@ -104,11 +104,10 @@ export const DutyBar: React.FC<{ duty: ReturnType<typeof useDuty>; board: RiderB
 export function mapLayersFor(board: RiderBoard | null) {
   if (!board) return [];
   const covered = board.coveredCells.map(k => ({ id: `c_${k}`, ...cellBounds(k, COVERAGE_CELL_M), color: '#15803d', label: 'Covered' }));
-  const tryHere = board.suggestions.map(s => ({ id: `s_${s.key}`, ...cellBounds(s.key, COVERAGE_CELL_M), color: '#2563eb', label: `Try here · ${s.nearbySites} site(s) next to it` }));
-  return [...covered, ...tryHere];
+  return covered;
 }
 
-export const RiderProgress: React.FC<{ board: RiderBoard | null; me: string }> = ({ board, me }) => {
+export const RiderProgress: React.FC<{ board: RiderBoard | null; me: string; here?: { lat: number; lng: number } | null }> = ({ board, me, here }) => {
   const t = useT();
   if (!board) return null;
   const e = board.earnings;
@@ -120,24 +119,45 @@ export const RiderProgress: React.FC<{ board: RiderBoard | null; me: string }> =
         <div className="text-xs text-warmgray">{t('Waiting with Sales')}: {e.pending}</div>
       </Card>
       <Card className="p-4 space-y-2">
-        <div className="text-sm font-bold">{t('Area covered')}: {board.totalAreaKm2} km²</div>
-        {board.suggestions.length > 0 ? (
+        <div className="text-sm font-bold flex items-center gap-1"><Flame className="w-4 h-4 text-[#256abf]" />{t('Best chances to find a good site')}</div>
+        {board.hot.length > 0 ? (
           <>
-            <div className="text-xs text-warmgray">{t('Try here next (blue squares): next to sites already found, not covered in the last 30 days.')}</div>
-            {board.suggestions.slice(0, 3).map(s => {
-              const b = cellBounds(s.key, COVERAGE_CELL_M);
-              const lat = (b.south + b.north) / 2;
-              const lng = (b.west + b.east) / 2;
+            <div className="text-xs text-warmgray">{t('Dark blue on the map = more likely. Based on booked and confirmed sites nearby, fewer where riders already went recently.')}</div>
+            {board.hot.map((h, i) => {
+              const km = here ? Math.round(distanceM(here, h) / 100) / 10 : null;
               return (
-                <a key={s.key} href={`https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(5)},${lng.toFixed(5)}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-between min-h-[44px] px-3 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 text-xs font-bold text-[#2563eb]">
-                  <span>{t('Try here')} · {s.nearbySites} {s.nearbySites === 1 ? t('site nearby') : t('sites nearby')}</span><Navigation className="w-4 h-4" />
+                <a key={i} href={`https://www.google.com/maps/dir/?api=1&destination=${h.lat.toFixed(5)},${h.lng.toFixed(5)}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between min-h-[44px] px-3 rounded-xl border border-[#256abf]/30 bg-[#256abf]/5 text-xs font-bold text-[#1c5cab]">
+                  <span>{i + 1}. {h.value >= 0.8 ? t('Very likely') : h.value >= 0.55 ? t('Likely') : t('Worth a look')}{km !== null ? ` · ${km} km` : ''}</span><Navigation className="w-4 h-4" />
                 </a>
               );
             })}
           </>
+        ) : board.suggestions.length > 0 ? (
+          board.suggestions.slice(0, 3).map(s => {
+            const b = cellBounds(s.key, COVERAGE_CELL_M);
+            return (
+              <a key={s.key} href={`https://www.google.com/maps/dir/?api=1&destination=${((b.south + b.north) / 2).toFixed(5)},${((b.west + b.east) / 2).toFixed(5)}`} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-between min-h-[44px] px-3 rounded-xl border border-[#256abf]/30 bg-[#256abf]/5 text-xs font-bold text-[#1c5cab]">
+                <span>{t('Try here')} · {s.nearbySites} {s.nearbySites === 1 ? t('site nearby') : t('sites nearby')}</span><Navigation className="w-4 h-4" />
+              </a>
+            );
+          })
         ) : <div className="text-xs text-warmgray">{t('Record a few sites and the app will suggest where to go next.')}</div>}
+        <div className="text-xs text-warmgray pt-1">{t('Area covered')}: {board.totalAreaKm2} km²</div>
       </Card>
+      {board.revisit.length > 0 && (
+        <Card className="p-4 space-y-2">
+          <div className="text-sm font-bold flex items-center gap-1"><RotateCcw className="w-4 h-4 text-[#7c3aed]" />{t('Go back: may be ready now')}</div>
+          <div className="text-xs text-warmgray">{t('Sales closed these as "not ready yet" over a month ago. The lift shaft may be ready now.')}</div>
+          {board.revisit.map(r => (
+            <a key={r.id} href={`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-between min-h-[44px] px-3 rounded-xl border border-[#7c3aed]/30 bg-[#7c3aed]/5 text-xs font-bold text-[#6d28d9]">
+              <span className="truncate">{r.address}</span><Navigation className="w-4 h-4 flex-none" />
+            </a>
+          ))}
+        </Card>
+      )}
       <Card className="p-4 space-y-1">
         <div className="text-sm font-bold flex items-center gap-1"><Trophy className="w-4 h-4 text-[#B8873D]" />{t('Leaderboard this week')}</div>
         {board.week.length === 0 && <div className="text-xs text-warmgray">{t('No sites recorded this week yet.')}</div>}

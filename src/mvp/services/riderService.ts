@@ -17,7 +17,13 @@ import {
 import { dayKeyOf } from '../followUp';
 import {
   COMMISSION_ON_BOOKING_INR, COMMISSION_PER_CONFIRMED_INR, COVERAGE_CELL_M, WHERE_NEXT_FRESH_DAYS,
+  HEAT_CELL_M, HEAT_HALF_LIFE_DAYS, HEAT_SPREAD_M, HEAT_WEIGHTS, REVISIT_AFTER_DAYS,
 } from '../config';
+import { heatGrid, hotspots, revisits, type HeatGrid, type HeatSettings, type HeatSighting } from '../heat';
+
+export const HEAT_SETTINGS: HeatSettings = {
+  cellM: HEAT_CELL_M, spreadM: HEAT_SPREAD_M, halfLifeDays: HEAT_HALF_LIFE_DAYS, effortCellM: COVERAGE_CELL_M, weights: HEAT_WEIGHTS,
+};
 
 export interface RiderRoute {
   id: string;
@@ -101,6 +107,12 @@ export interface RiderBoard {
   suggestions: WhereNext[];
   earnings: Earnings;
   week: LeaderRow[];
+  /** D-35 opportunity heatmap and the data behind "why here" (all riders' sites and rides). */
+  heat: HeatGrid | null;
+  hot: { lat: number; lng: number; value: number }[];
+  revisit: HeatSighting[];
+  heatSightings: HeatSighting[];
+  ridden: { day: string; cells: string[] }[];
 }
 
 /** Everything the rider's screen shows about their progress. */
@@ -113,6 +125,12 @@ export async function buildRiderBoard(ctx: MvpCtx, actor: MvpActor): Promise<Rid
   const todayStats = myStats.find(s => s.day === day);
   const coveredCells = [...new Set([...myStats.flatMap(s => s.cells), ...mine.map(s => cellKey(s.lat, s.lng, COVERAGE_CELL_M))])];
   const cellKm2 = (COVERAGE_CELL_M / 1000) ** 2;
+  const slim: HeatSighting[] = sightings.map(s => ({
+    id: s.id, lat: s.lat, lng: s.lng, status: s.status, createdAt: s.createdAt, bookedAt: s.bookedAt,
+    rejectReason: s.rejectReason, floors: s.floors, reviewedAt: s.reviewedAt, address: s.address,
+  }));
+  const ridden = stats.map(s => ({ day: s.day, cells: s.cells }));
+  const heat = heatGrid(slim, ridden, now, HEAT_SETTINGS);
   const month = monthOf(now);
   const week = weekOf(now);
   return {
@@ -123,6 +141,10 @@ export async function buildRiderBoard(ctx: MvpCtx, actor: MvpActor): Promise<Rid
     suggestions: whereNext(sightings, stats.map(s => ({ day: s.day, cells: s.cells })), now, COVERAGE_CELL_M, WHERE_NEXT_FRESH_DAYS),
     earnings: earningsFor(mine, month.from, month.to, COMMISSION_PER_CONFIRMED_INR, COMMISSION_ON_BOOKING_INR),
     week: leaderboard(sightings, stats, week.from, week.to),
+    heat, hot: heat ? hotspots(heat) : [],
+    revisit: revisits(slim, now, REVISIT_AFTER_DAYS).slice(0, 5),
+    heatSightings: slim,
+    ridden,
   };
 }
 

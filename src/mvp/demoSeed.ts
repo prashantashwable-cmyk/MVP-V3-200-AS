@@ -14,7 +14,7 @@ import { confirmSiteReady, createSupplier, markMaterialReceived, raisePo, READIN
 import { saveEvidence } from './services/evidenceService';
 import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from './services/installationService';
 import { submitQcDecision } from './services/qcHandoverService';
-import { convertSightingToLead, createSighting, rejectSighting } from './services/scoutService';
+import { convertSightingToLead, createSighting, rejectSighting, scoutRepository } from './services/scoutService';
 import { saveRoutePoints, startDuty } from './services/riderService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
@@ -169,6 +169,11 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   const salesPerson: MvpActor = { ...sales, name: DEMO_PEOPLE.sales.name };
   await convertSightingToLead(ctx, salesPerson, seen[3].id, { name: 'Mr. Jagtap (site engineer)', phone: '9822000077', consent: true, floors: 11 });
   await rejectSighting(ctx, salesPerson, seen[4].id, 'ALREADY_HAS_LIFT');
+  // A site Sales closed as "not ready yet" 40 days ago — shows up as "go back, may be ready now".
+  const early = await createSighting(ctx, rider, { lat: 18.5793, lng: 73.7385, accuracyM: 15, address: 'Maan Road, Hinjewadi Phase 2, Pune', photo: shot });
+  const closed = await rejectSighting(ctx, salesPerson, early.id, 'NOT_READY_YET', 'Slab work still going on');
+  const forty = new Date(Date.now() - 40 * 86_400_000).toISOString();
+  await scoutRepository(ctx).update(early.id, { createdAt: forty, reviewedAt: forty }, closed.version);
   // Ravi's ride today (Baner → Wakad → Hinjewadi), so the route, squares and leaderboard show.
   await startDuty(ctx, rider);
   const ride: { lat: number; lng: number; t: string }[] = [];

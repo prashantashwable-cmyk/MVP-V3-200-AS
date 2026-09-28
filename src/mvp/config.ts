@@ -118,3 +118,18 @@ export const ROUTE_MIN_MOVE_M = 25;
 export const ROUTE_SAVE_MINUTES = 3;
 /** D-34 "where next": a square covered within this many days is not suggested again. */
 export const WHERE_NEXT_FRESH_DAYS = 30;
+
+/**
+ * D-35 opportunity heatmap (rule-based, explainable — not a trained model). What a found site
+ * is worth as evidence that more are nearby: a booked one most, a rejected "already has a
+ * lift" / "no lift needed" slightly against. Evidence fades with a half-life (construction
+ * moves on), spreads over about HEAT_SPREAD_M, and is discounted where riders already combed.
+ */
+export const HEAT_CELL_M = 250;
+export const HEAT_SPREAD_M = 1200; // construction belts (a Hinjewadi phase, the Kharadi bypass) run 1–2 km
+export const HEAT_HALF_LIFE_DAYS = 60;
+export const HEAT_WEIGHTS = {
+  BOOKED: 5, CONVERTED: 3, NEW: 1.5, NOT_READY_YET: 2, ALREADY_HAS_LIFT: -0.5, NO_LIFT_NEEDED: -0.5, OTHER_REJECTED: -0.25,
+} as const;
+/** A site closed as "not ready yet" is suggested for a revisit after this many days. */
+export const REVISIT_AFTER_DAYS = 30;
