@@ -15,6 +15,7 @@ import { convertSightingToLead, listSightings, rejectSighting } from '../service
 import { SCOUT_REJECT_REASONS, type ScoutRejectReason, type SiteScout } from '../scouting';
 import { ErrorNote, inputCls, labelCls, Loading, useAction, useLoad, useMvpCtx, useT } from './ui';
 import { STATUS_COLOR, SightingCard, SightingRow } from './RiderScout';
+import { PlannedProjects } from './PlannedProjects';
 
 const SiteMap = lazy(() => import('./SiteMap'));
 
@@ -78,13 +79,13 @@ export const SightingsInbox: React.FC<{ user: User; onOpenLead: (id: string) => 
   const t = useT();
   const { data, error, loading, reload } = useLoad(() => listSightings(ctx, actor), [ctx], { every: 1 });
   const [view, setView] = useState<'list' | 'map'>('list');
-  const [filter, setFilter] = useState<'NEW' | 'ALL'>('NEW');
+  const [filter, setFilter] = useState<'NEW' | 'ALL' | 'PLANNED'>('NEW');
   const [picked, setPicked] = useState<SiteScout | null>(null);
 
   if (loading && !data) return <Loading label="Loading sightings…" />;
   if (error) return <ErrorNote message={`Could not load sightings: ${error}`} />;
   const all = data ?? [];
-  const shown = filter === 'NEW' ? all.filter(s => s.status === 'NEW') : all;
+  const shown = filter === 'NEW' ? all.filter(s => s.status === 'NEW') : filter === 'ALL' ? all : [];
   const fresh = all.filter(s => s.status === 'NEW').length;
 
   return (
@@ -97,10 +98,11 @@ export const SightingsInbox: React.FC<{ user: User; onOpenLead: (id: string) => 
         </div>
       </div>
       <div className="flex gap-2 text-xs">
-        {(['NEW', 'ALL'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`min-h-[36px] px-3 rounded-full font-bold cursor-pointer ${filter === f ? 'bg-[#B8873D] text-white' : 'bg-white border border-[#f0ebe2]'}`}>{f === 'NEW' ? t('To call') : t('All')}</button>
+        {(['NEW', 'ALL', 'PLANNED'] as const).map(f => (
+          <button key={f} onClick={() => setFilter(f)} className={`min-h-[36px] px-3 rounded-full font-bold cursor-pointer ${filter === f ? 'bg-[#B8873D] text-white' : 'bg-white border border-[#f0ebe2]'}`}>{f === 'NEW' ? t('To call') : f === 'ALL' ? t('All') : t('Planned projects')}</button>
         ))}
       </div>
+      {filter === 'PLANNED' ? <PlannedProjects user={user} /> : <>
       {picked && (
         <SightingCard s={picked} onClose={() => setPicked(null)}>
           <Review s={picked} user={user} onDone={leadId => { setPicked(null); reload(); if (leadId) onOpenLead(leadId); }} />
@@ -117,6 +119,7 @@ export const SightingsInbox: React.FC<{ user: User; onOpenLead: (id: string) => 
           {shown.map(s => <SightingRow key={s.id} s={s} onOpen={() => setPicked(s)} />)}
         </div>
       )}
+      </>}
     </div>
   );
 };

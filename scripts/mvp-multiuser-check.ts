@@ -499,6 +499,21 @@ async function main() {
   const sheet = await people.owner.try('riderCommissionTable', '$ctx', '$actor');
   ok(sheet.ok && sheet.result.rows.some((r: any) => r.riderId === people.sales.actor.userId), 'the Owner sees the rider in the commission sheet');
 
+    // ---- J. Planned projects (D-36) on the real rules: Admin imports, the rider's board shows them ----
+  area = 'J planned projects';
+  const soon = new Date(Date.now() + 8 * 30.44 * 86_400_000).toISOString().slice(0, 10);
+  const prjRows = [{ line: 2, name: 'MU Sky Towers', regNo: 'MU0001', address: 'Tathawade', lat: 18.6186, lng: 73.7446, completion: soon, floors: 14 }];
+  const salesImport = await people.sales.try('importProspects', '$ctx', '$actor', prjRows, { source: 'test', dryRun: false });
+  ok(!salesImport.ok, 'Sales cannot import planned projects');
+  const imp = await people.admin.try('importProspects', '$ctx', '$actor', prjRows, { source: 'test', dryRun: false });
+  ok(imp.ok && imp.result.added.length === 1, `the Admin imports a planned project through the rules (${imp.ok ? 'ok' : imp.error!.message.slice(0, 70)})`);
+  const again = await people.admin.try('importProspects', '$ctx', '$actor', prjRows, { source: 'test', dryRun: false });
+  ok(again.ok && again.result.added.length === 0 && again.result.unchanged === 1, 'importing the same list again adds nothing');
+  const board2 = await people.sales.try('buildRiderBoard', '$ctx', '$actor');
+  ok(board2.ok && board2.result.planned.some((p: any) => p.name === 'MU Sky Towers' && p.phase === 'WINDOW'), `the rider's board loads with the planned project in its lift window (${board2.ok ? board2.result.planned.length : board2.error!.message.slice(0, 70)})`);
+  const techPrj = await people.tech1.try('listProspects', '$ctx', '$actor');
+  ok(!techPrj.ok, 'a technician cannot list planned projects');
+
     // ---- Summary ----
   area = 'summary';
   const byArea: Record<string, { ok: number; fail: number }> = {};

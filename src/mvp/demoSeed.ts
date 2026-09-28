@@ -16,6 +16,7 @@ import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChe
 import { submitQcDecision } from './services/qcHandoverService';
 import { convertSightingToLead, createSighting, rejectSighting, scoutRepository } from './services/scoutService';
 import { saveRoutePoints, startDuty } from './services/riderService';
+import { importProspects } from './services/prospectService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -186,6 +187,17 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
     }
   }
   await saveRoutePoints(ctx, rider, ride);
+
+  // D-36 planned projects (made-up names and numbers): one in each lift-window phase, so the
+  // rider's "Planned buildings" card, the teal pins and the Sales "Planned projects" tab show.
+  const months = (m: number) => new Date(Date.now() + m * 30.44 * 86_400_000).toISOString().slice(0, 10);
+  await importProspects(ctx, { ...admin, name: DEMO_PEOPLE.admin.name }, [
+    { line: 2, name: 'Demo Sky Towers', regNo: 'DEMO0001', address: 'Tathawade, Pune', pincode: '411033', lat: 18.6186, lng: 73.7446, completion: months(9), floors: 14 },
+    { line: 3, name: 'Demo Green Park Phase 2', regNo: 'DEMO0002', address: 'Balewadi, Pune', pincode: '411045', lat: 18.5793, lng: 73.7707, completion: months(6), floors: 11 },
+    { line: 4, name: 'Demo Riverside Residency', regNo: 'DEMO0003', address: 'Kharadi, Pune', pincode: '411014', lat: 18.5603, lng: 73.9357, completion: months(2), floors: 18 },
+    { line: 5, name: 'Demo Hill View', regNo: 'DEMO0004', address: 'Bavdhan, Pune', pincode: '411021', lat: 18.5160, lng: 73.7780, completion: months(-5), floors: 9 },
+    { line: 6, name: 'Demo Metro Heights', regNo: 'DEMO0005', address: 'Ravet, Pune', pincode: '412101', lat: 18.6440, lng: 73.7470, completion: months(30), floors: 22 },
+  ], { source: 'Demo list', dryRun: false });
 
   return { customerId: o3.customerId };
 }

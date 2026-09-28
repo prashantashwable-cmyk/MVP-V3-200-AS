@@ -35,6 +35,7 @@ import * as leadService from '../../src/mvp/services/leadService';
 import * as workQueue from '../../src/services/workQueue';
 import * as scoutService from '../../src/mvp/services/scoutService';
 import * as riderService from '../../src/mvp/services/riderService';
+import * as prospectService from '../../src/mvp/services/prospectService';
 
 const project = process.env.VITE_FIREBASE_PROJECT_ID ?? '';
 if (!project.startsWith('demo-') || !process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
@@ -48,7 +49,7 @@ let ctx: MvpCtx;
 
 const services: Record<string, any> = {
   ...orderService, ...installationService, ...quoteService, ...paymentService, ...supplyService, ...evidenceService,
-  ...qcHandoverService, ...readModels, ...reports, ...notify, ...emergencyService, ...invites, ...leadService, ...workQueue, ...scoutService, ...riderService,
+  ...qcHandoverService, ...readModels, ...reports, ...notify, ...emergencyService, ...invites, ...leadService, ...workQueue, ...scoutService, ...riderService, ...prospectService,
 };
 
 const helpers: Record<string, (...a: any[]) => Promise<unknown>> = {

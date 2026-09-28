@@ -210,6 +210,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // D-36 planned projects (a registered-project list the Admin imports): Sales (riders),
+    // Admin and Owner read; only the Admin writes; never deleted (dismissed instead).
+    match /site_prospects/{prospectId} {
+      allow get, list: if isAuthenticated() && (isAdminOrOwner() || isSales());
+      allow create: if isAdmin() && request.resource.data.status == 'OPEN' && request.resource.data.importedBy == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
     // D-34 part 2: a rider's GPS route while "On duty" — the rider and Admin/Owner only. The
     // document id is <uid>_<day>, so nobody can write a route in someone else's name.
     match /rider_routes/{docId} {

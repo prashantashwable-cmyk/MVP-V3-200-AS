@@ -133,3 +133,12 @@ export const HEAT_WEIGHTS = {
 } as const;
 /** A site closed as "not ready yet" is suggested for a revisit after this many days. */
 export const REVISIT_AFTER_DAYS = 30;
+/**
+ * D-36 planned projects: the lift is usually ordered between these many months before the
+ * project's proposed completion date (structure up, before finishing). ⚖ VERIFY against the
+ * Owner's own past orders and change here.
+ */
+export const LIFT_WINDOW_FROM_MONTHS = 15;
+export const LIFT_WINDOW_TO_MONTHS = 4;
+/** A sighting this close to a planned project counts as "a rider has been there". */
+export const PROSPECT_MATCH_RADIUS_M = 150;

@@ -19,7 +19,8 @@ import {
   COMMISSION_ON_BOOKING_INR, COMMISSION_PER_CONFIRMED_INR, COVERAGE_CELL_M, WHERE_NEXT_FRESH_DAYS,
   HEAT_CELL_M, HEAT_HALF_LIFE_DAYS, HEAT_SPREAD_M, HEAT_WEIGHTS, REVISIT_AFTER_DAYS,
 } from '../config';
-import { heatGrid, hotspots, revisits, type HeatGrid, type HeatSettings, type HeatSighting } from '../heat';
+import { heatGrid, hotspots, revisits, type HeatGrid, type HeatSettings, type HeatSighting, type PlannedPoint } from '../heat';
+import { plannedHeat, prospectRepository, viewProspects, type ProspectView } from './prospectService';
 
 export const HEAT_SETTINGS: HeatSettings = {
   cellM: HEAT_CELL_M, spreadM: HEAT_SPREAD_M, halfLifeDays: HEAT_HALF_LIFE_DAYS, effortCellM: COVERAGE_CELL_M, weights: HEAT_WEIGHTS,
@@ -113,12 +114,15 @@ export interface RiderBoard {
   revisit: HeatSighting[];
   heatSightings: HeatSighting[];
   ridden: { day: string; cells: string[] }[];
+  /** D-36 planned projects (open), most useful first, and their pull on the heat. */
+  planned: ProspectView[];
+  plannedHeat: PlannedPoint[];
 }
 
 /** Everything the rider's screen shows about their progress. */
 export async function buildRiderBoard(ctx: MvpCtx, actor: MvpActor): Promise<RiderBoard> {
   const now = nowOf(ctx);
-  const [sightings, stats] = await Promise.all([scoutRepository(ctx).list(), statsRepository(ctx).list()]);
+  const [sightings, stats, prospects] = await Promise.all([scoutRepository(ctx).list(), statsRepository(ctx).list(), prospectRepository(ctx).list()]);
   const mine = sightings.filter(s => s.scoutedBy === actor.userId);
   const myStats = stats.filter(s => s.riderId === actor.userId);
   const day = dayKeyOf(now);
@@ -130,7 +134,9 @@ export async function buildRiderBoard(ctx: MvpCtx, actor: MvpActor): Promise<Rid
     rejectReason: s.rejectReason, floors: s.floors, reviewedAt: s.reviewedAt, address: s.address,
   }));
   const ridden = stats.map(s => ({ day: s.day, cells: s.cells }));
-  const heat = heatGrid(slim, ridden, now, HEAT_SETTINGS);
+  const planned = viewProspects(prospects, sightings, now);
+  const pull = plannedHeat(planned);
+  const heat = heatGrid(slim, ridden, now, HEAT_SETTINGS, pull);
   const month = monthOf(now);
   const week = weekOf(now);
   return {
@@ -145,6 +151,8 @@ export async function buildRiderBoard(ctx: MvpCtx, actor: MvpActor): Promise<Rid
     revisit: revisits(slim, now, REVISIT_AFTER_DAYS).slice(0, 5),
     heatSightings: slim,
     ridden,
+    planned,
+    plannedHeat: pull,
   };
 }
 

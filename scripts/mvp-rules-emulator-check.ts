@@ -291,6 +291,20 @@ async function main() {
   ok(!(await allowed(setDoc(doc(db.sales2, `rider_stats/${uid.sales}_${day}`), stat(uid.sales)))), 'D-34: nobody inflates another rider\'s stats');
   ok(await allowed(getDocs(collection(db.sales2, 'rider_stats'))), 'D-34: Sales sees everyone\'s daily stats (leaderboard)');
   ok(!(await allowed(getDocs(collection(db.cust, 'rider_stats')))), 'D-34: customers cannot see rider stats');
+
+  // D-36 planned projects: the Admin imports; Sales (riders) and the Owner read; never deleted.
+  const prj = (id: string, by: string, extra: Record<string, unknown> = {}) => ({
+    id, name: 'Sky Towers', address: 'Tathawade', lat: 18.62, lng: 73.745, source: 'MahaRERA', status: 'OPEN', importedBy: by,
+    createdAt: '2026-10-05', updatedAt: '2026-10-05', version: 0, ...extra,
+  });
+  ok(await allowed(setDoc(doc(db.admin, 'site_prospects/prj_1'), prj('prj_1', uid.admin))), 'D-36: the Admin imports a planned project');
+  ok(!(await allowed(setDoc(doc(db.sales, 'site_prospects/prj_2'), prj('prj_2', uid.sales)))), 'D-36: Sales cannot add planned projects');
+  ok(!(await allowed(setDoc(doc(db.admin, 'site_prospects/prj_3'), prj('prj_3', uid.sales)))), 'D-36: an import is recorded in the importer\'s own name');
+  ok(await allowed(getDocs(collection(db.sales, 'site_prospects'))) && await allowed(getDocs(collection(db.owner, 'site_prospects'))), 'D-36: riders (Sales) and the Owner see planned projects');
+  ok(!(await allowed(getDocs(collection(db.tech1, 'site_prospects')))) && !(await allowed(getDocs(collection(db.cust, 'site_prospects')))), 'D-36: technicians and customers cannot');
+  ok(!(await allowed(updateDoc(doc(db.sales, 'site_prospects/prj_1'), { status: 'DISMISSED' }))), 'D-36: Sales cannot remove a planned project');
+  ok(await allowed(updateDoc(doc(db.admin, 'site_prospects/prj_1'), { status: 'DISMISSED', dismissReason: 'Cancelled', version: 1 })), 'D-36: the Admin removes (dismisses) one');
+  ok(!(await allowed(deleteDoc(doc(db.admin, 'site_prospects/prj_1')))), 'D-36: planned projects are never deleted');
   // D-33 "Need more time": the promise lives in the task's own `data`, which only its assignee (or the Admin) may write.
   ok(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-10-08T12:00:00Z', count: 1, reason: 'crane', by: uid.tech2 } }, updatedAt: '2026-10-05', version: 1 })), 'D-33: the assignee records their promised date');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-12-01T12:00:00Z', count: 1, reason: 'x', by: uid.tech1 } } }))), 'D-33: someone else cannot promise on their behalf');

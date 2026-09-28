@@ -55,6 +55,25 @@ export async function lookupAddress(lat: number, lng: number): Promise<string> {
   return address;
 }
 
+/**
+ * D-36: a place for an address (planned-project import). OpenStreetMap's Nominatim search,
+ * limited to India; the caller waits ~1.1 s between lookups (Nominatim's fair-use limit).
+ * Returns null when nothing is found — the Admin fixes the address or adds latitude/longitude.
+ */
+export async function findPlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    const list = await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=in&limit=1&q=${encodeURIComponent(q)}`, 10_000);
+    const hit = Array.isArray(list) ? list[0] : null;
+    const lat = Number(hit?.lat);
+    const lng = Number(hit?.lon);
+    return hit && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng, label: String(hit.display_name ?? q) } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Google Maps directions to the spot (opens the Maps app on the phone). */
 export function directionsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
