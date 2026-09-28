@@ -193,6 +193,23 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // D-34 field scouting: a rider's roadside sighting of a construction site (GPS, address,
+    // photo previews, optional number). Sales/Admin/Owner read them all (the inbox and the
+    // duplicate check); a rider creates and fills in only their own while it is NEW; another
+    // salesperson (never the rider: commission) or the Admin converts or rejects it.
+    match /site_scouts/{scoutId} {
+      allow get, list: if isAuthenticated() && (isAdminOrOwner() || isSales());
+      allow create: if isAuthenticated() && (isSales() || isAdmin()) &&
+        request.resource.data.scoutedBy == request.auth.uid && request.resource.data.status == 'NEW';
+      allow update: if isAdmin() || (isSales() && resource.data.status == 'NEW' && (
+        (resource.data.scoutedBy == request.auth.uid && request.resource.data.status == 'NEW' &&
+          onlyKeys(['photos', 'phone', 'notes', 'floors', 'address', 'updatedAt', 'version'])) ||
+        (resource.data.scoutedBy != request.auth.uid && request.resource.data.reviewedBy == request.auth.uid &&
+          request.resource.data.status in ['CONVERTED', 'REJECTED'] &&
+          onlyKeys(['status', 'leadId', 'reviewedBy', 'reviewedAt', 'rejectReason', 'rejectNote', 'updatedAt', 'version']))));
+      allow delete: if false;
+    }
+
     // 2. Elevator Contracts
     // Customers can ONLY read their own elevator contracts; Admins have full access.
     match /contracts/{contractId} {

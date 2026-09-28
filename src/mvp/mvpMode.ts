@@ -36,7 +36,7 @@ export function setLocalMvpMode(on: boolean): void {
 export type MvpTabId =
   | 'MvpDashboard' | 'MvpOwnerView' | 'MvpOrders' | 'MvpOrder' | 'MvpTasks' | 'MvpSettings'
   | 'MvpLeads' | 'MvpNewLead' | 'MvpLead' | 'MvpSurveys' | 'MvpSurvey' | 'MvpSuppliers' | 'MvpToday'
-  | 'MvpReports' | 'MvpUsers';
+  | 'MvpReports' | 'MvpUsers' | 'MvpScout' | 'MvpSightings';
 
 export interface MvpTab { id: MvpTabId; label: string; icon: string }
 
@@ -52,12 +52,15 @@ const SUPPLIERS: MvpTab = { id: 'MvpSuppliers', label: 'Suppliers', icon: 'suppl
 const TODAY: MvpTab = { id: 'MvpToday', label: 'Today', icon: 'work' };
 const REPORTS: MvpTab = { id: 'MvpReports', label: 'Reports', icon: 'reports' };
 const USERS: MvpTab = { id: 'MvpUsers', label: 'Users', icon: 'users' };
+/** D-34 field scouting: the rider's capture screen, and Sales' inbox of sightings. */
+const SCOUT: MvpTab = { id: 'MvpScout', label: 'Scout sites', icon: 'scout' };
+const SIGHTINGS: MvpTab = { id: 'MvpSightings', label: 'Sightings', icon: 'sightings' };
 
 /** The allow-list per role. Later steps add their screens here (plan §5). */
 export const MVP_TABS: Record<CanonicalUserRole, MvpTab[]> = {
-  admin: [DASHBOARD, ORDERS, LEADS, TASKS, SUPPLIERS, REPORTS, USERS, SETTINGS],
-  owner: [OWNER_VIEW, DASHBOARD, REPORTS, ORDERS, LEADS, SUPPLIERS, SETTINGS],
-  sales: [LEADS, NEW_LEAD, TASKS, ORDERS, SETTINGS],
+  admin: [DASHBOARD, ORDERS, LEADS, SIGHTINGS, TASKS, SUPPLIERS, REPORTS, USERS, SETTINGS],
+  owner: [OWNER_VIEW, DASHBOARD, REPORTS, ORDERS, LEADS, SIGHTINGS, SUPPLIERS, SETTINGS],
+  sales: [SCOUT, SIGHTINGS, LEADS, NEW_LEAD, TASKS, ORDERS, SETTINGS],
   surveyor: [SURVEYS, TASKS, SETTINGS],
   technician: [TODAY, TASKS, SETTINGS],
   qc: [TASKS, SETTINGS],

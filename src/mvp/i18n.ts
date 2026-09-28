@@ -52,6 +52,7 @@ const en: MvpDict = {
     MvpDashboard: 'Dashboard', MvpOwnerView: 'Overview', MvpOrders: 'Orders', MvpTasks: 'My tasks',
     MvpLeads: 'Leads', MvpNewLead: 'New lead', MvpSuppliers: 'Suppliers', MvpSurveys: 'Surveys',
     MvpToday: 'Today', MvpReports: 'Reports', MvpUsers: 'Users', MvpSettings: 'Settings',
+    MvpScout: 'Scout sites', MvpSightings: 'Sightings',
   },
 };
 
@@ -78,6 +79,7 @@ const mr: MvpDict = {
   nav: {
     MvpDashboard: 'डॅशबोर्ड', MvpOwnerView: 'आढावा', MvpOrders: 'ऑर्डर्स', MvpTasks: 'माझी कामे',
     MvpLeads: 'लीड्स', MvpToday: 'आज', MvpReports: 'अहवाल', MvpSettings: 'सेटिंग्ज',
+    MvpScout: 'साइट शोधा', MvpSightings: 'साइट नोंदी',
   },
 };
 
@@ -104,6 +106,7 @@ const hi: MvpDict = {
   nav: {
     MvpDashboard: 'डैशबोर्ड', MvpOwnerView: 'सारांश', MvpOrders: 'ऑर्डर', MvpTasks: 'मेरे काम',
     MvpLeads: 'लीड्स', MvpToday: 'आज', MvpReports: 'रिपोर्ट', MvpSettings: 'सेटिंग्स',
+    MvpScout: 'साइट खोजें', MvpSightings: 'साइट एंट्री',
   },
 };
 
