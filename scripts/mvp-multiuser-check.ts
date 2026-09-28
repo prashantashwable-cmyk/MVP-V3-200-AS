@@ -473,6 +473,32 @@ async function main() {
   const dayRow = day.ok ? day.result.find((r: any) => r.task.id === ft.id) : null;
   ok(!!dayRow && dayRow.group === 'SOON' && !!dayRow.orderCode, `the technician's "My day" loads on real Firestore and shows the promised date (${day.ok ? dayRow?.group : day.error!.message.slice(0, 60)})`);
 
+    // ---- I. Field scouting (D-34) on the real rules: rider → Sales → lead, route, board, commission ----
+  area = 'I scouting';
+  const JPG = `data:image/jpeg;base64,${'A'.repeat(3000)}`;
+  const sh = (kind: string) => ({ kind, dataUrl: JPG, contentType: 'image/jpeg', previewDataUrl: JPG });
+  const sight = await people.sales.try('createSighting', '$ctx', '$actor', { lat: 18.5596, lng: 73.7799, accuracyM: 10, address: 'Baner Road, Pune', photo: sh('SITE') });
+  ok(sight.ok, `rider records a sighting through the rules (${sight.ok ? 'ok' : sight.error!.message.slice(0, 70)})`);
+  const withBoard = sight.ok ? await people.sales.try('addSightingPhoto', '$ctx', '$actor', sight.result.id, sh('BOARD')) : { ok: false } as any;
+  ok(withBoard.ok, 'rider adds the board photo');
+  const inbox = await people.sales2.try('listSightings', '$ctx', '$actor');
+  ok(inbox.ok && inbox.result.some((x: any) => x.id === sight.result?.id), 'the other salesperson sees it in the inbox at once');
+  const self = await people.sales.try('convertSightingToLead', '$ctx', '$actor', sight.result?.id, { name: 'X', phone: '9822099988', consent: true });
+  ok(!self.ok, 'the rider cannot confirm their own sighting');
+  const conv = await people.sales2.try('convertSightingToLead', '$ctx', '$actor', sight.result?.id, { name: 'Mr Gaikwad', phone: '9822099988', consent: true, floors: 10 });
+  ok(conv.ok && conv.result.scoutedBy === people.sales.actor.userId, `the other salesperson makes it a lead, rider credited (${conv.ok ? 'ok' : conv.error!.message.slice(0, 70)})`);
+  const duty = await people.sales.try('startDuty', '$ctx', '$actor');
+  const now0 = Date.now();
+  const route = Array.from({ length: 8 }, (_, i) => ({ lat: 18.5596 + i * 0.001, lng: 73.7799, t: new Date(now0 + i * 60_000).toISOString() }));
+  const saved = duty.ok ? await people.sales.try('saveRoutePoints', '$ctx', '$actor', route) : duty;
+  ok(duty.ok && saved.ok && saved.result.stats.km > 0.6, `On duty: route and daily stats save through the rules (${saved.ok ? saved.result.stats.km + ' km' : saved.error!.message.slice(0, 70)})`);
+  const board = await people.sales.try('buildRiderBoard', '$ctx', '$actor');
+  ok(board.ok && board.result.earnings.confirmed >= 1 && board.result.week.length >= 1, `the rider's earnings and leaderboard load on real Firestore (${board.ok ? '₹' + board.result.earnings.amount : board.error!.message.slice(0, 70)})`);
+  const routePeek = await people.sales2.try('getMyRouteToday', '$ctx', { ...people.sales.actor });
+  ok(!routePeek.ok || routePeek.result === null, 'another salesperson cannot read the rider\'s route');
+  const sheet = await people.owner.try('riderCommissionTable', '$ctx', '$actor');
+  ok(sheet.ok && sheet.result.rows.some((r: any) => r.riderId === people.sales.actor.userId), 'the Owner sees the rider in the commission sheet');
+
     // ---- Summary ----
   area = 'summary';
   const byArea: Record<string, { ok: number; fail: number }> = {};

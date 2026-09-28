@@ -11,7 +11,9 @@ import {
   addSightingPhoto, convertSightingToLead, createSighting, findNearbySightings, listMySightings, listSightings,
   rejectSighting, updateSightingDetails,
 } from '../src/mvp/services/scoutService';
-import { distanceM, nearbySightings } from '../src/mvp/scouting';
+import { cellBounds, cellKey, cellsOf, distanceM, earningsFor, leaderboard, monthOf, nearbySightings, routeKm, weekOf, whereNext } from '../src/mvp/scouting';
+import { buildRiderBoard, getMyRouteToday, riderCommissionTable, saveRoutePoints, startDuty } from '../src/mvp/services/riderService';
+import { runS1 } from './mvp/scenario';
 import { getRepository } from '../src/repository';
 
 const JPEG = `data:image/jpeg;base64,${'A'.repeat(4000)}`;
@@ -87,7 +89,92 @@ async function main() {
   const actions = new Set(audits.map((a: any) => a.action ?? a.eventType));
   check(['SCOUT_CREATED', 'SCOUT_CONVERTED', 'SCOUT_REJECTED'].every(a => actions.has(a)), 'capture, conversion and rejection are audited');
 
+  await part2();
   done('mvp-scouting-check');
+}
+
+async function part2() {
+  // --- Pure: route km, squares, where next, earnings, leaderboard ---
+  const line = Array.from({ length: 11 }, (_, i) => ({ lat: BANER.lat + i * 0.001, lng: BANER.lng }));
+  check(Math.abs(routeKm(line) - 1.1) <= 0.1, `route of 10 × 111 m ≈ 1.1 km (got ${routeKm(line)})`);
+  check(routeKm([BANER, { lat: BANER.lat + 0.00003, lng: BANER.lng }, { lat: BANER.lat + 0.00006, lng: BANER.lng }]) === 0, 'standing still (GPS jitter under 15 m) adds no km');
+  check(routeKm([BANER, { lat: BANER.lat + 0.05, lng: BANER.lng }]) === 0, 'a 5.5 km jump between two fixes (GPS glitch) is ignored');
+  const b = cellBounds(cellKey(BANER.lat, BANER.lng, 500), 500);
+  const mid = { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 };
+  check(cellKey(mid.lat, mid.lng, 500) === cellKey(mid.lat + 0.0005, mid.lng + 0.0005, 500) && cellKey(mid.lat, mid.lng, 500) !== cellKey(mid.lat + 0.005, mid.lng, 500),
+    'two spots 70 m apart share a 500 m square; 550 m apart do not');
+  const lineCells = cellsOf(line, 500).length;
+  check(lineCells === 3 || lineCells === 4, `a 1.1 km straight ride crosses 3–4 squares depending on where it starts (got ${lineCells})`);
+  const now = new Date('2026-10-15T06:00:00Z');
+  const site = (lat: number, lng: number, status: 'NEW' | 'CONVERTED' | 'REJECTED' = 'NEW') => ({ lat, lng, status, createdAt: '2026-10-10T06:00:00Z' });
+  const wn = whereNext([site(BANER.lat, BANER.lng, 'CONVERTED')], [], now, 500, 30);
+  check(wn.length === 5 && wn.every(w => w.key !== cellKey(BANER.lat, BANER.lng, 500)), 'where next: the squares around a found site (not the site\'s own square)');
+  const around = whereNext([site(BANER.lat, BANER.lng)], [], now, 500, 30, 20).map(w => w.key);
+  const coveredRecently = around[0];
+  const wn2 = whereNext([site(BANER.lat, BANER.lng)], [{ day: '2026-10-12', cells: [coveredRecently] }], now, 500, 30, 20).map(w => w.key);
+  check(around.length === 8 && !wn2.includes(coveredRecently), 'a square someone covered 3 days ago is not suggested');
+  const wn3 = whereNext([site(BANER.lat, BANER.lng)], [{ day: '2026-08-01', cells: [coveredRecently] }], now, 500, 30, 20).map(w => w.key);
+  check(wn3.includes(coveredRecently), 'covered 2.5 months ago: suggested again');
+  check(whereNext([site(BANER.lat, BANER.lng, 'REJECTED')], [], now, 500, 30).length === 0, 'a rejected (not useful) site suggests nothing');
+  const [ci, cj] = cellKey(mid.lat, mid.lng, 500).split(':').map(Number);
+  const b2 = cellBounds(`${ci + 2}:${cj}`, 500);
+  const two = whereNext([site(mid.lat, mid.lng, 'CONVERTED'), site((b2.south + b2.north) / 2, mid.lng)], [], now, 500, 30, 1);
+  check(two[0].nearbySites === 2, 'the best square is the one between two found sites');
+  const { from, to } = monthOf(now);
+  check(from.toISOString() === '2026-09-30T18:30:00.000Z' && to.toISOString() === '2026-10-31T18:30:00.000Z', 'month = 1st 00:00 IST to next 1st');
+  check(weekOf(new Date('2026-10-15T06:00:00Z')).from.toISOString() === '2026-10-11T18:30:00.000Z', 'week starts Monday 00:00 IST');
+  const e = earningsFor([
+    { status: 'CONVERTED', reviewedAt: '2026-10-05T10:00:00Z', bookedAt: '2026-10-09T10:00:00Z', createdAt: '2026-10-04T10:00:00Z' },
+    { status: 'CONVERTED', reviewedAt: '2026-10-06T10:00:00Z', createdAt: '2026-10-06T09:00:00Z' },
+    { status: 'CONVERTED', reviewedAt: '2026-09-20T10:00:00Z', bookedAt: '2026-10-02T10:00:00Z', createdAt: '2026-09-19T10:00:00Z' },
+    { status: 'NEW', createdAt: '2026-10-07T10:00:00Z' }, { status: 'REJECTED', reviewedAt: '2026-10-07T12:00:00Z', createdAt: '2026-10-07T10:00:00Z' },
+  ] as any, from, to, 50, 1000);
+  check(e.confirmed === 2 && e.booked === 2 && e.pending === 1 && e.amount === 2100, `October: 2 confirmed × ₹50 + 2 booked × ₹1000 (one confirmed in September, booked in October) = ₹2,100 (got ${JSON.stringify(e)})`);
+  const lb = leaderboard(
+    [{ scoutedBy: 'a', scoutedByName: 'Anil', status: 'NEW', createdAt: '2026-10-13T05:00:00Z' }, { scoutedBy: 'a', scoutedByName: 'Anil', status: 'NEW', createdAt: '2026-10-13T06:00:00Z' },
+     { scoutedBy: 'b', scoutedByName: 'Bala', status: 'CONVERTED', reviewedAt: '2026-10-14T05:00:00Z', createdAt: '2026-10-13T05:00:00Z' },
+     { scoutedBy: 'c', scoutedByName: 'Chetan', status: 'NEW', createdAt: '2026-10-01T05:00:00Z' }] as any,
+    [{ riderId: 'a', riderName: 'Anil', day: '2026-10-13', km: 12.5, cells: ['1:1', '1:2'] }, { riderId: 'd', riderName: 'Dev', day: '2026-10-14', km: 30, cells: ['5:5', '5:6', '5:7'] }],
+    weekOf(now).from, weekOf(now).to,
+  );
+  check(lb.map(r => r.name).join() === 'Bala,Anil,Dev' && lb[1].km === 12.5 && lb[2].cells === 3, `leaderboard: confirmed first, then sites, then area; last week excluded (got ${lb.map(r => r.name).join()})`);
+
+  // --- Service: on duty, route, stats, board, commission, booking bonus ---
+  const clock = new Clock();
+  clock.advanceDays(33); // a later week and month than part 1 (the demo repository is shared)
+  const ctx = demoCtx(clock, USERS.admin);
+  const rider: MvpActor = { userId: 'u_rider2', role: 'sales', name: 'Rider Rekha' };
+  check(await refuse(() => startDuty(ctx, USERS.tech1)), 'a technician cannot go on duty as a rider');
+  const r0 = await startDuty(ctx, rider);
+  check(r0.onDuty && r0.points.length === 0 && r0.riderId === rider.userId, 'Start day opens today\'s route');
+  check((await startDuty(ctx, rider)).id === r0.id, 'tapping Start day again keeps the same route');
+  const t = (m: number) => new Date(clock.now().getTime() + m * 60_000).toISOString();
+  const pts = line.map((p, i) => ({ ...p, t: t(i) }));
+  const saved = await saveRoutePoints(ctx, rider, pts.slice(0, 6));
+  const again = await saveRoutePoints(ctx, rider, pts.slice(3));
+  check(again.route.points.length === 11 && again.stats.km === 1.1 && saved.stats.km === 0.6, `saving every few minutes adds only new points (km ${saved.stats.km} → ${again.stats.km})`);
+  check(again.stats.cells.length === lineCells && again.stats.riderName === 'Rider Rekha', 'today\'s squares are shared as stats (no GPS points)');
+  const s1 = await createSighting(ctx, rider, { ...BANER, address: 'Baner', photo: photo('SITE') });
+  const ended = await saveRoutePoints(ctx, rider, [], true);
+  check(!ended.route.onDuty && !!ended.route.endedAt, 'End day stops the route');
+  check((await getMyRouteToday(ctx, rider))?.onDuty === false, 'after End day nothing more is recorded until Start again');
+
+  const lead = await convertSightingToLead(ctx, sales2, s1.id, { name: 'Mr Kale', phone: '9822077788', consent: true });
+  let board = await buildRiderBoard(ctx, rider);
+  check(board.today.km === 1.1 && board.today.sightings === 1 && board.totalAreaKm2 === lineCells * 0.25, `rider's board: today 1.1 km, 1 site, ${lineCells * 0.25} km² covered (got ${JSON.stringify(board.today)} ${board.totalAreaKm2})`);
+  check(board.earnings.confirmed === 1 && board.earnings.amount === 50, 'confirmed site: ₹50 this month');
+  check(board.week[0]?.riderId === rider.userId && board.week[0].confirmed === 1, 'the rider tops this week\'s leaderboard');
+  check(board.suggestions.length > 0 && board.suggestions.every(s => !again.stats.cells.includes(s.key)), 'where next never suggests a square the rider covered today');
+
+  // The lead goes all the way to a paid booking token → booking bonus.
+  await runS1(ctx, clock, 7, { leadId: lead.id, qualifier: sales2 });
+  const booked = (await listSightings(ctx, sales2)).find(s => s.id === s1.id)!;
+  check(!!booked.bookedAt, 'booking token paid on that lead: the sighting is marked booked');
+  board = await buildRiderBoard(ctx, rider);
+  check(board.earnings.booked === 1 && board.earnings.amount === 1050, `earnings now ₹50 + ₹1,000 = ₹1,050 (got ${board.earnings.amount})`);
+  check(await refuse(() => riderCommissionTable(ctx, rider)), 'a rider cannot open the commission sheet');
+  const sheet = await riderCommissionTable(ctx, USERS.owner);
+  check(sheet.rows.some(r => r.riderId === rider.userId && r.amount === 1050), 'the Owner/Admin commission sheet shows ₹1,050 for the rider');
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

@@ -104,3 +104,17 @@ export const SCOUT_DUPLICATE_RADIUS_M = 60;
 export const SCOUT_DUPLICATE_DAYS = 90;
 /** D-34: the readable photo preview kept on each sighting (Sales reads the builder's number from it). */
 export const MAX_SCOUT_PREVIEW_BYTES = 100 * 1024;
+
+/**
+ * D-34 rider commission (Owner: "small per lead + bonus on booking"). Amounts in rupees.
+ * ⚖ VERIFY with the CA: TDS on commission (s.194H) and whether riders are employees or agents.
+ */
+export const COMMISSION_PER_CONFIRMED_INR = 50;
+export const COMMISSION_ON_BOOKING_INR = 1000;
+/** D-34 area covered: the city is split into squares this many metres wide. */
+export const COVERAGE_CELL_M = 500;
+/** D-34 route while on duty: keep a point every this many metres moved, save every few minutes. */
+export const ROUTE_MIN_MOVE_M = 25;
+export const ROUTE_SAVE_MINUTES = 3;
+/** D-34 "where next": a square covered within this many days is not suggested again. */
+export const WHERE_NEXT_FRESH_DAYS = 30;

@@ -2,7 +2,7 @@
  * S1 driver for MVP checks (demo repository). Each later step replaces the `applyEvent`
  * shortcuts below with the real service call it builds (quote, payment, supply, install…).
  */
-import type { MvpCtx } from '../../src/mvp/services/orderService';
+import type { MvpActor, MvpCtx } from '../../src/mvp/services/orderService';
 import { assignSurveyor, createLead, listOrderTasks, qualifyLead, submitSurvey } from '../../src/mvp/services/orderService';
 import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from '../../src/mvp/services/installationService';
 import { saveQuote, sendQuote, decideQuote } from '../../src/mvp/services/quoteService';
@@ -19,12 +19,12 @@ let phoneSeq = 0;
 export const TINY_JPEG = 'data:image/jpeg;base64,' + Buffer.from('fixture-jpeg-bytes').toString('base64');
 
 /** Runs S1 up to and including `step` (13a is 13.5, 13b is 13.9, 15b is 15.5). */
-export async function runS1(ctx: MvpCtx, clock: Clock, step: number): Promise<S1State> {
+export async function runS1(ctx: MvpCtx, clock: Clock, step: number, opts: { leadId?: string; qualifier?: MvpActor } = {}): Promise<S1State> {
   const phone = `98${String(76500000 + ++phoneSeq).padStart(8, '0')}`;
-  const lead = await createLead(ctx, USERS.sales, { ...FIXTURE_LEAD, phone });
+  const lead = opts.leadId ? { id: opts.leadId } : await createLead(ctx, USERS.sales, { ...FIXTURE_LEAD, phone });
   const state: S1State = { orderId: '', customerId: '', leadId: lead.id };
   if (step < 2) return state;
-  const order = await qualifyLead(ctx, USERS.sales, lead.id);
+  const order = await qualifyLead(ctx, opts.qualifier ?? USERS.sales, lead.id);
   state.orderId = order.id; state.customerId = order.customerId;
   const at = (days: number) => new Date(clock.now().getTime() + days * 86_400_000).toISOString();
   if (step >= 3) await assignSurveyor(ctx, USERS.admin, order.id, USERS.surveyor.userId, at(2));

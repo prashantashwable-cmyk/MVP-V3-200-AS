@@ -20,6 +20,8 @@ import { lookupAddress, watchFix, type Fix } from '../geo';
 import { compressPhoto, makePreview } from './PhotoInput';
 import { formatDateTime } from '../format';
 import { ErrorNote, inputCls, Loading, useLoad, useMvpCtx, useT } from './ui';
+import { buildRiderBoard } from '../services/riderService';
+import { DutyBar, mapLayersFor, RiderProgress, useDuty } from './RiderDuty';
 
 const SiteMap = lazy(() => import('./SiteMap'));
 
@@ -70,6 +72,8 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
   const [view, setView] = useState<'map' | 'list'>('map');
   const [picked, setPicked] = useState<SiteScout | null>(null);
   const mine = useLoad(() => listMySightings(ctx, actor), [ctx]);
+  const board = useLoad(() => buildRiderBoard(ctx, actor), [ctx], { every: 1 });
+  const duty = useDuty(ctx, actor, fix, () => board.reload());
 
   useEffect(() => watchFix(f => { setFix(f); setGpsNote(''); }, setGpsNote), []);
 
@@ -80,7 +84,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
     const timer = setTimeout(async () => {
       const address = await lookupAddress(current.lat, current.lng);
       if (!stop && address) {
-        try { setCurrent(await updateSightingDetails(ctx, actor, current.id, { address })); mine.reload(); } catch { /* next time */ }
+        try { setCurrent(await updateSightingDetails(ctx, actor, current.id, { address })); mine.reload(); board.reload(); } catch { /* next time */ }
       }
     }, 8000);
     return () => { stop = true; clearTimeout(timer); };
@@ -95,7 +99,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
       const [photo, address] = await Promise.all([preparePhoto(file, 'SITE'), lookupAddress(at.lat, at.lng)]);
       const s = await createSighting(ctx, actor, { ...at, accuracyM: fix.accuracyM, address, photo });
       setCurrent(s); setPhone('');
-      mine.reload();
+      mine.reload(); board.reload();
     } catch (e: any) { setError(e?.message ?? String(e)); }
     finally { setBusy(null); }
   };
@@ -110,7 +114,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
   const addPhoto = async (kind: ScoutPhotoKind, file: File) => {
     if (!current) return;
     setBusy(kind); setError(null);
-    try { setCurrent(await addSightingPhoto(ctx, actor, current.id, await preparePhoto(file, kind))); mine.reload(); }
+    try { setCurrent(await addSightingPhoto(ctx, actor, current.id, await preparePhoto(file, kind))); mine.reload(); board.reload(); }
     catch (e: any) { setError(e?.message ?? String(e)); }
     finally { setBusy(null); }
   };
@@ -118,7 +122,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
   const savePhone = async () => {
     if (!current) return;
     setBusy('PHONE'); setError(null);
-    try { setCurrent(await updateSightingDetails(ctx, actor, current.id, { phone })); mine.reload(); }
+    try { setCurrent(await updateSightingDetails(ctx, actor, current.id, { phone })); mine.reload(); board.reload(); }
     catch (e: any) { setError(e?.message ?? String(e)); }
     finally { setBusy(null); }
   };
@@ -136,6 +140,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
       <div className={`text-xs font-semibold flex items-center gap-1 ${fix ? 'text-[#15803d]' : 'text-[#B8873D]'}`}>
         <MapPin className="w-4 h-4" />{fix ? `${t('Location ready')} (±${fix.accuracyM} m)` : t(gpsNote)}
       </div>
+      <DutyBar duty={duty} board={board.data ?? null} />
       {error && <ErrorNote message={error} />}
 
       {nearby && pending && (
@@ -182,7 +187,8 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
       {mine.loading && !mine.data ? <Loading /> : view === 'map' ? (
         <Suspense fallback={<Loading label={t('Loading map…')} />}>
           <SiteMap points={list.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, color: STATUS_COLOR[s.status], label: `${s.address} · ${t(s.status === 'NEW' ? 'With Sales' : s.status === 'CONVERTED' ? 'Became a lead' : 'Not useful')}` }))}
-            me={fix} onPick={id => setPicked(list.find(s => s.id === id) ?? null)} />
+            me={fix} route={duty.route?.points ?? []} areas={mapLayersFor(board.data ?? null)}
+            onPick={id => setPicked(list.find(s => s.id === id) ?? null)} />
         </Suspense>
       ) : (
         <div className="space-y-2">
@@ -191,6 +197,7 @@ export const RiderScout: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
       {picked && <SightingCard s={picked} onClose={() => setPicked(null)} />}
+      <RiderProgress board={board.data ?? null} me={actor.userId} />
     </div>
   );
 };
