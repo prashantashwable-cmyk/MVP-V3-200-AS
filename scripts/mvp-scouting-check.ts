@@ -14,6 +14,8 @@ import {
 import { cellBounds, cellKey, cellsOf, distanceM, earningsFor, leaderboard, monthOf, nearbySightings, routeKm, weekOf, whereNext } from '../src/mvp/scouting';
 import { buildRiderBoard, getMyRouteToday, riderCommissionTable, saveRoutePoints, startDuty } from '../src/mvp/services/riderService';
 import { runS1 } from './mvp/scenario';
+import { evidenceOf, heatAt, heatColor, heatGrid, hotspots, revisits, whyHere } from '../src/mvp/heat';
+import { HEAT_SETTINGS } from '../src/mvp/services/riderService';
 import { getRepository } from '../src/repository';
 
 const JPEG = `data:image/jpeg;base64,${'A'.repeat(4000)}`;
@@ -90,6 +92,7 @@ async function main() {
   check(['SCOUT_CREATED', 'SCOUT_CONVERTED', 'SCOUT_REJECTED'].every(a => actions.has(a)), 'capture, conversion and rejection are audited');
 
   await part2();
+  part3();
   done('mvp-scouting-check');
 }
 
@@ -178,3 +181,57 @@ async function part2() {
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
+
+function part3() {
+  // --- D-35 opportunity heatmap: outcomes over counts, yield over footprint, time fades ---
+  const now = new Date('2026-10-15T06:00:00Z');
+  const ago = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+  const S = HEAT_SETTINGS;
+  const site = (lat: number, lng: number, p: Record<string, unknown> = {}) => ({ lat, lng, status: 'NEW' as const, createdAt: ago(1), ...p }) as any;
+  const e = (p: Record<string, unknown>) => evidenceOf(site(0, 0, p), now, S);
+  check(e({ status: 'CONVERTED', bookedAt: ago(1) }) > e({ status: 'CONVERTED' }) && e({ status: 'CONVERTED' }) > e({}) && e({}) > 0,
+    'evidence: booked > became a lead > just seen > 0');
+  check(e({ status: 'REJECTED', rejectReason: 'ALREADY_HAS_LIFT' }) < 0 && e({ status: 'REJECTED', rejectReason: 'NOT_READY_YET' }) > 0,
+    'a site that already has a lift counts slightly against; "not ready yet" counts for (it will be)');
+  check(Math.abs(e({ floors: 20 }) - 2 * e({})) < 1e-9, 'a G+19 building counts double (bigger lift order)');
+  check(Math.abs(e({ createdAt: ago(61) }) / e({ createdAt: ago(1) }) - 0.5) < 0.01, 'evidence halves every 60 days (construction moves on)');
+
+  const A = { lat: 18.5596, lng: 73.7799 };
+  const B = { lat: 18.5975, lng: 73.7629 }; // ~4.5 km away
+  check(heatGrid([site(A.lat, A.lng, { status: 'REJECTED', rejectReason: 'ALREADY_HAS_LIFT' })], [], now, S) === null, 'no good evidence yet: no heatmap (the app falls back to "Try here")');
+  const g = heatGrid([site(A.lat, A.lng, { status: 'CONVERTED', bookedAt: ago(2) }), site(B.lat, B.lng)], [], now, S)!;
+  check(g.values.length === g.rows * g.cols && g.rows * g.cols <= 6400 * 1.1, `grid stays phone-sized (${g.rows}×${g.cols})`);
+  check(heatAt(g, A.lat, A.lng) > 0.9 && heatAt(g, B.lat, B.lng) < heatAt(g, A.lat, A.lng), `hottest at the booked site; a plain sighting is cooler (${heatAt(g, A.lat, A.lng)} vs ${heatAt(g, B.lat, B.lng)})`);
+  check(heatAt(g, A.lat - 0.05, A.lng) === 0, 'far from everything (5 km from any site): no heat');
+
+  // Yield, not footprint: the same sites, but riders combed around A for the last few days.
+  const [ai, aj] = cellKey(A.lat, A.lng, S.effortCellM).split(':').map(Number);
+  const cellA = [-1, 0, 1].flatMap(di => [-1, 0, 1].map(dj => `${ai + di}:${aj + dj}`)); // the streets around A
+  const combed = heatGrid([site(A.lat, A.lng, { status: 'CONVERTED' }), site(B.lat, B.lng, { status: 'CONVERTED' })],
+    [0, 1, 2, 3, 4, 5].map(d => ({ day: ago(d).slice(0, 10), cells: cellA })), now, S)!;
+  check(heatAt(combed, B.lat, B.lng) > heatAt(combed, A.lat, A.lng), 'two equal finds: the one where riders have NOT been combing recently ranks higher');
+
+  // A lift already installed next door cools the area.
+  const withLift = heatGrid([site(A.lat, A.lng), site(A.lat + 0.001, A.lng, { status: 'REJECTED', rejectReason: 'ALREADY_HAS_LIFT' }), site(B.lat, B.lng)], [], now, S)!;
+  check(heatAt(withLift, B.lat, B.lng) > heatAt(withLift, A.lat, A.lng), '"already has a lift" next door makes that area less promising than an equal one without');
+
+  // Fresh beats stale.
+  const stale = heatGrid([site(A.lat, A.lng, { status: 'CONVERTED', createdAt: ago(360) }), site(B.lat, B.lng, { createdAt: ago(3) })], [], now, S)!;
+  check(heatAt(stale, B.lat, B.lng) > heatAt(stale, A.lat, A.lng), 'a site seen this week outweighs a lead from a year ago');
+
+  const hs = hotspots(g, 3);
+  check(hs.length >= 1 && distanceM(hs[0], A) < 400 && hs.every((h, i) => hs.slice(i + 1).every(o => distanceM(h, o) >= 1200)), 'best spots: the first is at the booked site, all at least 1.2 km apart');
+  const why = whyHere([site(A.lat, A.lng, { status: 'CONVERTED', bookedAt: ago(2) }), site(A.lat + 0.002, A.lng), site(B.lat, B.lng)], [{ day: ago(1).slice(0, 10), cells: cellA }], g, A, now, S);
+  check(why.booked === 1 && why.waiting === 1 && why.leads === 0 && why.daysRiddenRecently > 0.9 && why.heat > 0.9, `"why here": 1 booked + 1 waiting within 1.5 km, ridden yesterday (${JSON.stringify(why)})`);
+
+  const rv = revisits([
+    site(A.lat, A.lng, { status: 'REJECTED', rejectReason: 'NOT_READY_YET', reviewedAt: ago(40) }),
+    site(B.lat, B.lng, { status: 'REJECTED', rejectReason: 'NOT_READY_YET', reviewedAt: ago(10) }),
+    site(B.lat, B.lng, { status: 'REJECTED', rejectReason: 'ALREADY_HAS_LIFT', reviewedAt: ago(40) }),
+  ], now, 30);
+  check(rv.length === 1 && rv[0].lat === A.lat, '"not ready yet" 40 days ago: go back; 10 days ago: not yet; other reasons: never');
+
+  const far = heatGrid([site(18.3, 73.6), site(18.7, 74.1)], [], now, S)!;
+  check(far.rows * far.cols <= 6400 * 1.1 && far.cellM > S.cellM, `sites 60 km apart: bigger cells, still phone-sized (${far.rows}×${far.cols}, ${far.cellM} m)`);
+  check(heatColor(0)[3] === 0 && heatColor(1)[2] > heatColor(1)[0] && heatColor(1)[3] > heatColor(0.3)[3], 'colour: transparent at 0, dark blue and more opaque as the chance rises');
+}

@@ -78,6 +78,7 @@
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
 | RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | mvp:checks 938 OK, mvp:rules PASS (+13), mvp:multiuser 63/63, 42/42 legacy, build PASS |
 | RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | DONE | MVP Rider 2 PR | 2026-09-28 | mvp:checks 967 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
+| RD-3 | Opportunity heatmap for riders (D-35) | DONE | MVP Rider 3 PR | 2026-09-28 | mvp:checks 983 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
@@ -566,3 +567,16 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - `mvp:rules`: +10 route/stats tests.
   - `mvp:multiuser`: new section I (9 checks).
 - **Screenshots:** `docs/mvp/screenshots/rider-2/` 01–04. Map tiles are blank in this session only, because its network blocks openstreetmap.org.
+
+### RD-3 Opportunity heatmap, D-35 (2026-09-28), branch `claude/mvp-rider-3-opportunity-heatmap`
+- **The Owner asked for** a "real heatmap where the probability of finding better sites is highest".
+- **The main point:** a plain heatmap of sightings shows where riders already went. The heat is instead built from outcomes (booked > lead > seen; "already has a lift" counts against), discounted where riders combed recently, and fading with age (D-35).
+- **Built:**
+  - `src/mvp/heat.ts`: `evidenceOf`, `heatGrid` (capped at about 6,400 cells), `heatAt`, `hotspots`, `whyHere`, `revisits`, and `heatColor` (the blue sequential ramp from the dataviz reference palette).
+  - `SiteMap`: heat drawn as one small image, smoothed by the browser (no new dependency). Tapping the map works, and the route line is now dashed dark grey so it doesn't clash with the heat.
+  - The rider's map has a **Best chances / Covered area** toggle, a legend, a tap-for-**Why here** card (a score out of 100, relative to the best spot), and all riders' sites.
+  - Cards: **Best chances** (3 spots with km and Directions) and **Go back: may be ready now** (sites closed "not ready yet" 30+ days ago).
+  - 23 Marathi/Hindi phrases.
+  - Demo: one site closed "not ready yet" 40 days ago.
+- **Checks:** 16 heatmap checks in `mvp-scouting-check.ts`, 75 in total.
+- **Screenshots:** `docs/mvp/screenshots/rider-3/` 01–03.

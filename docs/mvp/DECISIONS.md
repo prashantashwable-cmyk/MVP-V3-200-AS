@@ -373,3 +373,31 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
   2. **Commission:** a small amount per sighting that Sales confirms as a lead, plus a bonus when that lead becomes a booked order. The amounts are in `config.ts`. ⚖ VERIFY the TDS/tax treatment of commission.
   3. **Route tracking:** only while the rider is "On duty" and the app is open. No background tracking.
 - **"Where to find more leads"** will be rule-based (areas near confirmed sites that nobody has covered recently), never AI.
+
+**D-35 Opportunity heatmap for riders (Owner, 2026-09-28: "real heatmap where most probability of finding better sites").**
+- **Rule-based and explainable, not a trained model.** Tapping the map shows why an area scores what it does.
+- **How the heat is computed** (`src/mvp/heat.ts`, settings in `config.ts`):
+  - **Outcome, not count.** Evidence per site:
+
+    | Site | Weight |
+    |---|---|
+    | Booked | 5 |
+    | Became a lead | 3 |
+    | Just seen | 1.5 |
+    | "Not ready yet" | 2 |
+    | Already has a lift / no lift needed | −0.5 |
+    | Other not-useful reasons | −0.25 |
+
+  - **Size:** a taller building counts more, up to double for G+19.
+  - **Yield, not footprint.** Each area's evidence is divided by how much riders combed it recently, so the map does not just repeat where riders already went.
+  - **Time:** evidence halves every 60 days, because construction moves on.
+  - **Spread:** each site's influence reaches about 1.2 km, the size of a construction belt.
+- **What the rider sees:**
+  - A blue map (light to dark = more likely).
+  - The 3 best spots, at least 1.2 km apart, with distance and Directions.
+  - Every rider's sites on the map.
+  - **Revisits:** sites Sales closed as "not ready yet" 30 or more days ago, in purple.
+- The score is relative (100 = the best spot on the map), not a probability.
+- **Next levers (not built):**
+  - Importing MahaRERA registered projects (address, proposed completion date) would be the strongest predictor of where lift shafts will be ready. ⚖ VERIFY the terms of use before importing.
+  - Sales' call outcomes by area are also a candidate.
