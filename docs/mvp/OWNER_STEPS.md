@@ -2,6 +2,8 @@
 
 Claude cannot do these from its session: they need your own Google or GitHub login. Each one takes a few minutes.
 
+**Start here:** `docs/mvp/OWNER_PACK.md` has ready-to-send e-mails (MahaRERA permission, CA on TDS) and the short list of what is left.
+
 ## 1. Put the fixes on the phone link. DONE on 2026-09-27 (Claude merged #16 and #17 and redeployed)
 1. Open https://github.com/prashantashwable-cmyk/MVP-V3-200-AS/pull/16. Click **Ready for review**, then **Merge pull request**, then **Confirm**.
 2. Do the same for https://github.com/prashantashwable-cmyk/MVP-V3-200-AS/pull/17.
