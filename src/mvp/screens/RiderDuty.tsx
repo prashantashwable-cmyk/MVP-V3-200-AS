@@ -131,7 +131,7 @@ export const RiderProgress: React.FC<{ board: RiderBoard | null; me: string }> =
               return (
                 <a key={s.key} href={`https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(5)},${lng.toFixed(5)}`} target="_blank" rel="noopener noreferrer"
                   className="flex items-center justify-between min-h-[44px] px-3 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 text-xs font-bold text-[#2563eb]">
-                  <span>{t('Try here')} · {s.nearbySites} {t('sites nearby')}</span><Navigation className="w-4 h-4" />
+                  <span>{t('Try here')} · {s.nearbySites} {s.nearbySites === 1 ? t('site nearby') : t('sites nearby')}</span><Navigation className="w-4 h-4" />
                 </a>
               );
             })}

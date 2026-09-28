@@ -250,6 +250,7 @@ const PHRASES: [string, string, string][] = [
   ['Try here next (blue squares): next to sites already found, not covered in the last 30 days.', 'पुढे इथे जा (निळे चौकोन): आधी सापडलेल्या साइट्सच्या जवळ, गेल्या 30 दिवसांत न फिरलेले.', 'आगे यहाँ जाएं (नीले वर्ग): पहले मिली साइट्स के पास, पिछले 30 दिनों में न घूमे हुए.'],
   ['Try here', 'इथे जा', 'यहाँ जाएं'],
   ['sites nearby', 'जवळच्या साइट्स', 'पास की साइट्स'],
+  ['site nearby', 'जवळची साइट', 'पास की साइट'],
   ['Record a few sites and the app will suggest where to go next.', 'काही साइट्स नोंदवा, मग ॲप पुढे कुठे जायचे ते सुचवेल.', 'कुछ साइट्स दर्ज करें, फिर ऐप बताएगा आगे कहाँ जाना है.'],
   ['Leaderboard this week', 'या आठवड्याची क्रमवारी', 'इस हफ़्ते की रैंकिंग'],
   ['No sites recorded this week yet.', 'या आठवड्यात अजून साइट्स नोंदवल्या नाहीत.', 'इस हफ़्ते अभी कोई साइट दर्ज नहीं हुई.'],

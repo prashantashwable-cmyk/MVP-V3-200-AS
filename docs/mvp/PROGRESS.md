@@ -77,7 +77,7 @@
 | 14 | Go-live readiness and first real lift | TODO | | | Owner-run checklist |
 | FU-1 | Follow-up manager (D-32): the app chases late work | DONE | MVP Follow-up 1 PR | 2026-09-27 | Owner-requested after Step 11. mvp:checks 875 OK, mvp:rules 120/120, mvp:multiuser 56/56, 42/42 legacy, build PASS |
 | RD-1 | Field scouting part 1 (D-34): rider sightings on the bike, Sales inbox + map, convert to lead | DONE | MVP Rider 1 PR | 2026-09-28 | mvp:checks 938 OK, mvp:rules PASS (+13), mvp:multiuser 63/63, 42/42 legacy, build PASS |
-| RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | TODO | | | |
+| RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | DONE | MVP Rider 2 PR | 2026-09-28 | See step note |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
@@ -541,3 +541,28 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - `mvp:rules`: +13 D-34 tests.
 - **Not verifiable in this session:** map tiles and addresses, because the session's network blocks openstreetmap.org. On phones they load normally, and without an address the sighting keeps its GPS coordinates.
 - **Screenshots:** `docs/mvp/screenshots/rider-1/` 01–06.
+
+### RD-2 Field scouting part 2, D-34 (2026-09-28), branch `claude/mvp-rider-2-route-commission`
+- **Built (on the rider's "Scout sites" screen):**
+  - **Start day / End day:**
+    - The route is recorded only while on duty with the screen open.
+    - A point is kept every 25 m moved, and saved every 3 minutes and when the app is hidden.
+    - The screen is kept awake on the bike mount (Wake Lock).
+  - Today's km, squares and sites.
+  - The map shows today's route and the covered 500 m squares (green).
+  - **"Try here"** squares (blue, with Directions): rule-based, squares next to found sites that nobody covered in the last 30 days.
+  - **My earnings this month:**
+    - ₹50 per site Sales confirmed, plus ₹1,000 when that lead is booked (set in `config.ts`, ⚖ VERIFY TDS).
+    - The booked bonus is marked automatically when the booking token is paid on the lead (`syncLeadStatus`).
+  - **Leaderboard this week:** confirmed sites, then sites, then squares.
+- **For the Admin/Owner:** a **Rider commission (month)** table on Reports.
+- **Data:**
+  - New collections `rider_routes/{uid}_{day}` (GPS points: the rider and Admin/Owner only) and `rider_stats/{uid}_{day}` (km and squares only, shared with Sales for the leaderboard).
+  - `SiteScout.bookedAt`.
+- **Pure logic** in `scouting.ts`: `routeKm` (ignores jitter and glitches), `cellKey`, `whereNext`, `earningsFor`, `leaderboard`, `weekOf`, `monthOf`.
+- **Found by the multi-user test:** a rider's first "Start day" was refused on the real rules, because reading a route that doesn't exist yet was denied. Fixed: route reads are now allowed by the owner-bearing document id.
+- **Checks:**
+  - `mvp-scouting-check.ts` is now 59 checks. It includes the end-to-end booking bonus: sighting → lead → booked order → ₹1,050.
+  - `mvp:rules`: +10 route/stats tests.
+  - `mvp:multiuser`: new section I (9 checks).
+- **Screenshots:** `docs/mvp/screenshots/rider-2/` 01–04. Map tiles are blank in this session only, because its network blocks openstreetmap.org.

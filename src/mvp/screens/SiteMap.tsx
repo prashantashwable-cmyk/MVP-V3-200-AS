@@ -80,7 +80,7 @@ const SiteMap: React.FC<SiteMapProps> = ({ points, me, route = [], areas = [], o
           </CircleMarker>
         ))}
         {me && <CircleMarker center={[me.lat, me.lng]} radius={7} pathOptions={{ color: '#2563eb', weight: 3, fillColor: '#93c5fd', fillOpacity: 1 }}><Tooltip>You are here</Tooltip></CircleMarker>}
-        <FitTo pts={points.length ? points : me ? [me] : route} />
+        <FitTo pts={points.length || route.length ? [...points, ...route] : me ? [me] : []} />
       </MapContainer>
     </div>
   );

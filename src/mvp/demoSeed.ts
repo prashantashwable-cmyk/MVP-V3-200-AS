@@ -15,6 +15,7 @@ import { saveEvidence } from './services/evidenceService';
 import { assignQcInspector, checkInAtSite, CHECKLIST_ITEMS, completeWork, setChecklistItem, startWork } from './services/installationService';
 import { submitQcDecision } from './services/qcHandoverService';
 import { convertSightingToLead, createSighting, rejectSighting } from './services/scoutService';
+import { saveRoutePoints, startDuty } from './services/riderService';
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -168,6 +169,18 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
   const salesPerson: MvpActor = { ...sales, name: DEMO_PEOPLE.sales.name };
   await convertSightingToLead(ctx, salesPerson, seen[3].id, { name: 'Mr. Jagtap (site engineer)', phone: '9822000077', consent: true, floors: 11 });
   await rejectSighting(ctx, salesPerson, seen[4].id, 'ALREADY_HAS_LIFT');
+  // Ravi's ride today (Baner → Wakad → Hinjewadi), so the route, squares and leaderboard show.
+  await startDuty(ctx, rider);
+  const ride: { lat: number; lng: number; t: string }[] = [];
+  const legs = spots.slice(0, 3);
+  const t0 = Date.now() - 3 * 3_600_000;
+  for (let leg = 0; leg < legs.length - 1; leg++) {
+    for (let k = 0; k < 12; k++) {
+      const f = k / 12;
+      ride.push({ lat: legs[leg][0] + (legs[leg + 1][0] - legs[leg][0]) * f, lng: legs[leg][1] + (legs[leg + 1][1] - legs[leg][1]) * f, t: new Date(t0 + (leg * 12 + k) * 300_000).toISOString() });
+    }
+  }
+  await saveRoutePoints(ctx, rider, ride);
 
   return { customerId: o3.customerId };
 }
