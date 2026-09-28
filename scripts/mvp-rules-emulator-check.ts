@@ -276,6 +276,21 @@ async function main() {
   ok(await allowed(updateDoc(doc(db.sales2, 'site_scouts/sc1'), { status: 'CONVERTED', reviewedBy: uid.sales2, reviewedAt: '2026-10-05', leadId: 'l1', updatedAt: '2026-10-05', version: 2 })), 'D-34: another salesperson converts it');
   ok(!(await allowed(updateDoc(doc(db.sales, 'site_scouts/sc1'), { notes: 'x' }))), 'D-34: once handled, the rider cannot change it');
   ok(!(await allowed(deleteDoc(doc(db.admin, 'site_scouts/sc1')))), 'D-34: sightings are never deleted');
+  // D-34 part 2: a rider's route is private (rider + Admin/Owner); the daily km/squares are shared with Sales.
+  const day = '2026-10-05';
+  const route = (by: string) => ({ id: `${by}_${day}`, riderId: by, day, points: [{ lat: 18.55, lng: 73.78, t: '2026-10-05T04:00:00Z' }], onDuty: true, startedAt: 'x', updatedAt: 'x', version: 0 });
+  ok(await allowed(setDoc(doc(db.sales, `rider_routes/${uid.sales}_${day}`), route(uid.sales))), 'D-34: a rider saves their own route');
+  ok(!(await allowed(setDoc(doc(db.sales, `rider_routes/${uid.sales2}_${day}`), route(uid.sales2)))), 'D-34: nobody saves a route in someone else\'s name');
+  ok(!(await allowed(setDoc(doc(db.sales, `rider_routes/${uid.sales}_anything`), { ...route(uid.sales), id: 'x' }))), 'D-34: the route id must be <uid>_<day>');
+  ok(!(await allowed(getDoc(doc(db.sales2, `rider_routes/${uid.sales}_${day}`)))), 'D-34: another salesperson cannot see a rider\'s route');
+  ok(await allowed(getDoc(doc(db.owner, `rider_routes/${uid.sales}_${day}`))), 'D-34: the Owner can see a rider\'s route');
+  ok(await allowed(getDocs(query(collection(db.sales, 'rider_routes'), where('riderId', '==', uid.sales)))), 'D-34: a rider lists their own routes');
+  ok(!(await allowed(getDoc(doc(db.tech1, `rider_routes/${uid.sales}_${day}`)))), 'D-34: a technician cannot see routes');
+  const stat = (by: string) => ({ id: `${by}_${day}`, riderId: by, riderName: 'x', day, km: 12.5, cells: ['1:1'], updatedAt: 'x', version: 0 });
+  ok(await allowed(setDoc(doc(db.sales, `rider_stats/${uid.sales}_${day}`), stat(uid.sales))), 'D-34: a rider saves their daily km and squares');
+  ok(!(await allowed(setDoc(doc(db.sales2, `rider_stats/${uid.sales}_${day}`), stat(uid.sales)))), 'D-34: nobody inflates another rider\'s stats');
+  ok(await allowed(getDocs(collection(db.sales2, 'rider_stats'))), 'D-34: Sales sees everyone\'s daily stats (leaderboard)');
+  ok(!(await allowed(getDocs(collection(db.cust, 'rider_stats')))), 'D-34: customers cannot see rider stats');
   // D-33 "Need more time": the promise lives in the task's own `data`, which only its assignee (or the Admin) may write.
   ok(await allowed(updateDoc(doc(db.tech2, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-10-08T12:00:00Z', count: 1, reason: 'crane', by: uid.tech2 } }, updatedAt: '2026-10-05', version: 1 })), 'D-33: the assignee records their promised date');
   ok(!(await allowed(updateDoc(doc(db.tech1, 'tasks/ord1__INSTALLATION__fu'), { data: { promise: { at: '2026-12-01T12:00:00Z', count: 1, reason: 'x', by: uid.tech1 } } }))), 'D-33: someone else cannot promise on their behalf');

@@ -13,6 +13,7 @@ import { Card } from '../../components/Common';
 import { buildReports } from '../services/reports';
 import { formatInr } from '../format';
 import { MVP_STAGE_LABELS } from '../stage';
+import { riderCommissionTable } from '../services/riderService';
 import { ErrorNote, Loading, SectionTitle, useLoad, useMvpCtx } from './ui';
 
 const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -20,8 +21,9 @@ const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value
 );
 
 export const Reports: React.FC<{ user: User }> = ({ user }) => {
-  const { ctx } = useMvpCtx(user);
+  const { ctx, actor } = useMvpCtx(user);
   const { data, error, loading } = useLoad(() => buildReports(ctx), [ctx], { every: 5 });
+  const riders = useLoad(() => riderCommissionTable(ctx, actor), [ctx], { every: 5 });
   if (loading && !data) return <Loading label="Loading reports…" />;
   if (error) return <ErrorNote message={`Could not load reports: ${error}`} />;
   if (!data) return null;
@@ -60,6 +62,16 @@ export const Reports: React.FC<{ user: User }> = ({ user }) => {
         <Row label="QC pass" value={data.quality.qcPass} />
         <Row label="Rework" value={data.quality.rework} />
         <Row label="Complaints" value={data.quality.complaints} />
+      </Card>
+
+      <Card className="p-4">
+        <SectionTitle>Rider commission ({riders.data?.month ?? 'this month'})</SectionTitle>
+        <p className="text-xs text-warmgray mb-1">Per site Sales confirmed + bonus when it was booked. ⚖ VERIFY TDS with the CA before paying.</p>
+        {riders.error && <ErrorNote message={`Could not load rider commission: ${riders.error}`} />}
+        {(riders.data?.rows ?? []).length === 0 && <p className="text-xs text-warmgray">No rider sites this month yet.</p>}
+        {(riders.data?.rows ?? []).map(r => (
+          <Row key={r.riderId} label={`${r.name} (${r.confirmed} confirmed · ${r.booked} booked · ${r.pending} waiting)`} value={formatInr(r.amount)} />
+        ))}
       </Card>
 
       <Card className="p-4">

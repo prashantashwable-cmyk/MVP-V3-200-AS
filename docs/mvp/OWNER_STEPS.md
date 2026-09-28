@@ -50,6 +50,17 @@ The app already chases people whenever anyone opens it. The robot does the same 
 
 Also on the **Users** screen: tap **Add mobile** next to each staff member. The chase list needs this for its WhatsApp and Call buttons.
 
+## 6. Start a field rider (about 5 min per rider)
+1. **Invite the rider:** More → Users → Invite someone. Enter their Gmail and name, and role **sales**. Then tap **Add mobile**.
+2. **On the rider's phone:** open the app link, sign in with Google, and tap **Allow** when asked for location. Then tap ⋮ → **Add to Home screen**, so it opens like an app.
+3. **Daily routine:**
+   - Open **Scout sites** → **Start day**.
+   - At each site, tap **New site: take photo**, then take the board photo, then **Next site**.
+   - Tap **End day** when done.
+   - Keep the screen open on the bike mount; it stays awake by itself.
+4. **Sales** sees every new site in **Sightings**, calls the number on the board photo, and taps **Make it a lead** once the builder agrees.
+5. **Commission** amounts are ₹50 per confirmed site and ₹1,000 when it is booked. Tell Claude if you want different amounts. Check TDS with your CA before the first payout (Reports → Rider commission).
+
 ## Decisions already taken (change any of them by telling Claude)
 - **Marathi and Hindi for field screens:** done for the technician, surveyor, QC and customer screens and the shared order screen. Admin screens stay English. A native speaker should review the wording (`src/mvp/i18nUi.ts`).
 - **Access after a person finishes their last task:** kept as it is. Staff see an order only while they have an open task on it; Admin and Owner always see everything. This keeps customer data visible to the fewest people.

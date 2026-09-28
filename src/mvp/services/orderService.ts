@@ -212,6 +212,15 @@ async function syncLeadStatus(ctx: MvpCtx, order: OrderRecord, status: MvpLeadSt
   if (!lead || leadStatus(lead) === status) return;
   if (leadStatus(lead) === 'WON' && status === 'LOST') return; // a won lead stays won
   await repo.update(lead.id, { mvpStatus: status, stage: LEGACY_STAGE_FOR[status], updatedAt: nowOf(ctx).toISOString() });
+  // D-34: a lead a rider found is now a booked order — mark the sighting for the booking bonus.
+  if (status === 'WON' && lead.scoutId) {
+    try {
+      const now = nowOf(ctx).toISOString();
+      await getRepository<{ id: string; bookedAt?: string; updatedAt: string }>('site_scouts', ctx).update(lead.scoutId, { bookedAt: now, updatedAt: now });
+    } catch (err) {
+      console.error('Could not mark the sighting as booked (commission):', err);
+    }
+  }
 }
 
 export interface ApplyResult {
