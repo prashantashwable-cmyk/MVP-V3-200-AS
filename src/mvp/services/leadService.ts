@@ -8,6 +8,7 @@ import type { MvpActor, MvpCtx } from './orderService';
 import { leadRepository, MvpError, normalizeIndianMobile, nowOf } from './orderService';
 import { recordAuditEvent, newCorrelationId } from '../../lib/audit';
 import { leadOwner, leadStatus, type MvpLead } from '../leadModel';
+import { validLatLng } from '../scouting';
 
 export type LeadTab = 'MINE' | 'FOLLOW_UPS' | 'WON' | 'LOST';
 
@@ -56,6 +57,33 @@ export async function setFollowUp(ctx: MvpCtx, actor: MvpActor, leadId: string, 
   await recordAuditEvent(ctx, {
     actorId: actor.userId, actorRole: actor.role, action: 'LEAD_FOLLOW_UP_SET', entityType: 'Lead', entityId: leadId,
     before: { nextFollowUp: lead.nextFollowUp }, after: { nextFollowUp }, reason: note, source: 'ui', correlationId: newCorrelationId(),
+  });
+  return updated;
+}
+
+/**
+ * D-37: puts a lead on the map (the address looked up, or the salesperson's own GPS at the
+ * site). Owner of the lead or the Admin; only the building's latitude/longitude change.
+ */
+export async function setLeadLocation(ctx: MvpCtx, actor: MvpActor, leadId: string, at: { lat: number; lng: number }, how: 'address' | 'gps'): Promise<MvpLead> {
+  const repo = leadRepository(ctx);
+  const lead = await repo.get(leadId);
+  if (!lead) throw new MvpError('not_found', `Lead ${leadId} not found.`);
+  if (actor.role !== 'admin' && !(actor.role === 'sales' && leadOwner(lead) === actor.userId)) {
+    throw new MvpError('forbidden', 'This is not your lead.');
+  }
+  if (!validLatLng(at.lat, at.lng)) throw new MvpError('invalid', 'That location is not valid.');
+  const lat = Math.round(at.lat * 1e5) / 1e5;
+  const lng = Math.round(at.lng * 1e5) / 1e5;
+  // Versioned: buildingInfo is written as a whole, so a save that raced another edit of the
+  // same lead fails ("changed by someone else") instead of silently undoing it.
+  const updated = await repo.update(leadId, {
+    buildingInfo: { ...lead.buildingInfo, latitude: lat, longitude: lng }, updatedAt: nowOf(ctx).toISOString(),
+  } as Partial<MvpLead>, lead.version ?? 0);
+  await recordAuditEvent(ctx, {
+    actorId: actor.userId, actorRole: actor.role, action: 'LEAD_LOCATION_SET', entityType: 'Lead', entityId: leadId,
+    before: { latitude: lead.buildingInfo?.latitude, longitude: lead.buildingInfo?.longitude } as any, after: { latitude: lat, longitude: lng } as any,
+    reason: how === 'gps' ? 'Set from GPS at the site' : 'Found from the address', source: 'ui', correlationId: newCorrelationId(),
   });
   return updated;
 }

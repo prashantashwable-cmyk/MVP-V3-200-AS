@@ -80,6 +80,7 @@
 | RD-2 | Field scouting part 2 (D-34): on-duty route, area covered, where next, commission, leaderboard | DONE | MVP Rider 2 PR | 2026-09-28 | mvp:checks 967 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
 | RD-3 | Opportunity heatmap for riders (D-35) | DONE | MVP Rider 3 PR | 2026-09-28 | mvp:checks 983 OK, mvp:rules 147/147, mvp:multiuser 72/72, 42/42 legacy, build PASS |
 | RD-4 | Planned projects and the lift window (D-36) | DONE | MVP Rider 4 PR | 2026-09-28 | mvp:checks 1011 OK, mvp:rules 155/155, mvp:multiuser 77/77, 42/42 legacy, build PASS |
+| SL-5 | Sales leads map and today's visits (D-37) | DONE | MVP Sales 5 PR | 2026-09-29 | mvp:checks 1028 OK, mvp:multiuser 79/79, 42/42 legacy, build PASS (rules unchanged) |
 | FU-2 | Work assistant (D-33): "My day", "can't finish", look-ahead, customer nudges, slow stages | DONE | MVP Follow-up 2 PR | 2026-09-27 | mvp:checks 908 OK, mvp:rules 123/123, mvp:multiuser 63/63, 42/42 legacy, build PASS. Also fixes a production bug: staff task lists failed on real Firestore (issue 35) |
 
 ## Commands (filled in by Step 00)
@@ -619,3 +620,22 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - MahaRERA permission (Owner).
   - The lift-window months need checking against real orders (Owner).
   - Address lookups are capped at 100 per paste, one per second (OpenStreetMap fair use, ⚖ VERIFY). Bigger lists need Latitude/Longitude columns.
+
+### SL-5 Sales leads map and today's visits, D-37 (2026-09-29), branch `claude/mvp-sales-5-leads-map`
+- **The Owner's rider message** ended with "Daily routine schedule… All leads then organise on map". This step builds that part for Sales.
+- **Built:**
+  - `src/mvp/visitPlan.ts` (pure):
+    - `urgencyOf` (IST calendar days), `isOpenLead`, `locationOf`
+    - `planVisits` (nearest next stop plus a 2-opt pass)
+    - `directionsLinks` (Google Maps, 4 stops per link)
+  - `leadService.setLeadLocation`: owner or Admin, validated, rounded, audited.
+  - `screens/LeadsMapPlan.tsx`: `LeadsMap` (urgency colours, legend with counts), `DayPlan` (numbered stops, km, Call, directions), `NoLocation` (Find by address, or Here by GPS).
+  - `LeadsList`: a List / Map / Today's visits switch.
+  - 19 Marathi/Hindi phrases.
+  - Demo: 5 leads with locations and follow-ups due, and Mrs. Deshpande due without a location.
+- **Checks:**
+  - New `scripts/mvp-leadsmap-check.ts`: 17 checks, added to `mvp:checks`.
+  - Multi-user section K: +2, on the real rules.
+  - `firestore.rules` is unchanged.
+- **Screenshots:** `docs/mvp/screenshots/sales-5/` 01–04.
+

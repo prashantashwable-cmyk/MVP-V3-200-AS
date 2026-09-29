@@ -294,7 +294,23 @@ const PHRASES: [string, string, string][] = [
   ['floors', 'मजले', 'मंज़िलें'],
   ['A rider has recorded this site', 'रायडरने ही साइट नोंदवली आहे', 'राइडर ने यह साइट दर्ज की है'],
   ['Planned project', 'नियोजित प्रकल्प', 'योजना वाला प्रोजेक्ट'],
-  ['planned buildings due for a lift', 'लिफ्टची वेळ आलेल्या नियोजित इमारती', 'लिफ्ट के समय वाली योजना की इमारतें'],
+  ['planned buildings due for a lift', 'लिफ्टची वेळ आलेल्या नियोजित इमारती', 'लिफ्ट के समय वाली योजना की इमारतें'],  // D-37 Sales leads map and day plan
+  ["Today's visits", 'आजच्या भेटी', 'आज की विज़िट'],
+  ['Overdue', 'उशीर झालेले', 'देर हो चुकी'],
+  ['No follow-up date', 'फॉलो-अप तारीख नाही', 'फ़ॉलो-अप तारीख नहीं'],
+  ['leads are not on the map yet', 'लीड्स अजून नकाशावर नाहीत', 'लीड अभी नक्शे पर नहीं हैं'],
+  ['lead is not on the map yet', 'लीड अजून नकाशावर नाही', 'लीड अभी नक्शे पर नहीं है'],
+  ['Find on map', 'नकाशावर शोधा', 'नक्शे पर खोजें'],
+  ['Find', 'शोधा', 'खोजें'],
+  ["I'm at the site", 'मी साइटवर आहे', 'मैं साइट पर हूँ'],
+  ['Here', 'इथे', 'यहाँ'],
+  ['not found, try GPS at the site', 'सापडले नाही, साइटवर GPS वापरा', 'नहीं मिला, साइट पर GPS इस्तेमाल करें'],
+  ['Leads due today or overdue, nearest first from where you are. Straight-line km; the road is longer.', 'आज किंवा आधीच उशीर झालेल्या लीड्स, तुमच्यापासून जवळच्या आधी. सरळ रेषेतील किमी; रस्ता जास्त लांब.', 'आज या पहले से देर वाली लीड, आपसे सबसे पास वाली पहले. सीधी रेखा के किमी; सड़क ज़्यादा लंबी.'],
+  ['Waiting for your location…', 'तुमच्या लोकेशनची वाट पाहत आहे…', 'आपकी लोकेशन का इंतज़ार…'],
+  ['Directions for all stops', 'सर्व थांब्यांसाठी रस्ता', 'सभी स्टॉप के लिए रास्ता'],
+  ['stops', 'थांबे', 'स्टॉप'],
+  ['No visits due today. Set a follow-up date on a lead to plan it here.', 'आज भेटी नाहीत. इथे नियोजनासाठी लीडवर फॉलो-अप तारीख टाका.', 'आज कोई विज़िट नहीं. यहाँ योजना के लिए लीड पर फ़ॉलो-अप तारीख डालें.'],
+  ['Call', 'कॉल करा', 'कॉल करें'],
 ];
 
 const TABLE: Record<'mr' | 'hi', Record<string, string>> = { mr: {}, hi: {} };
