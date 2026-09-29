@@ -7,19 +7,20 @@
 
 import { distanceM } from './scouting';
 import { leadStatus, type MvpLead } from './leadModel';
+import { dayKeyOf } from './followUp';
+import { MY_DAY_SOON_HOURS } from './config';
 
 export type LeadUrgency = 'OVERDUE' | 'TODAY' | 'SOON' | 'LATER' | 'NONE';
 
 const OPEN = ['NEW', 'CONTACTED', 'QUALIFIED', 'SURVEY', 'QUOTE'];
-const IST_OFFSET_MS = 5.5 * 3_600_000;
-const istDay = (d: Date) => new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+const istDay = dayKeyOf; // calendar day in the company's time zone (config TIME_ZONE)
 
 export function isOpenLead(l: Pick<MvpLead, 'mvpStatus' | 'stage'>): boolean {
   return OPEN.includes(leadStatus(l));
 }
 
 /** How urgent the lead's next follow-up is (calendar days in IST). */
-export function urgencyOf(l: Pick<MvpLead, 'nextFollowUp'>, now: Date, soonDays = 3): LeadUrgency {
+export function urgencyOf(l: Pick<MvpLead, 'nextFollowUp'>, now: Date, soonDays = MY_DAY_SOON_HOURS / 24): LeadUrgency {
   if (!l.nextFollowUp) return 'NONE';
   const due = new Date(l.nextFollowUp);
   if (Number.isNaN(due.getTime())) return 'NONE';

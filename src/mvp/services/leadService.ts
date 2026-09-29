@@ -75,9 +75,11 @@ export async function setLeadLocation(ctx: MvpCtx, actor: MvpActor, leadId: stri
   if (!validLatLng(at.lat, at.lng)) throw new MvpError('invalid', 'That location is not valid.');
   const lat = Math.round(at.lat * 1e5) / 1e5;
   const lng = Math.round(at.lng * 1e5) / 1e5;
+  // Versioned: buildingInfo is written as a whole, so a save that raced another edit of the
+  // same lead fails ("changed by someone else") instead of silently undoing it.
   const updated = await repo.update(leadId, {
     buildingInfo: { ...lead.buildingInfo, latitude: lat, longitude: lng }, updatedAt: nowOf(ctx).toISOString(),
-  } as Partial<MvpLead>);
+  } as Partial<MvpLead>, lead.version ?? 0);
   await recordAuditEvent(ctx, {
     actorId: actor.userId, actorRole: actor.role, action: 'LEAD_LOCATION_SET', entityType: 'Lead', entityId: leadId,
     before: { latitude: lead.buildingInfo?.latitude, longitude: lead.buildingInfo?.longitude } as any, after: { latitude: lat, longitude: lng } as any,

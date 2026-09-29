@@ -22,10 +22,11 @@ const SiteMap = lazy(() => import('./SiteMap'));
 export const URGENCY_COLOR: Record<LeadUrgency, string> = { OVERDUE: '#b91c1c', TODAY: '#B8873D', SOON: '#256abf', LATER: '#15803d', NONE: '#6b7280' };
 const URGENCY_LABEL: Record<LeadUrgency, string> = { OVERDUE: 'Overdue', TODAY: 'Today', SOON: 'Next 3 days', LATER: 'Later', NONE: 'No follow-up date' };
 
-function useFix(): Fix | null {
+function useFix(): { fix: Fix | null; gpsNote: string } {
   const [fix, setFix] = useState<Fix | null>(null);
-  useEffect(() => watchFix(setFix, () => undefined), []);
-  return fix;
+  const [gpsNote, setGpsNote] = useState('');
+  useEffect(() => watchFix(f => { setFix(f); setGpsNote(''); }, setGpsNote), []);
+  return { fix, gpsNote };
 }
 
 /** Leads with no location yet: place them from the address, or from GPS when standing at the site. */
@@ -68,7 +69,7 @@ const NoLocation: React.FC<{ user: User; leads: MvpLead[]; fix: Fix | null; onSa
 
 export const LeadsMap: React.FC<{ user: User; leads: MvpLead[]; onOpenLead: (id: string) => void; onSaved: () => void }> = ({ user, leads, onOpenLead, onSaved }) => {
   const t = useT();
-  const fix = useFix();
+  const { fix } = useFix();
   const now = new Date();
   const open = leads.filter(isOpenLead);
   const placed = open.filter(l => locationOf(l));
@@ -92,7 +93,7 @@ export const LeadsMap: React.FC<{ user: User; leads: MvpLead[]; onOpenLead: (id:
 
 export const DayPlan: React.FC<{ user: User; leads: MvpLead[]; onOpenLead: (id: string) => void; onSaved: () => void }> = ({ user, leads, onOpenLead, onSaved }) => {
   const t = useT();
-  const fix = useFix();
+  const { fix, gpsNote } = useFix();
   const now = new Date();
   const due = leads.filter(l => isOpenLead(l) && ['OVERDUE', 'TODAY'].includes(urgencyOf(l, now)));
   const placed = due.filter(l => locationOf(l)).map(l => ({ ...l, ...locationOf(l)! }));
@@ -105,7 +106,7 @@ export const DayPlan: React.FC<{ user: User; leads: MvpLead[]; onOpenLead: (id: 
     <div className="space-y-2">
       <Card className="p-3 space-y-1">
         <div className="text-sm font-bold flex items-center gap-1"><MapPin className="w-4 h-4 text-[#B8873D]" />{t("Today's visits")}: {plan.order.length} · {plan.km} km</div>
-        <div className="text-[11px] text-warmgray">{t('Leads due today or overdue, nearest first from where you are. Straight-line km; the road is longer.')}{!start ? ` ${t('Waiting for your location…')}` : ''}</div>
+        <div className="text-[11px] text-warmgray">{t('Leads due today or overdue, nearest first from where you are. Straight-line km; the road is longer.')}{!start ? ` ${gpsNote ? t(gpsNote) : t('Waiting for your location…')}` : ''}</div>
         {links.map((href, i) => (
           <a key={i} href={href} target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-between min-h-[48px] px-3 rounded-xl bg-royalemerald text-white text-sm font-bold">
