@@ -7,7 +7,8 @@ import { Button, Card } from '../../components/Common';
 import { filterLeads, listLeadsFor, type LeadTab } from '../services/leadService';
 import { leadStatus } from '../leadModel';
 import { formatDateTime } from '../format';
-import { ErrorNote, Loading, useLoad, useMvpCtx } from './ui';
+import { ErrorNote, Loading, useLoad, useMvpCtx, useT } from './ui';
+import { DayPlan, LeadsMap } from './LeadsMapPlan';
 
 const TABS: { id: LeadTab; label: string }[] = [
   { id: 'MINE', label: 'My leads' }, { id: 'FOLLOW_UPS', label: 'Follow-ups' }, { id: 'WON', label: 'Won' }, { id: 'LOST', label: 'Lost' },
@@ -15,8 +16,10 @@ const TABS: { id: LeadTab; label: string }[] = [
 
 export const LeadsList: React.FC<{ user: User; onOpenLead: (id: string) => void; onNewLead: () => void }> = ({ user, onOpenLead, onNewLead }) => {
   const { ctx, actor } = useMvpCtx(user);
+  const t = useT();
   const [tab, setTab] = useState<LeadTab>('MINE');
-  const { data, error, loading } = useLoad(() => listLeadsFor(ctx, actor), [ctx]);
+  const [view, setView] = useState<'LIST' | 'MAP' | 'TODAY'>('LIST');
+  const { data, error, loading, reload } = useLoad(() => listLeadsFor(ctx, actor), [ctx]);
   if (loading && !data) return <Loading label="Loading leads…" />;
   if (error) return <ErrorNote message={`Could not load leads: ${error}`} />;
   const leads = filterLeads(data ?? [], tab);
@@ -27,6 +30,17 @@ export const LeadsList: React.FC<{ user: User; onOpenLead: (id: string) => void;
         <h2 className="text-lg font-bold text-charcoal">Leads</h2>
         {(user.role === 'sales' || user.role === 'admin') && <Button variant="primary" onClick={onNewLead}><Plus className="w-4 h-4" />New lead</Button>}
       </div>
+      {/* D-37: the same leads as a list, on a map, or as today's visit plan. */}
+      <div className="flex gap-2 text-xs">
+        {(['LIST', 'MAP', 'TODAY'] as const).map(v => (
+          <button key={v} onClick={() => setView(v)} className={`min-h-[36px] px-3 rounded-full font-bold cursor-pointer ${view === v ? 'bg-[#B8873D] text-white' : 'bg-white border border-[#f0ebe2]'}`}>
+            {v === 'LIST' ? t('List') : v === 'MAP' ? t('Map') : t("Today's visits")}
+          </button>
+        ))}
+      </div>
+      {view === 'MAP' && <LeadsMap user={user} leads={data ?? []} onOpenLead={onOpenLead} onSaved={reload} />}
+      {view === 'TODAY' && <DayPlan user={user} leads={data ?? []} onOpenLead={onOpenLead} onSaved={reload} />}
+      {view === 'LIST' && <>
       <div className="flex gap-1 bg-alabaster p-1 rounded-xl">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -50,6 +64,7 @@ export const LeadsList: React.FC<{ user: User; onOpenLead: (id: string) => void;
           </button>
         );
       })}
+      </>}
     </div>
   );
 };

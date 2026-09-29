@@ -514,6 +514,14 @@ async function main() {
   const techPrj = await people.tech1.try('listProspects', '$ctx', '$actor');
   ok(!techPrj.ok, 'a technician cannot list planned projects');
 
+    // ---- K. Sales leads map (D-37) on the real rules: the owner places their lead; nobody else can ----
+  area = 'K leads map';
+  const mapLead = await people.sales.call('createLead', '$ctx', '$actor', { name: 'MU Map Lead', phone: `95${String(30000000 + ++phoneSeq).padStart(8, '0')}`, location: 'Pashan, Pune', source: 'Walk-in', siteType: 'residential', floors: 8, liftRequirement: 'G+7', constructionStage: 'structure-up', consent: true });
+  const placedLead = await people.sales.try('setLeadLocation', '$ctx', '$actor', mapLead.id, { lat: 18.5362, lng: 73.793 }, 'gps');
+  ok(placedLead.ok && placedLead.result.buildingInfo.latitude === 18.5362, `the salesperson puts their own lead on the map through the rules (${placedLead.ok ? 'ok' : placedLead.error!.message.slice(0, 70)})`);
+  const movedByOther = await people.sales2.try('setLeadLocation', '$ctx', '$actor', mapLead.id, { lat: 18.6, lng: 73.9 }, 'gps');
+  ok(!movedByOther.ok, 'another salesperson cannot move it');
+
     // ---- Summary ----
   area = 'summary';
   const byArea: Record<string, { ok: number; fail: number }> = {};

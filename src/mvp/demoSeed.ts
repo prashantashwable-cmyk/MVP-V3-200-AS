@@ -17,6 +17,9 @@ import { submitQcDecision } from './services/qcHandoverService';
 import { convertSightingToLead, createSighting, rejectSighting, scoutRepository } from './services/scoutService';
 import { saveRoutePoints, startDuty } from './services/riderService';
 import { importProspects } from './services/prospectService';
+import { setFollowUp } from './services/leadService';
+import { leadRepository } from './services/orderService';
+
 
 /** A 1×1 PNG so demo evidence renders; demo data only. */
 const DEMO_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -198,6 +201,26 @@ async function seed(ctx: MvpCtx): Promise<{ customerId: string }> {
     { line: 5, name: 'Demo Hill View', regNo: 'DEMO0004', address: 'Bavdhan, Pune', pincode: '411021', lat: 18.5160, lng: 73.7780, completion: months(-5), floors: 9 },
     { line: 6, name: 'Demo Metro Heights', regNo: 'DEMO0005', address: 'Ravet, Pune', pincode: '412101', lat: 18.6440, lng: 73.7470, completion: months(30), floors: 22 },
   ], { source: 'Demo list', dryRun: false });
+
+  // D-37 Sales day plan: leads with follow-ups due (earlier today or overdue, one next week) on
+  // the map; Mrs. Deshpande's (no location yet) shows under "not on the map yet".
+  const at = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const visits: [string, string, string, number, number, number][] = [
+    ['Gokhale Nagar Apartments', '9822000021', 'Gokhale Nagar, Pune', 18.5308, 73.8340, -26],
+    ['Shinde Complex', '9822000022', 'Pashan, Pune', 18.5362, 73.7930, -3],
+    ['More Residency', '9822000023', 'Bavdhan, Pune', 18.5130, 73.7810, -1],
+    ['Kulkarni Plaza', '9822000024', 'Sus Road, Pune', 18.5420, 73.7700, -0.25],
+    ['Bhosale Heights', '9822000025', 'Warje, Pune', 18.4850, 73.8000, 6 * 24],
+  ];
+  for (const [name, phone, location, lat, lng, h] of visits) {
+    const l = await createLead(ctx, sales, {
+      name, phone, location, source: 'Referral', siteType: 'residential', floors: 9, liftRequirement: 'G+8 passenger lift',
+      constructionStage: 'structure-up', consent: true, latitude: lat, longitude: lng,
+    });
+    await setFollowUp(ctx, sales, l.id, at(h));
+  }
+  const deshpande = (await leadRepository(ctx).list()).find(l => l.contactInfo.phone.endsWith('9822000001'));
+  if (deshpande) await setFollowUp(ctx, sales, deshpande.id, at(-0.5));
 
   return { customerId: o3.customerId };
 }

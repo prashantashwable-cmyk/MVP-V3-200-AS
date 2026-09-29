@@ -429,3 +429,27 @@ The Admin's "Needs Attention" section shows every order whose health is not ON_T
   - Each paste looks up at most 100 addresses. A bigger list must bring its own coordinates.
   - ⚖ VERIFY: Nominatim is for light use only. For regular bulk imports, use the Google geocoder with the Owner's key, or lists that already carry coordinates. The map shows the OpenStreetMap attribution.
 - **Access** (`site_prospects`): the Admin writes; Sales (riders) and the Owner read; nobody deletes.
+
+**D-37 Sales leads map and day plan (Owner, 2026-09-28: "Daily routine schedule… All leads then organise on map").**
+- **Leads → List / Map / Today's visits** (one screen; no new tab).
+  - **Map:** open leads coloured by how urgent the next follow-up is.
+
+    | Colour | Meaning |
+    |---|---|
+    | Red | Overdue |
+    | Gold | Today |
+    | Blue | Next 3 days |
+    | Green | Later |
+    | Grey | No follow-up date |
+
+    Days are counted as calendar days in India (IST). Won and lost leads are not shown.
+  - **Today's visits:** open leads due today or overdue, in riding order from the salesperson's GPS.
+    - The order is "nearest next stop", then a clean-up pass that removes crossings (2-opt).
+    - It is a simple, predictable rule: not an optimiser, not ML.
+    - It shows straight-line km (the road is longer), a Call button, and Google Maps directions.
+    - Directions are split into links of 4 stops, because phone browsers accept only 3 waypoints per link.
+- **Leads without a location** (typed in by hand) are listed under the map with two options:
+  - **Find:** looks up the address, using the same OpenStreetMap search as D-36.
+  - **Here:** uses the phone's GPS while standing at the site.
+- **Who may place a lead:** the lead's own salesperson, or the Admin. Only `buildingInfo.latitude/longitude` change, and every change is audited with the old position (`LEAD_LOCATION_SET`). No rules change was needed: the lead owner could already update their own lead.
+

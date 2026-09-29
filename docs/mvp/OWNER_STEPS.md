@@ -61,6 +61,8 @@ Also on the **Users** screen: tap **Add mobile** next to each staff member. The 
    - Tap **End day** when done.
    - Keep the screen open on the bike mount; it stays awake by itself.
 4. **Sales** sees every new site in **Sightings**, calls the number on the board photo, and taps **Make it a lead** once the builder agrees.
+   - **Each morning, Sales opens Leads → Today's visits.** Follow-ups due today or overdue are listed in riding order from where they are. Tap **Directions for all stops**.
+   - Leads typed in by hand without a location show **Find** (from the address) and **Here** (tap it while standing at the site).
 5. **Commission** amounts are ₹50 per confirmed site and ₹1,000 when it is booked. Tell Claude if you want different amounts. Check TDS with your CA before the first payout (Reports → Rider commission).
 
 ## 7. Add planned building projects (about 10 min per list)
