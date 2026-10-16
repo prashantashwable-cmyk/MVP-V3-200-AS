@@ -1,6 +1,6 @@
 # REUSE MAP: existing code to use before writing new code
 
-> Built from a read-only scan of commit `fc505b8` on 2026-09-24. Step 01 must **verify every row** and correct it in the audit.
+> Built from a read-only scan of commit `fc505b8` on 2026-09-24. **Verified and corrected in Step 01** (2026-10-16, `c34e8d0`); changed rows are marked *(Step 01)*. See `MVP_SIMPLIFICATION_AUDIT.md` §9 and §11.
 > **Rule for every step:** check this map before creating any file. A new screen or service needs a one-line reason in the PR saying why reuse didn't fit.
 
 ## Legend: which store the code uses today
@@ -50,18 +50,18 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 | Follow-ups | `LeadFollowUpScheduler.tsx` | ○ | 1,653 | **Thin new list** (a query on `next_followup`) |
 | Survey form | `SiteVisitVerification.tsx` | ○ | 790 | Rewire, or thin new form with the §15 fields |
 | Camera | `CameraCapture.tsx` | □ | 322 | As-is |
-| Lead store helper | `src/lib/firestoreLeads.ts` | ? | — | Verify whether it is canonical. Reuse it if so. |
+| Lead store helper | `src/lib/firestoreLeads.ts` | ◆ shared | 39 | *(Step 01)* Shared Firestore `leads` collection, but the **legacy `Lead` shape**, not `CanonicalLead`. Reuse it and extend the shape additively (audit §6 #2) |
 
 ## Step 06: Quote, booking and payments
 | Need | Reuse | Mark | Lines | Mode |
 |---|---|---|---|---|
-| Quote builder | `QuotePricing.tsx` | □ | 549 | Wire the UI to canonical `Quote`/`QuoteVersion` |
+| Quote builder | `QuotePricing.tsx` | ○ | 549 | *(Step 01)* Keeps state in raw localStorage (`aiec_active_quote_spec`). Wire the UI to canonical `Quote`/`QuoteVersion` |
 | Customer quote view | `QuotationPreview.tsx` | □ | 622 | Wire it; strip cost fields |
-| Margin settings | `PricingRulesMarginConfig.tsx` | □ | 534 | Only if it maps cheaply onto `src/mvp/config.ts`; otherwise hide it |
+| Margin settings | `PricingRulesMarginConfig.tsx` | □ | 534 | *(Step 01)* Hide it; the MVP needs only `MIN_MARKUP_PCT` and `GST_RATE_PCT` in `src/mvp/config.ts` |
 | Margin approval | `DiscountApprovalWorkflow.tsx` | □ | 761 | Reuse the UI with `ApprovalRequest` and APPROVE_MARGIN |
 | Payment milestones | `PaymentStageScheduleSetup.tsx` | ○ | 1,303 | **Thin new milestone panel** on the Order View |
-| Payment verification | `PaymentCollectionDashboard.tsx` | ★ | 1,103 | Switch reads; add verify/reject |
-| Online payment | `OnlinePaymentCheckout.tsx` | ★ | 662 | Keep only if the audit shows the gateway is real; otherwise hide |
+| Payment verification | `PaymentCollectionDashboard.tsx` | ◆/★ | 1,103 | *(Step 01)* Already reads canonical `payments` as well as `DbManager`. Drop the legacy read; add verify/reject |
+| Online payment | `OnlinePaymentCheckout.tsx` | ★ | 662 | *(Step 01)* **Hide.** The gateway adapter is `unconfiguredPaymentGateway` (throws) |
 
 ## Step 07: Site-ready, supplier and delivery
 | Need | Reuse | Mark | Lines | Mode |
@@ -82,7 +82,7 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 | TODAY home | `TechnicianHomeMyJobsScreen.tsx` | ○ | 408 | Rewire to tasks |
 | 11-item checklist | `InstallationSopChecklistScreen.tsx` | ○ | 406 | Rewire; set the items to spec §18 |
 | Blockers | `IssueBlockerReportingScreen.tsx` | ○ | 441 | Rewire to the `Blocker` entity with 8 reasons |
-| Offline and uploads | `src/offline/outbox.ts`, `mediaUpload.ts` | ◆ | — | Reuse if they work with canonical writes |
+| Offline and uploads | `src/offline/outbox.ts`, `mediaUpload.ts` | ◆ | — | *(Step 01)* Queue/retry works, but **no storage transport exists** (Firebase Storage is not wired). Build a `firebase/storage` transport + `storage.rules` |
 
 ## Step 09: QC, handover, AMC and emergency
 | Need | Reuse | Mark | Lines | Mode |
@@ -99,8 +99,8 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 ## Step 10: Customer, owner, notifications, reports, languages
 | Need | Reuse | Mark | Lines | Mode |
 |---|---|---|---|---|
-| Customer home | `CustomerHomeDashboardScreen.tsx` + `services/portalWorkSummary.ts` | ◆/○ mixed | 375 | Finish moving it to canonical; the service is canonical |
-| Documents | `CustomerDocumentVaultScreen.tsx` | ◆/○ mixed | 268 | Finish moving it to canonical |
+| Customer home | `CustomerHomeDashboardScreen.tsx` + `services/portalWorkSummary.ts` | ○ | 375 | *(Step 01)* The screen does **not** use the service (it calls `DbManager.getCustomerProjects`). Prefer the role-filtered Order View + `portalWorkSummary.ts`. Needs customer read rules first |
+| Documents | `CustomerDocumentVaultScreen.tsx` | ○ | 268 | *(Step 01)* Legacy only (`DbManager.getCustomerVaultDocuments`). Rewire to `DocumentRecord` |
 | Support and complaints | `CustomerSupportTicketScreen.tsx` → canonical `ServiceCase` | ○ | 495 | Rewire |
 | Notification centre | `CustomerNotificationCenterScreen.tsx` + `services/notificationService.ts` | ○ + ◆ | 389 | Rewire the UI to `NotificationRecord` |
 | Reports | `RevenueProfitAnalytics.tsx`, `SalesFunnelAnalytics.tsx` | ○ | 1,398 / 1,031 | **Thin new report tables.** Reuse only their chart components. |
