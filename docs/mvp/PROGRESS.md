@@ -78,6 +78,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 | 2 | `emulator/storage.rules` is an emulator-only placeholder (signed-in users can read and write). The repo has no real `storage.rules` | 00 | Medium | Step 11 designs real Storage rules |
 | 3 | Some legacy checks rewrite "Regenerated:" dates in tracked docs | 00 | Low | Revert after running; Step 01 can decide whether to keep these generators |
 | 4 | Both `bun.lock` and `package-lock.json` exist. npm was chosen (package-lock updated most recently in phase 57; `bun.lock` was last touched in phase 17; the earlier pack's logs use npm) | 00 | Low | Step 01 audit decides whether to delete `bun.lock` |
+| 5 | The Owner supplied a conversation-style Order View reference (image and handoff package), saved under `docs/mvp/design/order-view-conversation/`. Parts of it are out of Phase 1 scope (quote bot, GPS tracking, chat composer) | pre-01 (2026-10-16) | Low | Step 04 uses it as design input, following `DESIGN_NOTES.md`. Not built before Step 04 (Owner's choice) |
 
 ## Step notes
 <!-- Claude appends one block per step: what changed, checks run and their results, deviations, follow-ups. -->
@@ -87,4 +88,3 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Added the SessionStart hook: `.claude/hooks/session-start.sh` and `.claude/settings.json`. It runs only when `CLAUDE_CODE_REMOTE=true`, runs `npm ci` when `node_modules` is missing or older than `package-lock.json`, and skips otherwise. Tested cold (13 s) and warm (0 s).
 - Added emulator-only config (D-19): `firebase.emulator.json` (Auth 9099, Firestore 8080, Storage 9199, UI off, uses the existing `firestore.rules`) and `emulator/storage.rules`. These always run under the `demo-aie-mvp` project ID, so they cannot reach a real project. There is no `firebase.json` or `.firebaserc`, and no production Firebase setting was changed.
 - No application code changed. No `live-*` script was run.
-

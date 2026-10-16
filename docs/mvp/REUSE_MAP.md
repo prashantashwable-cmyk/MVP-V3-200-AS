@@ -39,6 +39,7 @@ Rewiring 1,600 lines of localStorage logic costs more than it saves.
 | Next action and owner | `WorkQueueScreen.tsx` + `services/workQueue.ts` | ◆ | 102 | Extend to read persisted tasks |
 | Needs Attention | `services/controlTower.ts` | ◆ | — | Reuse the categories |
 | Landing and navigation | `OperatingSurfacesHome.tsx`, `navigation/surfaces.ts`, `routers/*` | ◆ | 97 | Add the `MVP_MODE` filter |
+| Order View look and feel | `docs/mvp/design/order-view-conversation/` (Owner's reference image and package) | — | — | **Design input only.** Follow its keep/adapt/drop filter |
 
 ## Step 05: Leads, sales and survey
 | Need | Reuse | Mark | Lines | Mode |
