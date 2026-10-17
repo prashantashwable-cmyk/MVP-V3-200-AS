@@ -56,7 +56,10 @@ export async function uploadEvidence(env: AppEnvironment, orderKey: string, user
   const blob = await compressImage(file);
   if (blob.size > MVP_CONFIG.MAX_EVIDENCE_BYTES) throw new Error('The file is larger than 10 MB.');
   const contentType = blob.type || file.type;
-  const name = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}.${contentType === 'application/pdf' ? 'pdf' : 'jpg'}`;
+  // `<uploader uid>_<128 random bits>`: storage.rules only accept uploads under the
+  // uploader's own uid, and reads rely on the path being unguessable (capability link).
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().replace(/-/g, '') : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  const name = `${userId}_${random}.${contentType === 'application/pdf' ? 'pdf' : 'jpg'}`;
   const path = `orders/${orderKey}/${name}`;
   const base: Evidence = { path, contentType, sizeBytes: blob.size, uploadedBy: userId, uploadedAt: new Date().toISOString(), name: file.name };
   if (env === 'demo') return { ...base, dataUrl: await toDataUrl(blob) };

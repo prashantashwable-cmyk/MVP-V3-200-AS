@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// MVP Step 11 (D-16, audit F-6, PROGRESS issue #2): real Storage rules for
+// order evidence, replacing "any signed-in user". Files are stored as
+// orders/{orderKey}/{uploaderUid}_{random}.{jpg|pdf}, where orderKey is
+// the order id, or `lead_<uid>` for site photos taken before an order
+// exists. Images and PDFs only, under 10 MB. Nothing is public; the app
+// asks for a download URL only when someone opens a photo. Evidence is
+// never edited or deleted from the app (audit trail).
+//
+// Reading: Storage rules cannot look up the app's NAMED Firestore database
+// (verified on the emulator: a lookup into the named database is refused),
+// so per-order checks are impossible here. Reads therefore follow the
+// capability-link model Firebase download URLs already use: a signed-in
+// user may GET a file only if they know its exact path, which carries 128
+// random bits and is stored only in Firestore records the Firestore rules
+// protect. LISTING a folder is Admin-only, so paths cannot be discovered.
+// Phase 2: serve evidence through a Cloud Function that checks the order
+// and returns a short-lived signed URL (MVP_IMPLEMENTATION_REPORT.md).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwnerEmailAdmin() {
+      return signedIn() && request.auth.token.email == 'prashantashwable@gmail.com';
+    }
+    function ownFile(fileName) {
+      return fileName.matches(request.auth.uid + '_.*');
+    }
+    function validUpload() {
+      return request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*|application/pdf');
+    }
+
+    match /orders/{orderKey}/{fileName} {
+      allow get: if signedIn();
+      allow list: if isOwnerEmailAdmin();
+      allow create: if signedIn() && validUpload() && ownFile(fileName) &&
+        (orderKey.matches('lead_.*') ? orderKey == 'lead_' + request.auth.uid : true);
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
