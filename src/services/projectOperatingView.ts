@@ -39,10 +39,12 @@ export interface ProjectTimelineStep {
 export const NEXT_ACTION_BY_STAGE: Record<ProjectStage, string> = {
   lead: 'Confirm customer and site, then convert to a project',
   customer_site_confirmed: 'Prepare and create a quote',
+  survey: 'Complete the site survey',
   quoting: 'Get the quote approved internally and send it to the customer',
   negotiation: 'Resolve the customer\'s counter and get a final decision',
   contract: 'Await contract signature',
   payment: 'Collect the next installment',
+  site_ready: 'Get the site ready for delivery',
   procurement: 'Approve the purchase order and confirm supplier acceptance',
   production: 'Track production to completion and dispatch',
   delivery: 'Confirm material receipt at site',

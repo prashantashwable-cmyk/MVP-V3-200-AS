@@ -33,6 +33,51 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.email == 'prashantashwable@gmail.com';
     }
 
+    // ---- MVP (Step 03, plan §3) helpers --------------------------------
+    // Roles come from users/{uid}.role, set only by the Admin or an invite.
+    function hasProfile() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasRole(role) {
+      return hasProfile() && profile().role == role;
+    }
+    function isOwnerRole() {
+      return hasRole('owner');
+    }
+    // Admin or Owner: may read every order (Owner is read-only).
+    function isStaffReader() {
+      return isAdmin() || isOwnerRole();
+    }
+    function myCustomerId() {
+      return hasProfile() ? profile().get('customerId', '') : '';
+    }
+    function orderData(orderId) {
+      return get(/databases/$(database)/documents/projects/$(orderId)).data;
+    }
+    // A user with an open task on the order (or the sales owner), directly or through a role pool.
+    function isOrderParticipant(orderId) {
+      return hasProfile() && (
+        request.auth.uid in orderData(orderId).get('participantIds', []) ||
+        ('role:' + profile().role) in orderData(orderId).get('participantIds', [])
+      );
+    }
+    // The order's own customer login (linked by invite, D-13).
+    function isOrderCustomer(orderId) {
+      return hasRole('customer') && myCustomerId() != '' && orderData(orderId).customerId == myCustomerId();
+    }
+    function canReadOrder(orderId) {
+      return isStaffReader() || isOrderParticipant(orderId) || isOrderCustomer(orderId);
+    }
+    function canWriteOrder(orderId) {
+      return isAdmin() || isOrderParticipant(orderId) || isOrderCustomer(orderId);
+    }
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
     // 1. Users collection
     // Users can read their own profile; only Admins can create/modify arbitrary user roles.
     //
@@ -51,13 +96,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
 
-      allow create: if isAuthenticated() && request.auth.uid == userId &&
-        (isOwnerEmail() || request.resource.data.role != 'admin');
+      // MVP Step 03 (audit F-2, narrowing): a new user may self-create only
+      // as 'pending_selection', or with exactly the role (and customer
+      // link) the Admin put on their invite. No self-claimed staff roles.
+      allow create: if isAuthenticated() && request.auth.uid == userId && (
+        isOwnerEmail() ||
+        request.resource.data.role == 'pending_selection' ||
+        (request.auth.token.email != null &&
+          // Phase 05 guard kept: no one becomes admin by signing up (only the owner email, or an Admin edit).
+          request.resource.data.role != 'admin' &&
+          exists(/databases/$(database)/documents/user_invites/$(request.auth.token.email.lower())) &&
+          get(/databases/$(database)/documents/user_invites/$(request.auth.token.email.lower())).data.role == request.resource.data.role &&
+          get(/databases/$(database)/documents/user_invites/$(request.auth.token.email.lower())).data.get('customerId', '') == request.resource.data.get('customerId', ''))
+      );
 
       allow update: if isAdmin() || (
         isAuthenticated() && request.auth.uid == userId &&
         request.resource.data.role == resource.data.role &&
-        request.resource.data.status == resource.data.status
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.get('customerId', '') == resource.data.get('customerId', '')
       );
 
       allow delete: if isAdmin();
@@ -122,7 +179,7 @@ service cloud.firestore {
     // 5. Audit Logs Master
     // STRICT: Master audit logs are read-only to Admin for enterprise compliance.
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isStaffReader(); // MVP: + Owner (read-only)
       allow create: if isAuthenticated(); // Application server/client logs audit trail
       allow update, delete: if false;     // Immutable audit trail
     }
@@ -156,23 +213,38 @@ service cloud.firestore {
     }
 
     match /customers/{customerId} {
-      allow read: if isAdmin() || isSurveyor();
-      allow create: if isAdmin() || isSurveyor();
+      // MVP: + Owner, the customer's own login, and the order's participants; sales may create on qualification.
+      allow read: if isAdmin() || isSurveyor() || isOwnerRole() ||
+        (isAuthenticated() && myCustomerId() == customerId) ||
+        (resource.data.get('orderId', '') != '' && isOrderParticipant(resource.data.orderId));
+      allow create: if isAdmin() || isSurveyor() || hasRole('sales');
       allow update: if isAdmin() || isSurveyor();
       allow delete: if isAdmin();
     }
 
     match /sites/{siteId} {
-      allow read: if isAdmin() || isSurveyor();
-      allow create: if isAdmin() || isSurveyor();
+      allow read: if isAdmin() || isSurveyor() || isOwnerRole() ||
+        (isAuthenticated() && myCustomerId() != '' && resource.data.customerId == myCustomerId()) ||
+        (resource.data.get('orderId', '') != '' && isOrderParticipant(resource.data.orderId));
+      allow create: if isAdmin() || isSurveyor() || hasRole('sales');
       allow update: if isAdmin() || isSurveyor();
       allow delete: if isAdmin();
     }
 
     match /projects/{projectId} {
-      allow read: if isAdmin() || isRecordOwner('ownerUserId');
-      allow create: if isAuthenticated() && (isAdmin() || isSurveyor());
-      allow update: if isAdmin() || isRecordOwner('ownerUserId');
+      // MVP: + Owner, participants (array-contains queries) and the order's own customer (customerId queries).
+      allow read: if isAdmin() || isRecordOwner('ownerUserId') || isOwnerRole() ||
+        (hasProfile() && (request.auth.uid in resource.data.get('participantIds', []) ||
+                          ('role:' + profile().role) in resource.data.get('participantIds', []))) ||
+        (hasRole('customer') && myCustomerId() != '' && resource.data.customerId == myCustomerId());
+      allow create: if isAuthenticated() && (isAdmin() || isSurveyor() || hasRole('sales'));
+      // Participants and the customer move the order through the rules (D-08),
+      // but can never cancel or complete it, nor touch any other field.
+      allow update: if isAdmin() || isRecordOwner('ownerUserId') || (
+        (isOrderParticipant(projectId) || isOrderCustomer(projectId)) &&
+        onlyChanges(['stage', 'status', 'participantIds', 'holdReason', 'holdReviewDate', 'lift', 'updatedAt', 'updatedBy', 'version']) &&
+        request.resource.data.get('status', 'ACTIVE') in ['ACTIVE', 'ON_HOLD']
+      );
       allow delete: if isAdmin();
     }
 
@@ -247,7 +319,8 @@ service cloud.firestore {
     }
 
     match /idempotency_keys/{keyId} {
-      allow read: if isAdmin();
+      // MVP: the transactional claim must read the record; MVP results are only record ids.
+      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.opType.matches('mvp[.].*')));
       allow create: if isAuthenticated(); // any authenticated write path may register a dedup record
       // Phase 37 fix: a real, more fundamental bug found while building
       // the transactional-idempotency concurrency tests — `allow update:
@@ -300,9 +373,13 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isAdmin() || isRecordOwner('audienceUserId');
+      allow read: if isAdmin() || isRecordOwner('audienceUserId') || (hasProfile() && (
+        resource.data.audienceUserId == 'role:' + profile().role ||
+        resource.data.audienceUserId == 'customer:' + myCustomerId()));
       allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      allow update: if isAdmin() || ((isRecordOwner('audienceUserId') || (hasProfile() && (
+        resource.data.audienceUserId == 'role:' + profile().role ||
+        resource.data.audienceUserId == 'customer:' + myCustomerId()))) && onlyChanges(['read']));
       allow delete: if false;
     }
 
@@ -393,6 +470,153 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if false;
+    }
+      // =====================================================================
+    // MVP collections (Step 03, plan §2–§3). Every order-scoped record
+    // carries orderId + customerId and is readable by Admin/Owner, the
+    // order's participants and the order's own customer. Writes mirror
+    // the order service; cost (quote_costs) is Admin/Owner only (I-5).
+    // =====================================================================
+    match /tasks/{taskId} {
+      allow read: if isStaffReader() ||
+        resource.data.assigneeId == request.auth.uid ||
+        (hasProfile() && resource.data.assigneeId == 'role:' + profile().role) ||
+        (hasProfile() && myCustomerId() != '' && resource.data.assigneeId == 'customer:' + myCustomerId()) ||
+        (resource.data.orderId != '' && canReadOrder(resource.data.orderId));
+      allow create: if isAdmin() ||
+        (request.resource.data.orderId == '' && hasRole('sales')) ||
+        (request.resource.data.orderId != '' && canWriteOrder(request.resource.data.orderId));
+      allow update: if isAdmin() || (
+        (resource.data.assigneeId == request.auth.uid ||
+         (resource.data.orderId != '' && canWriteOrder(resource.data.orderId))) &&
+        onlyChanges(['status', 'previousStatus', 'completedAt', 'notes', 'evidence', 'updatedAt', 'version', 'startedAt', 'checkedInAt'])
+      );
+      allow delete: if false;
+    }
+
+    match /blockers/{blockerId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if canWriteOrder(request.resource.data.orderId) && request.resource.data.status == 'OPEN';
+      allow update: if isAdmin() || (canWriteOrder(resource.data.orderId) &&
+        onlyChanges(['status', 'resolutionNote', 'resolvedAt', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /canonical_leads/{leadId} {
+      allow read: if isStaffReader() || resource.data.salesOwnerId == request.auth.uid ||
+        (resource.data.get('orderId', '') != '' && canReadOrder(resource.data.orderId));
+      allow create: if isAdmin() || (hasRole('sales') && request.resource.data.salesOwnerId == request.auth.uid);
+      allow update: if isAdmin() || (resource.data.salesOwnerId == request.auth.uid &&
+        request.resource.data.salesOwnerId == resource.data.salesOwnerId) ||
+        // D-04: the lead's status follows its order, whoever moves the order.
+        (resource.data.get('orderId', '') != '' && canWriteOrder(resource.data.orderId) &&
+          onlyChanges(['mvpStatus', 'stage', 'lostReason', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /surveys/{surveyId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if isAdmin() || (hasRole('surveyor') && isOrderParticipant(request.resource.data.orderId));
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /order_quotes/{quoteId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if isAdmin();
+      // The customer may only accept or reject a SENT quote.
+      allow update: if isAdmin() || (isOrderCustomer(resource.data.orderId) && resource.data.status == 'SENT' &&
+        request.resource.data.status in ['ACCEPTED', 'REJECTED'] &&
+        onlyChanges(['status', 'decidedAt', 'decidedBy', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /quote_costs/{quoteId} {
+      allow read: if isStaffReader();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /payment_milestones/{milestoneId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      // Milestones are created PENDING and unpaid (on acceptance, by the customer or Admin).
+      allow create: if isAdmin() || (canWriteOrder(request.resource.data.orderId) &&
+        request.resource.data.status == 'PENDING' && request.resource.data.amountPaid == 0);
+      // Only the Admin verifies money; the customer only submits proof.
+      allow update: if isAdmin() || (isOrderCustomer(resource.data.orderId) &&
+        onlyChanges(['reference', 'method', 'proofNote', 'submittedAt', 'submittedBy', 'updatedAt', 'version'])) ||
+        // The rules set a milestone's due date when its collect task is created (e.g. QC PASS → final payment).
+        (isOrderParticipant(resource.data.orderId) && onlyChanges(['dueDate', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isStaffReader();
+      allow write: if isAdmin();
+    }
+
+    match /install_checklists/{orderId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isOrderParticipant(resource.data.orderId) && onlyChanges(['items', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /qc_records/{recordId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if isAdmin() || (hasRole('qc') && isOrderParticipant(request.resource.data.orderId) &&
+        request.resource.data.inspectorId == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    match /order_handovers/{orderId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow create: if isAdmin() || (isOrderCustomer(request.resource.data.orderId) && request.resource.data.get('completedAt', null) == null);
+      allow update: if isAdmin() || (isOrderCustomer(resource.data.orderId) &&
+        onlyChanges(['customerApprovedAt', 'customerApprovedBy', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /amcs/{orderId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow write: if isAdmin();
+    }
+
+    match /compliance_docs/{docId} {
+      allow read: if canReadOrder(resource.data.orderId);
+      allow write: if isAdmin();
+    }
+
+    match /service_cases/{caseId} {
+      allow read: if canReadOrder(resource.data.orderId) || resource.data.assigneeId == request.auth.uid;
+      allow create: if isAdmin() || (isOrderCustomer(request.resource.data.orderId) && request.resource.data.status == 'OPEN');
+      allow update: if isAdmin() || (resource.data.assigneeId == request.auth.uid &&
+        onlyChanges(['status', 'acknowledgedAt', 'resolvedAt', 'resolutionNote', 'photo', 'updatedAt', 'version']));
+      allow delete: if false;
+    }
+
+    match /approval_requests/{requestId} {
+      allow read: if isStaffReader();
+      allow write: if isAdmin();
+    }
+
+    match /mvp_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Order-code counter (D-02): may only ever move forward by one.
+    match /counters/{counterId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || hasRole('sales');
+      allow update: if (isAdmin() || hasRole('sales')) && request.resource.data.next == resource.data.next + 1;
+      allow delete: if false;
+    }
+
+    // D-13: Admin-issued invites; the invited person may read their own.
+    match /user_invites/{email} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.token.email != null && request.auth.token.email.lower() == email);
+      allow write: if isAdmin();
     }
   }
 }

@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 02 Plan (2026-10-17)
-- **Next step:** 03 Data foundation
+- **Last completed step:** 03 Data foundation (2026-10-17)
+- **Next step:** 04 Order View, Admin dashboard, MVP_MODE
 - **Blocked on Owner:** — (optional: confirm or change the audit §8 defaults, especially Q2, the live deployment)
 
 ## Step status
@@ -14,7 +14,7 @@
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
 | 01 | Audit (Phase A) | DONE | PR #27 | 2026-10-17 | Approved without changes; §8 defaults stand |
 | 02 | Plan (Phase B) | DONE | PR #27 | 2026-10-17 | Owner: "Don't stop until the build is finished", so treated as approved |
-| 03 | Data foundation | TODO | | | |
+| 03 | Data foundation | DONE | PR #27 | 2026-10-17 | src/mvp + order service + rules; mvp:checks 833/833, emulator 83/83 |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
 | 05 | Leads, Sales and Survey | TODO | | | |
 | 06 | Quote, Booking and Payments | TODO | | | |
@@ -37,7 +37,8 @@ Package manager: **npm** (`package-lock.json`). `bun.lock` is kept for now; Step
 | Dev server | `npm run dev` (Express + Vite middleware on port 3000) | Yes, HTTP 200 within ~3 s. Warns that `GEMINI_API_KEY` is unset and falls back to demo mode |
 | Type check / lint | `npm run lint` (`tsc --noEmit`) | Yes, pass, ~9 s |
 | Build | `npm run build` (vite build + esbuild server bundle) | Yes, pass, ~19 s |
-| MVP checks | `npm run mvp:checks` (Step 03 creates it) | Not yet |
+| MVP checks | `npm run mvp:checks` (pure, rules table, scenarios S1–S7/S9/S10 on the demo repository) | Yes, ~5 s |
+| MVP emulator checks | `npm run mvp:emulator` (S8 rules + S1 through the real service and rules, Firestore and Auth emulators, `demo-aie-mvp`) | Yes, ~40 s |
 | Legacy checks | run each non-`live-*` script from `npm run checks` individually (loop below). **Never** run `npm run checks` as a whole: it includes `live-*` scripts | Yes, 42/42 pass, ~104 s total |
 | Emulator | `npx -y firebase-tools@15.31.0 emulators:exec --config firebase.emulator.json --project demo-aie-mvp --only firestore,auth,storage "<cmd>"` | Yes, starts in ~19 s (first run downloads the emulator JARs) |
 | E2E | Playwright is not installed as a dependency. Chromium is at `$PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`. Do not run `playwright install` | Browser available; no E2E harness yet |
@@ -113,3 +114,35 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 ### Step 02: Plan (2026-10-17)
 - Wrote `docs/mvp/MVP_REFACTOR_PLAN.md`: architecture, additive data model, role matrix, rules automation, screen plan, hide plan, check plan, step breakdown, manual list, frozen decisions and risks.
 - The Owner told me to continue through the build without stopping, so the plan is treated as approved. The steps run in this one session and all commits go into PR #27.
+
+### Step 03: Data foundation (2026-10-17)
+- **New `src/mvp/`:**
+  - `types`, `config` (D-09 due dates; `GST_RATE_PCT` deliberately unset ⚖), `stage` (D-03), `progress` (D-10), `health` (D-11 plus the current-task rule), `money` (D-14/D-15), `rules` (the D-08 table, pure and idempotent), `repo`, `views`
+  - `service/{core,sales,field,admin}`, the only place stage, status and tasks change. Every command checks permissions, applies the rules, writes through the canonical repositories and writes an audit event.
+- **Canonical changes (additive only):**
+  - `ProjectStage` gets `survey` and `site_ready`.
+  - Roles gain `owner`, `sales` and `qc` (in `CanonicalUserRole`, `UserRole` and the permission map).
+  - `Project` gains optional MVP fields.
+  - New permissions; `User.customerId`; `Task` and `Blocker` re-exported from `entities.ts`.
+- **Repository:**
+  - `queryWhere` (equality and array-contains).
+  - Firestore `update` is now transactional (audit F-4) and returns the merged record.
+  - Order-code counter `counters/orders`.
+- **`firestore.rules`:**
+  - Rules for 17 new collections.
+  - `users` self-create narrowed to `pending_selection` or the invited role (F-2).
+  - Owner, participants and the order's own customer can read orders, customers and sites (F-5).
+  - Owner can read audit logs.
+  - MVP idempotency records are readable.
+  - The legacy `authz:check` guard is kept.
+- **`src/lib/firebase.ts`:** connects to the emulator, under a `demo-aie-mvp` project id, only when an emulator host is set (D-19).
+- **Interpretations recorded:**
+  - COLLECT_DELIVERY_PAYMENT is due 2 days after the site is confirmed for delivery, which is what S5's expected AT_RISK result needs.
+  - The current task is the primary task of its rule row first, then the earliest due date (S1 step 7 expects SITE_READINESS, not RAISE_PO).
+- **Checks run:**
+  - `npm run lint` PASS
+  - `npm run build` PASS
+  - `npm run mvp:checks` PASS (pure 52, rules 30, scenarios 751)
+  - `npm run mvp:emulator` PASS (rules S8 39, S1 through the service, real rules and sign-ins 44)
+  - 42/42 legacy checks PASS (`authz:check` failed once on a text guard and passed after the guard was put back)
+  - Backfill dry run and apply on demo, re-run idempotent

@@ -54,10 +54,15 @@ export function makeStaleWriteError(currentVersion: number, attemptedVersion: nu
  * concurrency (Phase 06 formalizes this repo-wide) should also carry
  * `version: number` — when present, `update()` enforces it.
  */
+export type QueryClause = [field: string, op: '==' | 'array-contains', value: unknown];
+
 export interface Repository<T extends { id: string }> {
   get(id: string): Promise<T | null>;
   list(): Promise<T[]>;
   query(predicate: Partial<T>): Promise<T[]>;
+  /** MVP (Step 03): equality and array-contains clauses, so role-scoped
+   * reads can be expressed as queries the Firestore rules can prove. */
+  queryWhere(clauses: QueryClause[]): Promise<T[]>;
   create(record: T): Promise<T>;
   /** Full replace of a record. If `expectedVersion` is passed and the
    * stored record's `version` differs, rejects with a `StaleWriteError`

@@ -32,6 +32,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -74,6 +75,12 @@ export function createFirestoreRepository<T extends { id: string; version?: numb
       return snap.docs.map(d => d.data() as T);
     },
 
+    async queryWhere(clauses) {
+      const constraints: QueryConstraint[] = clauses.map(([k, op, v]) => where(k, op, v));
+      const snap = await getDocs(query(collection(requireDb(), collectionName), ...constraints));
+      return snap.docs.map(d => d.data() as T);
+    },
+
     async create(record) {
       await setDoc(doc(requireDb(), collectionName, record.id), stripUndefined(record));
       return record;
@@ -83,20 +90,32 @@ export function createFirestoreRepository<T extends { id: string; version?: numb
       const ref = doc(requireDb(), collectionName, id);
       let effectivePatch: Partial<T> = patch;
       if (expectedVersion !== undefined) {
-        const current = await getDoc(ref);
-        if (!current.exists()) throw makeNotFoundError(collectionName, id);
-        const currentVersion = (current.data() as T).version ?? 0;
-        if (currentVersion !== expectedVersion) {
-          throw makeStaleWriteError(currentVersion, expectedVersion);
-        }
-        // Auto-increment unless the caller explicitly set `version` in
-        // the patch — see the matching comment in demoRepository.ts for
-        // why this must not be left to every caller to remember.
-        if (!('version' in patch)) {
-          effectivePatch = { ...patch, version: expectedVersion + 1 } as Partial<T>;
-        }
+        // MVP Step 03 (audit F-4): the version check and the write now run
+        // in one transaction, so two users can no longer both pass the
+        // check and overwrite each other.
+        // Returns the merged record instead of re-reading it: the write may
+        // legitimately end this user's read access (e.g. a technician
+        // finishing their last task on an order), and that must not turn a
+        // successful write into an error.
+        return await runTransaction(requireDb(), async tx => {
+          const current = await tx.get(ref);
+          if (!current.exists()) throw makeNotFoundError(collectionName, id);
+          const currentVersion = (current.data() as T).version ?? 0;
+          if (currentVersion !== expectedVersion) {
+            throw makeStaleWriteError(currentVersion, expectedVersion);
+          }
+          // Auto-increment unless the caller explicitly set `version` in
+          // the patch — see the matching comment in demoRepository.ts for
+          // why this must not be left to every caller to remember.
+          if (!('version' in patch)) {
+            effectivePatch = { ...patch, version: expectedVersion + 1 } as Partial<T>;
+          }
+          tx.update(ref, stripUndefined(effectivePatch) as any);
+          return { ...(current.data() as T), ...stripUndefined(effectivePatch) } as T;
+        });
+      } else {
+        await updateDoc(ref, stripUndefined(effectivePatch) as any);
       }
-      await updateDoc(ref, stripUndefined(effectivePatch) as any);
       const updated = await getDoc(ref);
       if (!updated.exists()) throw makeNotFoundError(collectionName, id);
       return updated.data() as T;
