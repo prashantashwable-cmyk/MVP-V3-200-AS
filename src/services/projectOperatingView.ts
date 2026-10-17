@@ -39,10 +39,12 @@ export interface ProjectTimelineStep {
 export const NEXT_ACTION_BY_STAGE: Record<ProjectStage, string> = {
   lead: 'Confirm customer and site, then convert to a project',
   customer_site_confirmed: 'Prepare and create a quote',
+  survey: 'Complete the site survey',
   quoting: 'Get the quote approved internally and send it to the customer',
   negotiation: 'Resolve the customer\'s counter and get a final decision',
   contract: 'Await contract signature',
   payment: 'Collect the next installment',
+  site_ready: 'Get the site ready for delivery',
   procurement: 'Approve the purchase order and confirm supplier acceptance',
   production: 'Track production to completion and dispatch',
   delivery: 'Confirm material receipt at site',
@@ -102,6 +104,18 @@ export async function computeBlockers(ctx: RepositoryContext, projectId: Project
   }
 
   return blockers;
+}
+
+/**
+ * MVP Step 04: the spec §8 Order View summary (code, stage, progress, next
+ * action, owner, due date, blocker, payment, health) for one order, as the
+ * signed-in actor may read it. The MVP Order View builds on this; the
+ * legacy `getProjectOperatingView` below is unchanged.
+ */
+export async function getMvpOrderSummary(ctx: RepositoryContext, actor: import('../mvp/types').MvpActor, orderId: string, now = new Date()) {
+  const { loadOrderBundle, summarize } = await import('../mvp/views');
+  const bundle = await loadOrderBundle(ctx, actor, orderId);
+  return bundle ? summarize(bundle, now) : null;
 }
 
 export async function getProjectOperatingView(ctx: RepositoryContext, projectId: ProjectId): Promise<ProjectOperatingView> {

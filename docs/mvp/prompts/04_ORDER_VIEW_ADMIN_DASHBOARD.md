@@ -8,6 +8,7 @@ Read:
 - **Step 04** in `docs/mvp/MVP_REFACTOR_PLAN.md`
 - MVP_SPEC §8 and §9
 - DECISIONS D-06, D-10, D-11 and D-22
+- The Owner's visual reference: `docs/mvp/design/order-view-conversation/DESIGN_NOTES.md` (layout, colors, and the Phase 1 keep/adapt/drop filter)
 
 ## Goal
 An Admin who opens the app sees one dashboard. Clicking any order shows **one canonical Order View** that answers four questions: what happened, what's next, who owns it, and when it's due.

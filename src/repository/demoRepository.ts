@@ -45,6 +45,15 @@ export function createDemoRepository<T extends { id: string; version?: number }>
       );
     },
 
+    async queryWhere(clauses) {
+      return Array.from(store.values()).filter(r =>
+        clauses.every(([k, op, v]) => {
+          const actual = (r as any)[k];
+          return op === 'array-contains' ? Array.isArray(actual) && actual.includes(v) : actual === v;
+        }),
+      );
+    },
+
     async create(record) {
       store.set(record.id, record);
       notify();

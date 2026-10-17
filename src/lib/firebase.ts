@@ -1,6 +1,17 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+
+// MVP Step 03 (D-19): when an emulator host is configured (the
+// `emulators:exec` scripts set FIRESTORE_EMULATOR_HOST; a local dev build
+// can set VITE_FIRESTORE_EMULATOR_HOST), every read and write goes to the
+// local emulator under a `demo-*` project id, never to the real project.
+const EMULATOR_HOST: string | undefined =
+  (typeof process !== 'undefined' && (process as any).env?.FIRESTORE_EMULATOR_HOST) ||
+  (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_FIRESTORE_EMULATOR_HOST : undefined);
+const AUTH_EMULATOR_HOST: string | undefined =
+  (typeof process !== 'undefined' && (process as any).env?.FIREBASE_AUTH_EMULATOR_HOST) ||
+  (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_FIREBASE_AUTH_EMULATOR_HOST : undefined);
 
 // Safely import or read firebase config
 let firebaseConfig;
@@ -27,11 +38,20 @@ let app;
 let db: any = null;
 let auth: any = null;
 
+if (firebaseConfig && EMULATOR_HOST) {
+  firebaseConfig = { ...firebaseConfig, projectId: 'demo-aie-mvp', apiKey: 'demo-key', authDomain: 'localhost' };
+}
+
 if (firebaseConfig) {
   try {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app, FIRESTORE_DATABASE_ID);
     auth = getAuth(app);
+    if (EMULATOR_HOST) {
+      const [h, p] = EMULATOR_HOST.split(':');
+      connectFirestoreEmulator(db, h, Number(p));
+      if (AUTH_EMULATOR_HOST) connectAuthEmulator(auth, `http://${AUTH_EMULATOR_HOST}`, { disableWarnings: true });
+    }
   } catch (error) {
     console.error("Failed to initialize Firebase services:", error);
   }

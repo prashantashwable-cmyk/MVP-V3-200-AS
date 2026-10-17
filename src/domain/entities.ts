@@ -62,10 +62,14 @@ import type {
 export type ProjectStage =
   | 'lead'
   | 'customer_site_confirmed'
+  /** MVP (D-03): a surveyor is assigned. Additive. */
+  | 'survey'
   | 'quoting'
   | 'negotiation'
   | 'contract'
   | 'payment'
+  /** MVP (D-03): booking token paid; the customer is preparing the site. Additive. */
+  | 'site_ready'
   | 'procurement'
   | 'production'
   | 'delivery'
@@ -80,7 +84,9 @@ export type ProjectStage =
 // User
 // ---------------------------------------------------------------------------
 
-export type CanonicalUserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier';
+export type CanonicalUserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier'
+  /** MVP (D-12), additive. */
+  | 'owner' | 'sales' | 'qc';
 
 export interface CanonicalUser {
   id: UserId;
@@ -163,7 +169,25 @@ export interface Project {
     customerName: string;
     siteAddress: string;
   };
+  // --- MVP (Step 03, plan §2). All optional and additive; a missing
+  // `status` means ACTIVE (D-05). ---
+  /** Human display code `AE-####`, assigned once (D-02). */
+  displayCode?: string;
+  status?: 'ACTIVE' | 'ON_HOLD' | 'CANCELLED' | 'COMPLETED';
+  holdReason?: string;
+  holdReviewDate?: string;
+  cancelReason?: string;
+  completedAt?: string;
+  /** User ids (and `role:<role>` pools) allowed to read this order and its records. */
+  participantIds?: string[];
+  customerUserId?: string;
+  salesUserId?: string;
+  lift?: { floors?: number; stops?: number; capacity?: string; type?: string };
+  version?: number;
+  updatedBy?: string;
 }
+
+export type { MvpTask as Task, MvpBlocker as Blocker } from '../mvp/types';
 
 // ---------------------------------------------------------------------------
 // Quote / QuoteVersion / Contract

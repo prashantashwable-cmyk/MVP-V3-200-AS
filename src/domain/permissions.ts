@@ -32,7 +32,16 @@ export type Permission =
   | 'automation.publish'
   | 'user.manage'
   | 'security.manage'
-  | 'document.delete';
+  | 'document.delete'
+  // MVP (Step 03, plan §3), additive.
+  | 'order.manage'
+  | 'task.complete'
+  | 'blocker.raise'
+  | 'lead.create'
+  | 'quote.decide'
+  | 'handover.customer_approve'
+  | 'emergency.raise'
+  | 'report.read';
 
 /**
  * High-risk permissions per Phase 05's explicit list: "refunds, payouts,
@@ -60,6 +69,8 @@ const ADMIN_ALL: Permission[] = [
   'job.execute', 'qc.approve', 'handover.approve',
   'automation.publish',
   'user.manage', 'security.manage', 'document.delete',
+  'order.manage', 'task.complete', 'blocker.raise', 'lead.create', 'quote.decide',
+  'handover.customer_approve', 'emergency.raise', 'report.read',
 ];
 
 /** Base role → permission mapping. Admin gets everything (still subject
@@ -72,6 +83,7 @@ export const ROLE_PERMISSIONS: Record<CanonicalUserRole, Permission[]> = {
     'project.read', 'project.update',
     'quote.create',
     'payment.read',
+    'task.complete',
   ],
   technician: [
     'project.read',
@@ -85,6 +97,8 @@ export const ROLE_PERMISSIONS: Record<CanonicalUserRole, Permission[]> = {
     // scoped to QC duty, not a distinct role.
     'qc.approve',
     'handover.approve',
+    'task.complete',
+    'blocker.raise',
   ],
   supplier: [
     'project.read', // scoped to their own POs at the repository/rules level
@@ -93,7 +107,12 @@ export const ROLE_PERMISSIONS: Record<CanonicalUserRole, Permission[]> = {
     'project.read', // scoped to their own project at the repository/rules level
     'payment.read',
     'payment.create', // initiating their own payment only — see PaymentAttemptStatus flow
+    'task.complete', 'blocker.raise', 'quote.decide', 'handover.customer_approve', 'emergency.raise',
   ],
+  // MVP roles (D-12). Owner is read-only plus reports; money approvals stay with the Admin.
+  owner: ['project.read', 'payment.read', 'report.read'],
+  sales: ['project.read', 'lead.create', 'task.complete'],
+  qc: ['project.read', 'qc.approve', 'task.complete'],
 };
 
 export function permissionsForRole(role: CanonicalUserRole): Permission[] {

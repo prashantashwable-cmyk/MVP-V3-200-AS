@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier';export interface InternalNotificationTemplate {
+export type UserRole = 'admin' | 'surveyor' | 'technician' | 'customer' | 'supplier' | 'owner' | 'sales' | 'qc';export interface InternalNotificationTemplate {
   id: string;
   notificationTypeId: string;
   title: string;
@@ -88,6 +88,8 @@ export interface User {
   role: UserRole;
   name: string;
   phone: string;
+  /** MVP: the canonical Customer a customer login belongs to (set by invite). */
+  customerId?: string;
   authMethod?: AuthMethod;
   status: UserStatus;
   avatarUrl?: string;
