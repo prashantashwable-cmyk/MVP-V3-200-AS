@@ -55,6 +55,14 @@ if (process.env.GEMINI_API_KEY) {
 // API Routes
 // ==========================================
 
+// MVP Step 11 (audit F-7, spec §33): the Gemini routes are unauthenticated
+// and every call spends the server's Gemini key, and AI features are out
+// of Phase 1 scope. They answer 404 unless AIEC_ENABLE_GEMINI=true is set.
+app.use('/api/gemini', (req, res, next) => {
+  if (process.env.AIEC_ENABLE_GEMINI === 'true') return next();
+  res.status(404).json({ error: 'AI features are disabled in this deployment (MVP Phase 1).' });
+});
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });

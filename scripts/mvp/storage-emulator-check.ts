@@ -8,7 +8,7 @@
  *     --project demo-aie-mvp --only firestore,auth,storage "npx tsx scripts/mvp/storage-emulator-check.ts"
  */
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, ref, uploadBytes, getBytes, deleteObject, listAll, type FirebaseStorage } from 'firebase/storage';
 import { check, summary } from './assert';
@@ -34,7 +34,9 @@ async function client(name: string, email?: string): Promise<{ db: Firestore; st
   const st = getStorage(app);
   connectStorageEmulator(st, sh, Number(sp));
   if (!email) return { db, st, uid: '' };
-  return { db, st, uid: (await createUserWithEmailAndPassword(auth, email, 'password-123')).user.uid };
+  // The emulator keeps accounts for the whole run, so an earlier check may already have created this one.
+  const cred = await createUserWithEmailAndPassword(auth, email, 'password-123').catch(() => signInWithEmailAndPassword(auth, email, 'password-123'));
+  return { db, st, uid: cred.user.uid };
 }
 async function allowed(p: Promise<unknown>, msg: string) {
   try { await p; check(true, msg); } catch (e) { check(false, `${msg} — denied: ${(e as any).code ?? e}`); }

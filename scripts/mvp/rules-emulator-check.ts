@@ -9,7 +9,7 @@
  *     --project demo-aie-mvp --only firestore,auth "npx tsx scripts/mvp/rules-emulator-check.ts"
  */
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import {
   getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, type Firestore,
 } from 'firebase/firestore';
@@ -32,7 +32,8 @@ async function client(name: string, email?: string): Promise<{ db: Firestore; ui
   const db = getFirestore(app);
   connectFirestoreEmulator(db, host[0], Number(host[1]));
   if (!email) return { db, uid: '' };
-  const cred = await createUserWithEmailAndPassword(auth, email, 'password-123');
+  // The emulator keeps accounts for the whole run, so an earlier check may already have created this one.
+  const cred = await createUserWithEmailAndPassword(auth, email, 'password-123').catch(() => signInWithEmailAndPassword(auth, email, 'password-123'));
   return { db, uid: cred.user.uid };
 }
 

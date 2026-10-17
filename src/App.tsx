@@ -135,7 +135,8 @@ export default function App() {
   const [selectedTrainingModuleId, setSelectedTrainingModuleId] = useState<string>('tm_001');
   const [selectedTrainingLessonId, setSelectedTrainingLessonId] = useState<string>('les_101');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('assess_001');
-  const [activeAuthTab, setActiveAuthTab] = useState<'phone' | 'demo'>('demo');
+  // MVP Step 11 (D-13, D-20): a production build opens on secure login and offers no demo mode.
+  const [activeAuthTab, setActiveAuthTab] = useState<'phone' | 'demo'>(isDemoAuthBuild() ? 'demo' : 'phone');
   const [errorMsg, setErrorMsg] = useState('');
   const [showForgotReset, setShowForgotReset] = useState(false);
 
@@ -1456,7 +1457,7 @@ export default function App() {
 
                       {/* Tabs at the Top */}
                       <div className="p-1 flex bg-[#F8F6F1] rounded-2xl border border-[rgba(184,135,61,0.1)]">
-                        <button
+                        {isDemoAuthBuild() && <button
                           type="button"
                           onClick={() => {
                             setActiveAuthTab('demo');
@@ -1469,7 +1470,7 @@ export default function App() {
                           }`}
                         >
                           {appTranslations[appLanguage].tryDemoMode}
-                        </button>
+                        </button>}
                         <button
                           type="button"
                           onClick={() => {
@@ -1487,7 +1488,7 @@ export default function App() {
                       </div>
 
                       {/* Display Mode content */}
-                      {activeAuthTab === 'demo' ? (
+                      {activeAuthTab === 'demo' && isDemoAuthBuild() ? (
                         <div className="space-y-4">
                           <div>
                             <h3 className="font-serif text-lg font-bold text-charcoal">{appTranslations[appLanguage].aggregatorSandboxes}</h3>
@@ -1659,8 +1660,10 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {/* Secure login sub-tabs */}
-                          <div className="flex border-b border-[#e6dfd4]">
+                          {/* Secure login sub-tabs. MVP Step 11 (audit F-3): phone OTP and
+                              email/password are simulated, so a production build shows only
+                              Google sign-in. */}
+                          {isDemoAuthBuild() && <div className="flex border-b border-[#e6dfd4]">
                             <button
                               type="button"
                               onClick={() => {
@@ -1685,7 +1688,7 @@ export default function App() {
                             >
                               ✉️ Email & Password
                             </button>
-                          </div>
+                          </div>}
 
                           {errorMsg && (
                             <div className="p-3 bg-error/10 border border-error/20 text-error text-xs rounded-xl font-medium leading-tight">
@@ -1693,7 +1696,7 @@ export default function App() {
                             </div>
                           )}
 
-                          {loginMethod === 'phone' ? (
+                          {!isDemoAuthBuild() ? null : loginMethod === 'phone' ? (
                             /* PHONE OTP FLOW */
                             <div>
                               {/* Simulated Incoming SMS Push Alert — Phase 32:
