@@ -171,12 +171,13 @@ export async function listLeadsFor(ctx: RepositoryContext, actor: MvpActor): Pro
 
 export type AttentionBucket =
   | 'EMERGENCY' | 'OVERDUE' | 'BLOCKED' | 'PAYMENT_PENDING' | 'CUSTOMER_WAITING' | 'TECHNICIAN_WAITING'
-  | 'SUPPLIER_DELAY' | 'QC_FAILURE' | 'NO_NEXT_ACTION' | 'LICENCE_PENDING' | 'ON_HOLD';
+  | 'SUPPLIER_DELAY' | 'QC_FAILURE' | 'NO_NEXT_ACTION' | 'LICENCE_PENDING' | 'ON_HOLD' | 'AT_RISK';
 
 export const BUCKET_LABELS: Record<AttentionBucket, string> = {
   EMERGENCY: 'Emergency', OVERDUE: 'Overdue', BLOCKED: 'Blocked', PAYMENT_PENDING: 'Payment pending',
   CUSTOMER_WAITING: 'Customer waiting', TECHNICIAN_WAITING: 'Technician waiting', SUPPLIER_DELAY: 'Supplier delay',
   QC_FAILURE: 'QC failure', NO_NEXT_ACTION: 'No next action', LICENCE_PENDING: 'Licence pending', ON_HOLD: 'On hold',
+  AT_RISK: 'At risk (due within 24 h)',
 };
 
 export function attentionBuckets(s: OrderSummary, b: OrderBundle, now: Date): AttentionBucket[] {
@@ -198,6 +199,8 @@ export function attentionBuckets(s: OrderSummary, b: OrderBundle, now: Date): At
   const lastQc = [...b.qcRecords].sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1))[0];
   if (lastQc && lastQc.decision !== 'PASS' && (s.status === 'ON_HOLD' || b.tasks.some(t => t.type === 'REWORK' && isOpenTask(t)))) out.push('QC_FAILURE');
   if (s.licencePending) out.push('LICENCE_PENDING');
+  // D-11: Needs Attention shows every order whose health is not ON_TRACK.
+  if (s.health === 'AT_RISK' && out.length === 0) out.push('AT_RISK');
   return Array.from(new Set(out));
 }
 
@@ -225,7 +228,7 @@ export async function buildDashboard(ctx: RepositoryContext, actor: MvpActor, no
     'Payments due': items.flatMap(i => i.bundle.milestones).filter(m => m.dueDate && m.status !== 'PAID' && m.status !== 'WAIVED' && new Date(m.dueDate).getTime() <= now.getTime() + 24 * 3600e3).length,
     'AMC due': items.filter(i => i.bundle.amc && effectiveAmcStatus(i.bundle.amc, now) === 'AMC_DUE').length,
   };
-  const order: AttentionBucket[] = ['EMERGENCY', 'OVERDUE', 'BLOCKED', 'PAYMENT_PENDING', 'CUSTOMER_WAITING', 'TECHNICIAN_WAITING', 'SUPPLIER_DELAY', 'QC_FAILURE', 'NO_NEXT_ACTION', 'LICENCE_PENDING', 'ON_HOLD'];
+  const order: AttentionBucket[] = ['EMERGENCY', 'OVERDUE', 'BLOCKED', 'PAYMENT_PENDING', 'CUSTOMER_WAITING', 'TECHNICIAN_WAITING', 'SUPPLIER_DELAY', 'QC_FAILURE', 'NO_NEXT_ACTION', 'LICENCE_PENDING', 'AT_RISK', 'ON_HOLD'];
   const attention = order.map(bucket => ({
     bucket,
     orders: items.filter(i => i.summary.status !== 'CANCELLED' && attentionBuckets(i.summary, i.bundle, now).includes(bucket)).map(i => i.summary),

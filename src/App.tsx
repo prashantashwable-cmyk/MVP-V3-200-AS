@@ -16,6 +16,10 @@ import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { OperatingSurfacesHome } from './components/OperatingSurfacesHome';
 import { ProjectOperatingView } from './components/ProjectOperatingView';
 import { WorkQueueScreen } from './components/WorkQueueScreen';
+import { MvpRoutes } from './components/mvp/MvpRoutes';
+import { isMvpModeOn } from './mvp/config';
+import { mvpTabsForRole } from './mvp/navigation';
+import { DEMO_MVP_PEOPLE, registerDemoPeople } from './mvp/ui/directory';
 import { resolveEnvironment, isProductionDeploy } from './lib/environment';
 import { getDemoOtpBypassCodes, getDemoEmailIdentities, checkDemoPassword, isDemoAuthBuild, getDemoPasswordHint } from './lib/demoCredentials';
 import { createProjectCustomerSearchProvider, refreshEntitySearchCache } from './navigation/entitySearchProvider';
@@ -191,6 +195,16 @@ export default function App() {
     };
   }, []);
 
+  // MVP Step 04 (D-22): with MVP_MODE on, a tab outside the role's MVP
+  // allow-list (a login default or an old deep link) falls back to the
+  // role's first MVP tab.
+  useEffect(() => {
+    if (!currentUser || !isMvpModeOn()) return;
+    const allowed = getTabsByRole(currentUser.role);
+    if (!allowed.some(t => t.id === activeTab)) setActiveTab(allowed[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentUser?.role, activeTab]);
+
   // The page/window is what actually scrolls here (main's overflow-y-auto
   // is inert — no ancestor constrains its height), so a new page must
   // reset window scroll, not a ref on <main>.
@@ -264,6 +278,10 @@ export default function App() {
           {currentUser.role === 'customer' && <CustomerRouter {...routerProps} />}
           {currentUser.role === 'supplier' && <SupplierRouter {...routerProps} />}
           <SharedRoutes {...routerProps} />
+
+          {/* MVP Step 04 (D-22): the MVP screens. Mounted alongside the
+              legacy routers; with MVP_MODE off their tabs are not offered. */}
+          {isMvpModeOn() && <MvpRoutes user={currentUser} activeTab={activeTab} />}
 
           {/* Phase 20: five-operating-surfaces primary navigation home —
               reuses Phase 10's exact groupTabsBySurface()/aiec_switch_tab
@@ -666,7 +684,14 @@ export default function App() {
 
   const handleDemoBypass = (role: UserRole) => {
     const list = DbManager.getUsers();
-    const found = list.find(u => u.role === role) || list[0];
+    // MVP: hand the demo identities to the MVP people directory (for assignment pickers).
+    registerDemoPeople(list
+      .filter(u => ['admin', 'surveyor', 'technician', 'customer', 'supplier'].includes(u.role))
+      .map(u => ({ id: u.id, name: u.name, role: u.role as any })));
+    // MVP roles (owner, sales, qc) have no seeded legacy demo person: use the MVP demo identity.
+    const mvpDemo = DEMO_MVP_PEOPLE.find(p => p.role === role);
+    const found = list.find(u => u.role === role)
+      || (mvpDemo ? { id: mvpDemo.id, role, name: mvpDemo.name, phone: '+91 90000 00000', status: 'active' as const } as User : list[0]);
     
     // Create flagged demo session with active status and completed onboarding
     const demoUser: User = {
@@ -801,7 +826,13 @@ export default function App() {
   };
 
   // Sidebar / bottom tab items per role
-  const getTabsByRole = (role: UserRole) => {
+  // MVP Step 04 (D-22): with MVP_MODE on, each role sees only its MVP
+  // tabs (src/mvp/navigation.ts); with it off, the legacy lists below are
+  // returned unchanged. The sidebar, mobile nav and command palette all
+  // read this one function.
+  const getTabsByRole = (role: UserRole) => (isMvpModeOn() ? mvpTabsForRole(role) : getLegacyTabsByRole(role));
+
+  const getLegacyTabsByRole = (role: UserRole) => {
     switch (role) {
       case 'admin':
         return [
@@ -1599,6 +1630,27 @@ export default function App() {
                               </div>
                               <ChevronRight className="w-4 h-4 text-warmgray shrink-0" />
                             </button>
+
+                            {/* MVP Step 04: the three MVP roles, so one order can be played end to end in demo. */}
+                            {isMvpModeOn() && (['owner', 'sales', 'qc'] as UserRole[]).map(r => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => handleDemoBypass(r)}
+                                className="w-full p-3 bg-alabaster hover:bg-[#edeae2] border border-[rgba(184,135,61,0.1)] rounded-xl flex items-center justify-between text-left transition-all hover:translate-x-1 cursor-pointer"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-[#0E4B3D]/10 text-[#0E4B3D] flex items-center justify-center shrink-0">
+                                    <Shield className="w-4 h-4" />
+                                  </div>
+                                  <div className="truncate">
+                                    <h4 className="font-bold text-xs text-charcoal">{DEMO_MVP_PEOPLE.find(p => p.role === r)?.name}</h4>
+                                    <p className="text-[10px] text-warmgray truncate">{r === 'owner' ? 'Read-only owner view and reports' : r === 'sales' ? 'New leads, follow-ups, qualify' : 'QC inspections: pass, rework or fail'}</p>
+                                  </div>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-warmgray shrink-0" />
+                              </button>
+                            ))}
                           </div>
                           
                           <div className="p-3 bg-[#F8F6F1] rounded-xl border border-dashed border-[#e6dfd4] text-[10px] text-warmgray leading-relaxed">

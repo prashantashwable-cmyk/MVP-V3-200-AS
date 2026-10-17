@@ -106,6 +106,18 @@ export async function computeBlockers(ctx: RepositoryContext, projectId: Project
   return blockers;
 }
 
+/**
+ * MVP Step 04: the spec §8 Order View summary (code, stage, progress, next
+ * action, owner, due date, blocker, payment, health) for one order, as the
+ * signed-in actor may read it. The MVP Order View builds on this; the
+ * legacy `getProjectOperatingView` below is unchanged.
+ */
+export async function getMvpOrderSummary(ctx: RepositoryContext, actor: import('../mvp/types').MvpActor, orderId: string, now = new Date()) {
+  const { loadOrderBundle, summarize } = await import('../mvp/views');
+  const bundle = await loadOrderBundle(ctx, actor, orderId);
+  return bundle ? summarize(bundle, now) : null;
+}
+
 export async function getProjectOperatingView(ctx: RepositoryContext, projectId: ProjectId): Promise<ProjectOperatingView> {
   const project = await projectRepository(ctx).get(projectId);
   const customer = project ? await customerRepository(ctx).get(project.customerId) : null;

@@ -7,6 +7,8 @@ import type { RepositoryContext } from '../repository/types';
 import { projectRepository } from '../repository/entities';
 import { getProjectOperatingView, type ProjectOperatingView as ProjectOperatingViewData } from '../services/projectOperatingView';
 import type { Project } from '../domain/entities';
+import { isMvpModeOn } from '../mvp/config';
+import { MvpOrders } from './mvp/MvpOrders';
 
 /**
  * Project-centric operating view — Phase 21.
@@ -38,6 +40,12 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 export const ProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user }) => {
+  // MVP Step 04: in MVP mode the extended, task-driven Order View replaces this read-only view.
+  if (isMvpModeOn()) return <MvpOrders user={user} />;
+  return <LegacyProjectOperatingView user={user} />;
+};
+
+const LegacyProjectOperatingView: React.FC<ProjectOperatingViewProps> = ({ user }) => {
   const ctx: RepositoryContext = useMemo(
     () => ({ environment: resolveEnvironment(user), actorUserId: user.id }),
     [user],

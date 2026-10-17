@@ -3,6 +3,7 @@
  * override) plus Settings: invites (D-13), on-call (D-28), suppliers.
  * Every change is audited with before/after values (I-3).
  */
+import { getRepository } from '../../repository';
 import { isOpenTask } from '../health';
 import { newId, type Order } from '../repo';
 import { TASK_TITLES } from '../rules';
@@ -136,6 +137,17 @@ export async function inviteUser(ctx: ServiceCtx, email: string, role: MvpRole, 
   if (existing) await r.update(id, rec, existing.version ?? 0);
   else await r.create({ ...rec, version: 0 });
   await audit(ctx, 'USER_INVITED', 'Invite', id, undefined, existing ? { role: existing.role } : undefined, { role, customerId });
+}
+
+/** The Admin sets the role of someone who signed in without an invite (D-13). */
+export async function setUserRole(ctx: ServiceCtx, userId: string, role: MvpRole, customerId?: string): Promise<void> {
+  admin(ctx, 'set roles');
+  if (role === 'customer' && !customerId) throw new MvpError('invalid', 'Choose the customer this login belongs to.');
+  const r = getRepository<any>('users', ctx.repo);
+  const u = await r.get(userId);
+  if (!u) throw new MvpError('not_found', 'User not found.');
+  await r.update(userId, { role, status: 'active', customerId: customerId ?? null, onboardingCompleted: true, primer_shown_flag: true });
+  await audit(ctx, 'USER_ROLE_CHANGED', 'User', userId, undefined, { role: u.role }, { role, customerId });
 }
 
 export async function upsertSupplier(ctx: ServiceCtx, input: Omit<MvpSupplier, 'id' | 'createdAt' | 'updatedAt' | 'version'> & { id?: string }): Promise<MvpSupplier> {

@@ -384,6 +384,13 @@ async function main() {
   const again = await svc.qualifyLead(sales, lowLead.id);
   eq(again.id, lowOrder.id, 'qualifying the same lead twice returns the same order (idempotent)');
 
+  // D-11: every order whose health is not ON_TRACK shows in Needs Attention.
+  const finalDash = await buildDashboard(repo, admin.actor, clock.now);
+  const listed = new Set(finalDash.attention.flatMap(a => a.orders.map(o => o.id)));
+  for (const row of finalDash.rows.filter(x => x.status !== 'CANCELLED' && x.health !== 'ON_TRACK')) {
+    check(listed.has(row.id), `D-11: ${row.displayCode} (${row.health}) is in Needs Attention`);
+  }
+
   summary('mvp scenarios check');
 }
 

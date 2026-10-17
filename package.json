@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "mvp:checks": "tsx scripts/mvp/pure-check.ts && tsx scripts/mvp/rules-check.ts && tsx scripts/mvp/scenarios-check.ts",
+    "mvp:checks": "tsx scripts/mvp/pure-check.ts && tsx scripts/mvp/rules-check.ts && tsx scripts/mvp/scenarios-check.ts && tsx scripts/mvp/navigation-check.ts",
     "mvp:emulator:inner": "tsx scripts/mvp/rules-emulator-check.ts && tsx scripts/mvp/service-emulator-check.ts",
     "mvp:emulator": "npx -y firebase-tools@15.31.0 emulators:exec --config firebase.emulator.json --project demo-aie-mvp --only firestore,auth \"npm run mvp:emulator:inner\"",
     "domain:check": "tsx scripts/domain-graph-check.ts",

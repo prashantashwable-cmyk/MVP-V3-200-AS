@@ -25,13 +25,27 @@ export async function getOrCreateFirestoreUser(firebaseUser: FirebaseUser): Prom
   // Owner/Founder email auto-maps to the admin role on first real sign-in.
   const isOwner = email === 'prashantashwable@gmail.com';
 
+  // MVP Step 04 (D-13): an Admin invite decides the role (and, for a
+  // customer, which customer record the login belongs to). The rules only
+  // accept exactly the invited role; without an invite the user waits as
+  // 'pending_selection' until the Admin assigns one.
+  let invite: { role: User['role']; name?: string; customerId?: string } | null = null;
+  if (!isOwner && email) {
+    const inv = await getDoc(doc(db, 'user_invites', email)).catch(() => null);
+    if (inv?.exists()) invite = inv.data() as any;
+  }
+
   const newUser: User = stripUndefined({
     id: firebaseUser.uid,
-    role: isOwner ? 'admin' : ('pending_selection' as any),
-    name: firebaseUser.displayName || 'Google User',
+    role: isOwner ? 'admin' : invite ? invite.role : ('pending_selection' as any),
+    name: firebaseUser.displayName || invite?.name || 'Google User',
     phone: firebaseUser.phoneNumber || '',
     email,
-    status: isOwner ? 'active' : 'pending',
+    status: isOwner || invite ? 'active' : 'pending',
+    customerId: invite?.customerId,
+    // Invited people skip the legacy onboarding wizards (their role is already set).
+    onboardingCompleted: invite ? true : undefined,
+    primer_shown_flag: invite ? true : undefined,
     avatarUrl: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
   });
 
