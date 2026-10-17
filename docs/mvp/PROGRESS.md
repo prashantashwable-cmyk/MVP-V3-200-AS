@@ -4,15 +4,15 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 00 Bootstrap and baseline
-- **Next step:** 01 AUDIT is written and awaits approval. Then 02 PLAN
-- **Blocked on Owner:** approve the Step 01 audit and answer its §8 questions
+- **Last completed step:** 01 Audit (approved 2026-10-17)
+- **Next step:** 02 PLAN (`docs/mvp/prompts/02_PLAN.md`)
+- **Blocked on Owner:** — (optional: confirm or change the audit §8 defaults, especially Q2, the live deployment)
 
 ## Step status
 | Step | Title | Status | PR | Date | Notes |
 |---|---|---|---|---|---|
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
-| 01 | Audit (Phase A) | AWAITING APPROVAL | PR #27 | 2026-10-16 | `MVP_SIMPLIFICATION_AUDIT.md` written; 10 Owner questions |
+| 01 | Audit (Phase A) | DONE | PR #27 | 2026-10-17 | Approved without changes; §8 defaults stand |
 | 02 | Plan (Phase B) | TODO | | | Needs Owner approval |
 | 03 | Data foundation | TODO | | | |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
@@ -89,7 +89,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Added emulator-only config (D-19): `firebase.emulator.json` (Auth 9099, Firestore 8080, Storage 9199, UI off, uses the existing `firestore.rules`) and `emulator/storage.rules`. These always run under the `demo-aie-mvp` project ID, so they cannot reach a real project. There is no `firebase.json` or `.firebaserc`, and no production Firebase setting was changed.
 - No application code changed. No `live-*` script was run.
 
-### Step 01: Audit (2026-10-16, awaiting approval)
+### Step 01: Audit (2026-10-16; approved 2026-10-17)
 - Read-only on application code. Wrote `docs/mvp/MVP_SIMPLIFICATION_AUDIT.md` and corrected 9 rows of `REUSE_MAP.md` in place (marked *(Step 01)*).
 - Ran in the same session and PR as the Order View design input (PR #27), because this session has one branch.
 - Method: a scan of all 194 `src/components/*.tsx` files for `DbManager`, canonical and bridge usage and router mounting, plus targeted reads. Result: 142 `DbManager` screens, 16 bridged, 3 canonical, 50 with no store; 189 routed.
@@ -102,3 +102,4 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
   - **F-3:** phone OTP and email/password logins are simulated
 - Read-only Vercel lookup: 9 projects in the team, none Git-linked to this repo (Owner question 2).
 - Checks: none run (docs only; no application code changed). No `live-*` script was run.
+- **Approval (2026-10-17):** the Owner replied "Approved" with no changes, so the audit stands as written. The Owner didn't answer the §8 questions individually, so each one's stated default applies until the Owner changes it. DECISIONS.md is unchanged; Step 02 decides on the 7 recommended changes (audit §6) and freezes them.

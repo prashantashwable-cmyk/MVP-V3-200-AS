@@ -1,6 +1,6 @@
 # MVP SIMPLIFICATION AUDIT (Step 01, Phase A)
 
-> **Status:** awaiting Owner approval.
+> **Status:** APPROVED by the Owner on 2026-10-17, without changes. The §8 defaults stand until the Owner says otherwise. Step 02 folds the §6 recommendations into DECISIONS.md when it freezes them.
 > **Taken on:** 2026-10-16, at `main` `c34e8d0`. Read-only on application code.
 > **Method:** every claim below comes from reading the code or running a scan. Numbers marked *(scan)* come from a script that checked each of the 194 files in `src/components/` for:
 > - `DbManager.` calls
