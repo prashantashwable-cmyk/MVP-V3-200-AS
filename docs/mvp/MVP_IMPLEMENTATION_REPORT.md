@@ -79,11 +79,11 @@ Everything in `docs/mvp/future/`, plus these follow-ups found during the build:
 | `npm run mvp:checks` | Pure functions (52), D-08 table (30), scenarios S1–S7, S9, S10 with invariants I-1..I-6 after every step (753), navigation (17) | 852/852 PASS |
 | `npm run mvp:emulator` | S8 Firestore rules (39), S1 through the real service + real rules + real sign-ins (44), Storage rules (16) | 99/99 PASS |
 | 42 non-live legacy checks | Regression | 42/42 PASS |
-| Browser drive (Chromium, demo mode, see PR) | S1 end to end through the UI as 7 different people, plus emergency, blocker and cancel | see PR |
+| `scripts/mvp/ui-drive.cjs` (Chromium, demo build) | S1 end to end through the UI as 7 different people, plus S9 emergency, S3 blocker, S6 cancel, I-5 on the customer screen | 17/17 steps PASS |
 
 ## 11. Known issues
 - **Storage reads use capability links:** see §7 item 2 and `storage.rules`. Re-test on the live project after deploy.
-- **Production builds still show "Try as Role":** the Step 11 change that hides it in production builds may not have landed; see PROGRESS. Demo data never reaches Firestore either way.
+- **Login in production builds:** Google sign-in only. "Try as Role" and the simulated OTP and password logins appear only in demo builds (`VITE_APP_ENV` not `production`).
 - **Step size:** Steps 03 and 04 exceeded the "~25 files / 1,500 lines" guideline. They were kept whole at the Owner's request not to stop.
 - **Not tested against the real project:** nothing ran against `dogwood-torus-v71nt` (D-19). The Firestore and Storage rules must be deployed by the Owner and then smoke-tested with test logins (go-live checklist).
 - **Translations:** Marathi and Hindi MVP strings cover the field and customer actions and need native review. Admin screens are English.
@@ -99,3 +99,17 @@ Everything in `docs/mvp/future/`, plus these follow-ups found during the build:
 8. AMC visit scheduling with service checklists.
 9. Offline mode for technicians (reuse `src/offline/outbox.ts` with the Storage transport).
 10. Simple charts on the Owner view (monthly booked and collected).
+
+## 13. Go-live checklist (Step 14, Owner-run)
+1. **Answer the audit §8 questions.** The defaults apply until then. In particular, confirm the live deployment (Vercel `v3-200-ai-studio`?) and Firebase admin access.
+2. **Back up:** export Firestore from the Firebase console.
+3. **Deploy the rules to `dogwood-torus-v71nt`:** `firestore.rules` and `storage.rules`, with the Firebase CLI from a trusted machine, never from an automated session.
+4. **Build for production:** set `VITE_APP_ENV=production` in the live build. Confirm the login screen shows only Google, and run `npm run production-bundle-bypass:check`.
+5. **Settings:** in *Team & settings*, invite the real staff (Admin, Owner, sales, surveyor, technicians, QC). Set the emergency number ⚖. Leave GST empty until a CA confirms it ⚖. Choose the survey fee (0 = off).
+6. **Backfill old orders:** dry run first (`npx tsx scripts/mvp/backfill.ts --emulator` on an emulator export), then apply only if needed.
+7. **Smoke test with test logins:**
+   - Each role sees only its tabs.
+   - A customer sees only their own order, with no cost.
+   - A technician can upload a photo, and QC can open it (this verifies Storage on the live project).
+8. **Rehearse:** run `OWNER_UAT_SCRIPT.md` part B with a test order, then cancel it ("UAT test").
+9. **First real lift:** create the real lead, and watch the dashboard's Needs Attention every morning.
