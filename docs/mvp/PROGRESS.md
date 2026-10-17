@@ -4,8 +4,8 @@
 > The Owner can also write notes here, for example approvals or changed decisions.
 
 ## Current position
-- **Last completed step:** 01 Audit (approved 2026-10-17)
-- **Next step:** 02 PLAN (`docs/mvp/prompts/02_PLAN.md`)
+- **Last completed step:** 02 Plan (2026-10-17)
+- **Next step:** 03 Data foundation
 - **Blocked on Owner:** — (optional: confirm or change the audit §8 defaults, especially Q2, the live deployment)
 
 ## Step status
@@ -13,7 +13,7 @@
 |---|---|---|---|---|---|
 | 00 | Bootstrap and baseline | DONE | MVP Step 00 draft PR | 2026-09-24 | Baseline all green; emulator works |
 | 01 | Audit (Phase A) | DONE | PR #27 | 2026-10-17 | Approved without changes; §8 defaults stand |
-| 02 | Plan (Phase B) | TODO | | | Needs Owner approval |
+| 02 | Plan (Phase B) | DONE | PR #27 | 2026-10-17 | Owner: "Don't stop until the build is finished", so treated as approved |
 | 03 | Data foundation | TODO | | | |
 | 04 | Order View, Admin dashboard, MVP_MODE | TODO | | | |
 | 05 | Leads, Sales and Survey | TODO | | | |
@@ -70,6 +70,12 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 ## Decision changes (Owner-approved deviations from DECISIONS.md)
 | Date | Decision | Change | Why |
 |---|---|---|---|
+| 2026-10-17 | D-04 | Leads go in the new `canonical_leads` collection | No mixed shapes in the legacy `leads` collection (plan §10) |
+| 2026-10-17 | D-13 | Google only in production; roles by Admin invite | Audit F-1, F-2, F-3 |
+| 2026-10-17 | D-12 | `qc.approve` added to `qc`, kept on technician | Additive only |
+| 2026-10-17 | D-14 | New `payment_milestones` collection | Per-milestone status and proof |
+| 2026-10-17 | D-16 | Storage built, not reused | Audit F-6 |
+| 2026-10-17 | D-31 | Task panels in the Order View instead of rewiring ★ screens | Plan §1 |
 
 ## Open issues / known gaps
 | # | Issue | Found in step | Severity | Plan |
@@ -103,3 +109,7 @@ Taken on 2026-09-24 at `main` `fc505b8`, with no application code changed.
 - Read-only Vercel lookup: 9 projects in the team, none Git-linked to this repo (Owner question 2).
 - Checks: none run (docs only; no application code changed). No `live-*` script was run.
 - **Approval (2026-10-17):** the Owner replied "Approved" with no changes, so the audit stands as written. The Owner didn't answer the §8 questions individually, so each one's stated default applies until the Owner changes it. DECISIONS.md is unchanged; Step 02 decides on the 7 recommended changes (audit §6) and freezes them.
+
+### Step 02: Plan (2026-10-17)
+- Wrote `docs/mvp/MVP_REFACTOR_PLAN.md`: architecture, additive data model, role matrix, rules automation, screen plan, hide plan, check plan, step breakdown, manual list, frozen decisions and risks.
+- The Owner told me to continue through the build without stopping, so the plan is treated as approved. The steps run in this one session and all commits go into PR #27.
